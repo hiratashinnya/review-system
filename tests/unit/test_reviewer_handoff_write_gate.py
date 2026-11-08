@@ -34,6 +34,26 @@ class TestReviewerHandoffWrite(unittest.TestCase):
     def test_reviewer_may_write_its_handoff_file(self):
         self.assertIsNone(self._write("pr-reviewer", self.root / "tmp/_handoff/pr-reviewer--k1.md"))
 
+    def test_reviewer_write_requires_exact_directory_and_filename(self):
+        for target, reason in (
+            ("docs/_handoff/pr-reviewer--k.md", "直下ではない"),
+            ("tmp/x/_handoff/pr-reviewer--k.md", "直下ではない"),
+            ("tmp/_handoff/pr-reviewer--a b.md", "ファイル名が"),
+            ("tmp/_handoff/pr-reviewer--a;b.md", "ファイル名が"),
+            ("tmp/_handoff/pr-reviewer--a$(b).md", "ファイル名が"),
+            ("tmp/_handoff/pr-reviewer--日本.md", "ファイル名が"),
+            ("tmp/_handoff/pr-reviewer---x.md", "ファイル名が"),
+            ("tmp/_handoff/pr-reviewer--_x.md", "ファイル名が"),
+            ("tmp/_handoff/pr-reviewer--.x.md", "ファイル名が"),
+            ("tmp/_handoff/pr-reviewer--.md", "ファイル名が"),
+        ):
+            with self.subTest(target=target):
+                result = self._write("pr-reviewer", self.root / target)
+                self.assertTrue(self._denied(result))
+                self.assertIn("パス不正", self._reason(result))
+                self.assertIn(reason, self._reason(result))
+        self.assertIsNone(self._write("pr-reviewer", self.root / "tmp/_handoff/pr-reviewer--A0._-z.md"))
+
     def test_reviewer_writes_elsewhere_are_denied(self):
         _ = self.root / "tmp" / "elsewhere.md"
         (self.root / "tmp" / "_karte").mkdir()
@@ -65,6 +85,15 @@ class TestReviewerHandoffWrite(unittest.TestCase):
 
     def test_missing_tool_input_is_denied(self):
         self.assertTrue(self._denied(decision(dict(agent_type="pr-reviewer", tool_name="Write"))))
+
+    def test_non_string_file_path_is_reported_as_invalid_input(self):
+        for value in (None, 42, [], {}):
+            with self.subTest(value=value), contextlib.redirect_stderr(io.StringIO()) as err:
+                result = decision(dict(agent_type="pr-reviewer", tool_name="Write",
+                                       tool_input={"file_path": value}))
+                self.assertIn("入力不正", self._reason(result))
+                self.assertNotIn("ゲート自体の故障", self._reason(result))
+                self.assertEqual("", err.getvalue())
 
     def _reason(self, result):
         return result["hookSpecificOutput"]["permissionDecisionReason"]

@@ -1,7 +1,7 @@
-"""検査を順に通し、すべて通ったときだけ `codex exec` を起動する。
+"""検査後に `codex exec` を起動する。
 
-検査に通らなければ `codex_worktree_exec: <識別子>: <詳細>` を stderr に1行出して 2 を返す。
-timeout は 124、起動できた場合は Codex の終了コードをそのまま返す。
+通常ロールはCodex終了コードを透過する。pr-reviewerは出力を透過せず、Codex実行と
+karte取り込みの成功を0、失敗を2で返す。検査拒否も2、timeoutは124。
 """
 
 from __future__ import annotations
@@ -10,6 +10,8 @@ import os
 import sys
 from pathlib import Path
 from typing import Mapping, Sequence
+
+from karte import paths
 
 from .arguments import parse_request
 from .artifact_binding import verify_artifact_binding
@@ -20,6 +22,8 @@ from .nesting_guard import refuse_nested_launch
 from .profile_pin import verify_profile_pinned
 from .project_trust import codex_home, verify_project_trusted
 from .prompt_files import read_prompt, resolve_output_target
+from .review_handoff import ingest_codex_output
+from .review_target import capture_target
 from .worktree_binding import bind_worktree
 
 EXIT_REFUSED = 2
@@ -34,16 +38,29 @@ def _launch(
     worktree = bind_worktree(request.worktree, cwd)
     verify_profile_pinned(worktree, request.role)
     verify_project_trusted(worktree, codex_home(environ))
-    verify_artifact_binding(request, cwd, worktree)
+    expected_issue = verify_artifact_binding(request, cwd, worktree)
     body = read_prompt(request.prompt_file, cwd, worktree)
     output_file = resolve_output_target(request.output_file, cwd, worktree)
-    return run_codex(
+    is_reviewer = request.role == "pr-reviewer"
+    launch_target = None
+    if is_reviewer and output_file.exists():
+        raise CodexExecError("CODEX_EXEC_OUTPUT_INVALID", "pr-reviewer output file must be new")
+    if is_reviewer:
+        launch_target = capture_target(
+            paths.main_worktree_root(worktree), expected_issue
+        )
+    result = run_codex(
         build_codex_argv(request, worktree, output_file, codex),
         compose_prompt(request.role, worktree, body),
         cwd=worktree,
         timeout_seconds=request.timeout_seconds,
         environ=environ,
+        quiet=is_reviewer,
     )
+    if not is_reviewer:
+        return result
+    print(ingest_codex_output(worktree, output_file, expected_issue, launch_target))
+    return 0
 
 
 def main(

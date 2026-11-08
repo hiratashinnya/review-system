@@ -99,8 +99,40 @@
 **Write 許可を `permissions.deny` でなくフックで行う理由**：Write 専用の deny エントリは効かない（Edit 規則が Write も
 覆う・PR #688）。フックは realpath・symlink・`..`・ファイル名を検査し、検査不能は拒否する。
 
-**残る限界**：`agent_type` の詐称と静的検査の限界は #129 と同じ。Codex の `pr-reviewer` は Write を持たないため
-従来経路（主文脈が `ingest-review`）のまま。`gh pr comment --body-file` の許可は見送った（別途検討）。
+**残る限界**：`agent_type` の詐称と静的検査の限界は #129 と同じ。Codex 本体には Write と karte verb を許可しない。
+Codex 経由の取り込みは下記の外側 wrapper 経路を使い、既存bindingを用意できない通常レビューの起動条件は未確認として扱う。
+`gh pr comment --body-file` の許可は見送った（別途検討）。
+
+## Codex 出力を外側 wrapper で取り込む案B（Issue #375・オーナー承認）
+
+Issue #375 の目的は「カルテ登録から主文脈の仲介をなくす」ことであり、Claude/Codex の違いで目的を変えない。
+Claude の `pr-reviewer` は既存の `ingest-reviewer` を自分で実行できる。一方、Codex は read-only profileで
+`karte` の書込も gate で拒否されるため、自分で取り込めない。
+
+**採用した流れ**：Codex が `--role pr-reviewer` で正常終了した後、trusted な `codex_worktree_exec` wrapper が
+`--output-last-message` の bytes を UTF-8 として読み、主 checkout の `tmp/_karte/active.json` と台帳の最新 round を
+照合する。Issue は承認済み binding の `expected.issue` と起動時・取り込み直前のポインタを照合し、
+round も起動時と取り込み直前で一致を要求する。ヘッダの Issue と次 round は起動時ポインタから決める。
+wrapper は `karte/handoff_path.py` の許可名で handoff を作り、本文は加工せず、目印行が無ければ先頭に付けて、
+既存 `ingest-reviewer` CLI を子プロセスで実行する。
+Codex 本文に header がある場合は既存照合で一致を要求し、重複・不一致を拒否する。本文は解析・要約・書換えをせず、
+別の LLM にも渡さない。呼び出し側には `取り込み済み: <path> (issue-N round R)` の1行と karte の警告行だけを返し、判定の要約は含めない。Codex 非ゼロ、空出力、pointer不在/不一致、
+header・parse・保存・ID/round検査・取り込みの失敗は非ゼロで返し、runを完了扱いにしない。他ロールは従来動作のまま。
+
+**信頼境界**：`.codex/config.toml` の read-only/network無効 profile、`agent-command-gate` の拒否表、
+`pr-reviewer`×karte拒否を変更せず、Codexには台帳もhandoffも書かせない。外側 wrapper は既存の handoff 名検査、
+pointer/header照合、`ingest-reviewer` の全検証を通すだけの受け渡し役で、owner判断を追加しない。
+
+**起動条件**：既存の承認済み工程レビューでは、trusted caller が primary checkout から
+`python3 -m issue_start.readonly_workspace --source <primary> --approval-file <approval> --role pr-reviewer -C <登録済みlinked worktree> ...`
+を実行する。readonly入口が承認・artifact binding・入力を検査してから linked cwd で executor を起動するため、D5 の
+`-C` と cwd toplevel の一致が保たれる。primary checkout から `codex_worktree_exec` を直接起動しない。
+既存 wrapper は `pr-reviewer` 用の trusted artifact binding も必須とする。bindingのない一般 PR review に対する
+起動手順は確認できておらず、信頼検査を緩めて補わない。
+
+**却下案**：案A（Codexへ書込profileやkarte権限を足す）はread-only境界を破るので採らない。案C（Codex本文を
+主文脈に返し、主文脈が解釈・整形して ingest-review する）は仲介を残し、転記時の意味変更・取りこぼしを作るため採らない。
+案Bなら外側でファイル bytes を直接使い、trusted CLI の既存検証へ接続できる。
 
 ## `gh pr checkout` を「戻す契約」ではなく「切り替えない」で塞いだ根拠（Issue #502 観測2）
 
@@ -324,3 +356,31 @@ Codex の `gitgate show-pr-diff` は大きな差分を `tmp/pr-diffs/` に保存
 残余リスク（F-530-23、オーナー判断待ち）：同形式の任意ファイルを読めることに加え、ゲートが no-follow で通常ファイルと確認した後に fd を閉じ、後続の `rtk sed` が開く前にパスを symlink へ差し替えられる TOCTOU の窓がある（F-530-22）。許容の判断はオーナー判断待ちである。
 
 フックが未信頼でゲートが動作していなかった経緯は F-530-21 で別扱いとし、本 finding の是正範囲には含めない。
+
+## 保護モードでの二経路の併用（PR #697 見直し）
+
+初期案は `ingest-reviewer` を使った Issue の `ingest-review` を拒否し、専権キーも取り込みごと
+拒否した。しかし実装・是正担当の `out_of_scope_findings` は主文脈の `ingest-review` で取り込む
+契約のため、その経路を塞いでいた。さらに K-06 の再掲必須は範囲外指摘だけの追加を拒んだ。
+
+オーナーは完全な入力を一度で要求しない方針を承認した。申告原本がある Issue の両経路を
+保護モードとし、finding ブロック内の専権キーは空値も無視して警告する。前書きの専権キーは
+構文エラーとして拒否する。値を保存しないためオーナー決定を守り、未決の finding は verdict ゲートに
+残る。再掲されなかった open finding は警告して未解消のまま引き継ぐ。不在を解消と扱わず、解消には
+明示の `status: resolved` を要求するため、保護モードだけで K-06 の拒否を緩めても未解消を隠さない。
+入力先を誤らせるパス・ヘッダや解釈不能な書式は引き続き拒否する。
+
+経路ごとの更新権限は異なる。レビューア本人の `ingest-reviewer` は既存 finding を再掲して
+`scope` / `status` を更新できる。ポインタ遅延により同じ round へ追記する場合は `--round` を明示する。
+主文脈の保護 `ingest-review` は実装・是正担当からの範囲外指摘など新規 finding の追記専用とし、
+既存 ID の再掲が1件でもあれば全件拒否して何も書かない。既存指摘の変更は `decide` または
+レビューア本人の取り込み経路に委ねる。未再掲の open finding は従来どおり引き継ぐ。
+
+新 verb は採らず、既存の主文脈専用 `ingest-review` に保護を適用する。許可表を拡げずに既存の
+運用手順を復旧できるためである。範囲外指摘の追記では最新 round を明示し、レビュー round を
+消費しない。ポインタが遅れて省略 round が台帳の最新値と一致すれば、主文脈経路はその同じ round に
+追記する。申告原本はレビューアの申告に限り、主文脈の追加を混ぜない。オーナー scope 印を原本へ
+保存した後の台帳書込みが失敗しても、次の保護取り込みは印の値を台帳へ再適用する。
+Codex の `pr-reviewer` gate には karte verb が許可されない。Codex 経路では外側 wrapper が
+`ingest-reviewer` を実行し、権限表は広げない（案Bの詳細は前述）。
+申告原本がない従来経路は従来どおり毎ラウンド上書き・再掲必須を維持する。

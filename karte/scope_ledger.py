@@ -11,30 +11,36 @@ from . import scope_records
 from .scope_records import OWNER, exists  # noqa: F401  — exists は呼び出し側が参照する
 
 
-def _latest(issue, repo_root, *, owner: bool) -> dict:
+def _latest(issue, repo_root, *, owner: bool, records=None) -> dict:
     latest = {}
-    for _line, (_round, finding_id, scope, by) in scope_records.read_records(issue, repo_root):
+    if records is None:
+        records = scope_records.read_records(issue, repo_root)
+    for _line, (_round, finding_id, scope, by) in records:
         if (by == OWNER) == owner:
             latest[finding_id] = scope
     return latest
 
 
-def latest_declared(issue, repo_root) -> dict:
-    """finding ID -> 直近のレビューア申告 scope（オーナーの印は含まない）。"""
-    return _latest(issue, repo_root, owner=False)
-
-
-def owner_scopes(issue, repo_root) -> dict:
+def owner_scopes(issue, repo_root, *, records=None) -> dict:
     """finding ID -> 直近のオーナー確定 scope（``decide --scope`` で印を残したもの）。"""
-    return _latest(issue, repo_root, owner=True)
+    return _latest(issue, repo_root, owner=True, records=records)
 
 
-def record_declared(issue, repo_root, round_no, declared) -> None:
+def record_declared(issue, repo_root, round_no, declared, *, records=None) -> None:
     """``declared``（finding ID -> scope）を 1 ラウンド分追記する。"""
-    scope_records.append_lines(issue, repo_root, [
+    if records is None:
+        records = scope_records.read_records(issue, repo_root)
+    existing = {
+        fid: scope for _line, (record_round, fid, scope, by) in records
+        if record_round == round_no and not by
+    }
+    lines = [
         json.dumps({"round": round_no, "id": fid, "scope": scope}, ensure_ascii=False)
         for fid, scope in sorted(declared.items())
-    ])
+        if existing.get(fid) != scope
+    ]
+    if lines:
+        scope_records.append_lines(issue, repo_root, lines, records=records)
 
 
 def record_owner(issue, repo_root, round_no, finding_id, scope) -> None:

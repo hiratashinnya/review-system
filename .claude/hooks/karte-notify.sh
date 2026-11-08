@@ -6,17 +6,17 @@
 # ctx_execute/ctx_batch_execute 経由でも同じ karte verb が実行されうるため
 # （`.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」）。
 #
-# 対象外コマンド（karte ingest-review/close-attempt を含まない全ての呼び出し）は
+# 対象外コマンド（karte ingest-review/ingest-reviewer/close-attempt/decide とpr-reviewer wrapper以外の呼び出し）は
 # 無出力 exit 0。本フックは統制（deny）を一切行わない可視化専用の助言機構であり、
 # 失敗しても作業を止めない（fail-open。診断は stderr へ・`claude --debug` で拾える）。
 #
 # stdin の事前フィルタ（Issue #512 是正・F-512-07）: トリガー語（ingest-review／close-attempt／
-# decide。`ingest-reviewer` は `ingest-review` に含まれる）を含まない
+# decide／Codex reviewer wrapper）を含まない
 # stdin では python を起動しない。`karte` と verb をそれぞれ独立に見る（AND）のは、
 # `TRIGGER_RE` が `karte` と verb の間に複数空白・タブを許すため（連結語で見ると偽陰性）。
 # `decide` だけを含む無関係な呼び出し（`karte` を含まない）では起動しない。
-# python 側の `trigger.TRIGGER_RE` はこの3語のいずれかを部分文字列として要求するため、shell 側の
-# 部分文字列検査で「無ければ python 側も必ず不一致」と言え、誤って早期 exit する
+# python 側は karte verb と、行ごとの区切り処理を含むCodex wrapperのrole判定で最終判定する。
+# shell 側の部分文字列検査でどちらの marker も無ければ不一致と判断できるため、誤って早期 exit する
 # （偽陰性）ことはない——unrelated な Bash/ctx 呼び出しごとに python インタプリタを
 # 起動するコストだけを削る最適化であり、判定ロジック自体はここに複製しない。
 #
@@ -31,11 +31,11 @@ cd "$PROJECT_ROOT" || exit 0
 
 payload="$(cat)"
 case "$payload" in
-  *karte*) ;;
+  *karte*|*codex_worktree_exec*|*issue_start.readonly_workspace*) ;;
   *) exit 0 ;;
 esac
 case "$payload" in
-  *ingest-review*|*close-attempt*|*decide*) ;;
+  *ingest-review*|*close-attempt*|*decide*|*codex_worktree_exec*|*issue_start.readonly_workspace*) ;;
   *) exit 0 ;;
 esac
 

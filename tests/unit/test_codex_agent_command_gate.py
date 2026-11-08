@@ -1203,8 +1203,8 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_denied(run_gate(payload("issue-fixer", command)))
 
-    def test_karte_module_is_exclusive_to_issue_fixer(self):
-        # カルテの書き手を issue-fixer に一本化する設計（Issue #308）を層2 で機械的に担保する。
+    def test_fixer_karte_verbs_are_exclusive_to_issue_fixer(self):
+        # 是正用 verb を issue-fixer に限る。
         for verb in ["render --issue 308", "append --issue 308", "status --issue 308"]:
             with self.subTest(verb=verb):
                 self.assert_allowed(run_gate(payload("issue-fixer", f"python3 -m karte {verb}")))
@@ -1415,6 +1415,33 @@ class CodexAgentCommandGateTests(unittest.TestCase):
                          "decide --finding F-1-01 --scope out", "activate --issue 1"]:
                 with self.subTest(role=role, verb=verb):
                     self.assert_denied(run_gate(payload(role, f"python3 -m karte {verb}")))
+
+    def test_all_gated_roles_have_explicit_karte_verb_permissions(self):
+        from issue_start.gated_roles import GATED_ROLES
+
+        expected = {
+            "ac-designer": set(), "change-planner": set(), "test-writer": set(),
+            "issue-implementer": set(),
+            "issue-fixer": {"render", "append", "close-attempt", "check", "status"},
+            "issue-investigator": set(), "plan-reviewer": set(),
+            "pr-reviewer": set(), "adviser": set(),
+        }
+        verbs = ("ingest-reviewer", "ingest-review", "decide", "activate", "render",
+                 "append", "close-attempt", "check", "status")
+        self.assertEqual(set(expected), GATED_ROLES)
+        for role, allowed in expected.items():
+            for verb in verbs:
+                with self.subTest(role=role, verb=verb):
+                    result = run_gate(payload(role, f"python3 -m karte {verb}"))
+                    if verb in allowed:
+                        self.assert_allowed(result)
+                    else:
+                        self.assert_denied(result)
+                        assert result is not None
+                        reason = result["hookSpecificOutput"]["permissionDecisionReason"]
+                        expected_reason = ("`python3 -m karte` only allows" if role in {"issue-fixer"}
+                                           else "`python3` is only allowed in the form")
+                        self.assertIn(expected_reason, reason)
 
     def test_bare_karte_and_unknown_karte_verbs_are_denied(self):
         for command in [

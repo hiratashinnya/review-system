@@ -9,9 +9,10 @@ import re
 from typing import Any, Mapping
 
 from karte import paths as karte_paths
+from .codex_reviewer_trigger import is_codex_reviewer
 
-# `-m karte` 経由の module 起動だけを見る。エイリアス・別実行形は対象外
-# （取りこぼしても fail-open で実害が小さい方に倒す）。
+# `-m karte` の対象verbと、pr-reviewerに限るCodex外側wrapperを見る。
+# エイリアス・別実行形は対象外（取りこぼしても fail-open で実害が小さい方に倒す）。
 TRIGGER_RE = re.compile(
     r"\bpython3?\s+-m\s+karte\s+(ingest-reviewer|ingest-review|decide|close-attempt)\b"
 )
@@ -28,7 +29,11 @@ SUPPORTED_TOOL_NAMES = (BASH_TOOL, CTX_EXECUTE_TOOL, CTX_BATCH_EXECUTE_TOOL)
 def detect_trigger(command: str) -> str | None:
     """``command`` が通知契機の karte verb の実行なら verb 名を返す。"""
     match = TRIGGER_RE.search(command)
-    return match.group(1) if match else None
+    return match.group(1) if match else "ingest-reviewer" if _is_codex_reviewer(command) else None
+
+
+def _is_codex_reviewer(command: str) -> bool:
+    return is_codex_reviewer(command)
 
 
 def extract_commands(tool_name: str, tool_input: Mapping[str, Any]) -> list[str]:
@@ -46,11 +51,8 @@ def extract_commands(tool_name: str, tool_input: Mapping[str, Any]) -> list[str]
     if tool_name == CTX_BATCH_EXECUTE_TOOL:
         commands = tool_input.get("commands")
         items = commands if isinstance(commands, list) else []
-        return [
-            item["command"]
-            for item in items
-            if isinstance(item, Mapping) and isinstance(item.get("command"), str)
-        ]
+        return [item["command"] for item in items
+                if isinstance(item, Mapping) and isinstance(item.get("command"), str)]
     return []
 
 

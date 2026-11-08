@@ -55,7 +55,7 @@ Issue単位1本のkarteへ連番roundで取り込む方法は、下記の取り�
 
 レビュー checklist として、[プロジェクト共通 guidance の「コード構築原則（Issue #539）」](../guidance/common.md#コード構築原則issue-539) を差分と実体へ適用する。
 
-レビュー指摘は、自由記述ではなく次の形式で1指摘1ブロックにする。取り込み方は実行環境で分かれる。書込経路を持つ Claude Code では、本ロール自身がレポート全文を `tmp/_handoff/pr-reviewer--<key>.md`（書込先は主チェックアウトの絶対パス）へ書き、`python3 -m karte ingest-reviewer --from <path>` で取り込む（`--issue`/`--round` は進行ポインタから決まり指定できない。ファイル先頭に `<!-- handoff issue=<N> round=<R> -->` を 1 行書き、取り込み先と食い違う・無いものは拒否される。`disposition` 系のキーをレポートに書くと拒否される。全文はチャットに返さず `HANDOFF: <path>` と判定・1行要約だけを返す）。書込経路を持たない実行環境では、呼び出し元がレポートを `python3 -m karte ingest-review --issue <N> --round <R> --from <path>` に渡す（本ロール自身は `ingest-review` を実行しない）。
+レビュー指摘は、自由記述ではなく次の形式で1指摘1ブロックにする。Claude Code が直接レビューする場合、本ロール自身が全文を主チェックアウトの絶対パス `tmp/_handoff/pr-reviewer--<key>.md` へ書き、`python3 -m karte ingest-reviewer --from <path>` で取り込む。`--issue` は指定せず、`--round` は通常省略する。ポインタ遅延の回復で明示する場合も、台帳最新 round と同じ値だけが受け付けられる。Codex 経由の承認済み工程レビューでは、trusted caller が `issue_start.readonly_workspace` から `codex_worktree_exec --role pr-reviewer` を linked worktree で起動する。Codex は構造化レポート本文だけを出力し、handoff 作成・karte 実行をしない。正常終了後に外側 wrapper が出力を handoff へ保存して `ingest-reviewer` で取り込む。wrapper が進行ポインタからヘッダと取り込み先を決めるため、Codex は Issue/round を決めない。Claude Code 直接経路は handoff path・判定・1行要約を返し、Codex wrapper 経路は `取り込み済み: <handoff path> (issue-N round R)` の1行と警告行を返す。Issue は進行ポインタから決め、承認済み入力の `expected.issue` と照合する。bindingのない一般 PR review の起動条件は未確認として STOP する。`disposition` 系のキーは空値も無視され警告され、台帳の値を変更しない。
 
 ### F-<issue>-<seq> または new
 harm: real | none
@@ -91,7 +91,7 @@ distinct_from: F-<issue>-<seq>（必要な場合だけ）
 
 未解消の指摘を再掲するときは前回と同じ finding ID を使う。前ラウンドで未解消だった finding は解消していても全件を再掲し、解消したものだけ status: resolved と明記する。不在を解消と見なさない。
 
-呼び出し元へ次の4部を省略せず返す。
+書込経路を持たない実行環境では、呼び出し元へ次の4部を省略せず返す。Claude Code では上記の handoff に全指摘を記録し、チャットには `HANDOFF: <path>`、判定、1行要約だけを返す。
 
 1. レビュー判定：clean / 要修正 / STOP（オーナー判断要請）と理由。
 2. 上記書式の指摘レポート。

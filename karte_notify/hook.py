@@ -1,6 +1,6 @@
 """``PostToolUse``（matcher ``Bash|ctx_execute|ctx_batch_execute``）フックの実体（Issue #512）。
 
-``karte ingest-review`` / ``karte close-attempt`` の実行を検出し、``karte status --json`` を
+``karte ingest-review`` / ``ingest-reviewer`` / ``decide`` / ``close-attempt`` と Codex reviewer wrapper を検出し、``karte status --json`` を
 起動して :mod:`karte_notify.notify` の判定に通したうえで、通知が必要なら ``systemMessage``
 フィールドでオーナーのチャットへ直送する。**``systemMessage`` はモデルの出力を経由せず
 ユーザーのターミナルへ表示される**（Claude Code の hook 出力契約）ため、AI の要約を経ずに

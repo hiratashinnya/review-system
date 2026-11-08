@@ -349,8 +349,8 @@ class TestReadOnlyAgentArtifactPolicy(unittest.TestCase):
                 "チャットへ全文返す",
             ),
             "pr-reviewer.md": (
-                "が付与されても、Write/Edit不可",
-                "レビュー報告は共通本文の4部構成を省略しない",
+                "が付与されても、Write の handoff 限定",
+                "指摘全文は handoff へ記録し、チャットにはパス・判定・1行要約を返す",
             ),
             "authoring-fanout.md": (
                 "注入ブロックが付与されても",

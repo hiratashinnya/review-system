@@ -1,5 +1,7 @@
 """primary trusted callerからreadonly専用linked cwdへ束縛する。"""
+import contextlib
 import hashlib
+import io
 import json
 import shutil
 import tempfile
@@ -47,6 +49,10 @@ class ReadOnlyWorkspaceTests(unittest.TestCase):
             (source / "tmp").mkdir()
             (source / "tmp/issue.txt").write_bytes(issue)
             (source / "tmp/prompt.md").write_text("read-only task")
+            (source / "tmp/_karte").mkdir(parents=True)
+            (source / "tmp/_karte/active.json").write_text(
+                json.dumps({"issue": 371, "round": 0}), encoding="utf-8"
+            )
             reviews = [dict(phase=d["phase"], artifact=str(p.relative_to(source)),
                             artifact_digest=hashlib.sha256(p.read_bytes()).hexdigest(),
                             status="clean", producer_context="author-" + kind,
@@ -100,9 +106,11 @@ class ReadOnlyWorkspaceTests(unittest.TestCase):
                                 ValueError, "untracked source"):
                             main(args)
                         extra.unlink()
-                with self.subTest(role=role), patch("issue_start.readonly_workspace.execute",
+                with self.subTest(role=role), contextlib.redirect_stdout(io.StringIO()), patch("issue_start.readonly_workspace.execute",
                         side_effect=lambda a, cwd: execute(a, cwd=cwd,
-                            environ=clean_environ(CODEX_HOME=str(home)), codex=str(fake))):
+                            environ=clean_environ(CODEX_HOME=str(home)), codex=str(fake))), \
+                        patch("codex_worktree_exec.cli.ingest_codex_output",
+                              return_value="Codex pr-reviewer 結果を取り込み済み: tmp/_handoff/test.md"):
                     self.assertEqual(main(args), 0)
 
     def test_primary_target_and_writer_cannot_use_prepare(self):

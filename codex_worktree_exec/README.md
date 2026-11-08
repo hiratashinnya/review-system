@@ -23,7 +23,10 @@ python3 -m codex_worktree_exec --role <自ロール> -C <自分の worktree ル�
 | `project_trust.py` | main checkout が Codex で trust 済みであることの確認 |
 | `prompt_files.py` | 依頼文の読込みと最終応答の書き先の確認 |
 | `invocation.py` | `codex exec` の argv と前置き付き依頼文の組立て |
-| `launcher.py` | `codex exec` の起動、終了コードの透過、timeout |
+| `launcher.py` | `codex exec` の起動、通常ロールの終了コード透過、reviewer異常時のstderr要約、timeout |
+| `review_handoff.py` | reviewer出力のhandoff保存、警告行抽出、既存karte取り込み |
+| `ingest_diagnostics.py` | 取り込み拒否理由と箇条書きの整形（返却上限の適用） |
+| `review_target.py` | 承認済み Issue と起動時ポインタから取り込み先のIssue/roundを固定 |
 | `cli.py` | 検査を順に通して起動する入口 |
 | `artifact_binding.py` / `initial_binding.py` | 信頼callerの期待値、committed artifact、初回Issue snapshotの束縛 |
 | `committed_artifact.py` / `source_snapshot.py` | commit済み入力とsource snapshotの確認 |

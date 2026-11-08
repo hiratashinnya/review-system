@@ -9,7 +9,7 @@ from .path_errors import KartePathError
 from .path_guard import resolve_within_repo
 
 HANDOFF_DIRNAME = "_handoff"
-REVIEWER_HANDOFF_RE = re.compile(r"^pr-reviewer--[A-Za-z0-9][A-Za-z0-9._-]*\.md$")
+REVIEWER_HANDOFF_RE = re.compile(r"pr-reviewer--[A-Za-z0-9][A-Za-z0-9._-]*\.md")
 
 
 def resolve_reviewer_handoff(path, repo_root):
@@ -22,7 +22,7 @@ def resolve_reviewer_handoff(path, repo_root):
     root = resolve_within_repo(".", repo_root)
     if checked.parent != root / "tmp" / HANDOFF_DIRNAME:
         raise KartePathError(f"tmp/{HANDOFF_DIRNAME}/ の直下ではない: {checked}")
-    if not REVIEWER_HANDOFF_RE.match(checked.name):
+    if not REVIEWER_HANDOFF_RE.fullmatch(checked.name):
         raise KartePathError(
             f"ファイル名が pr-reviewer--<key>.md の形ではない: {checked.name}"
         )

@@ -65,7 +65,9 @@ def read_records(issue, repo_root):
     return records
 
 
-def append_lines(issue, repo_root, new_lines) -> None:
+def append_lines(issue, repo_root, new_lines, *, records=None) -> None:
     """既存の全行を検証したうえで ``new_lines`` を足し、全体を原子的に置換する。"""
-    lines = [line for line, _record in read_records(issue, repo_root)] + list(new_lines)
+    if records is None:
+        records = read_records(issue, repo_root)
+    lines = [line for line, _record in records] + list(new_lines)
     paths.write_text_atomic(ledger_path(issue, repo_root, create=True), "\n".join(lines) + "\n")

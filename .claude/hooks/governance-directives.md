@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@dc6c7aad9b8f -->
+<!-- synced-from: CLAUDE.md@446f835d3edc -->
 <!--
   Issue #375（2026-10-31）: `.claude/rules/05-skills-agents.md` の戻り値のハンドオフ規約で `pr-reviewer`
   （Claude Code）を write 権限なし側から外し、項13へ `karte ingest-reviewer` と主文脈専用 verb を追記した。
@@ -320,6 +320,8 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
     `issue-fixer` は既存PRの是正専任で、`karte render`→`karte append` の診断前に編集せず
     （例外は PR base 取り込みの衝突解消だけ）、`ingest-review` は主文脈だけが行う（`decide`・`activate` も主文脈専用）。著作3role・implementer・fixerはpush可能だがmerge不可、
     `pr-reviewer` はpush/merge不可（Claude Code では `tmp/_handoff/pr-reviewer--*.md` への Write と
-    `karte ingest-reviewer` だけを持ち、自分の finding を本人が取り込む）。`adviser` はread-only相談のみで、編集・push・台帳変更・承認・STOP解除をしない。
+    `karte ingest-reviewer` だけを持ち、自分の finding を本人が取り込む。Codex経路では外側の
+    `codex_worktree_exec` が取り込み、`取り込み済み: <handoff path> (issue-N round R)` の1行と警告行を返す）。
+    `adviser` はread-only相談のみで、編集・push・台帳変更・承認・STOP解除をしない。
     全Issue工程roleは非対話であり、曖昧さはSTOPで主文脈へ返す。正本＝`.claude/rules/05-skills-agents.md`。
 14. **ドキュメントと既存コードの食い違い** — コードの書き方に従い、見つけた食い違いを最後の返答ですべて挙げる。

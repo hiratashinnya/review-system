@@ -38,6 +38,8 @@ def _handoff_write_denial(payload):
         file_path = payload["tool_input"]["file_path"]
     except (KeyError, TypeError):
         return _deny("Write の入力に tool_input.file_path がありません（パスを検証できないため拒否）。")
+    if not isinstance(file_path, str):
+        return _deny("Write の入力不正: tool_input.file_path は文字列で指定してください。")
     try:
         root = main_worktree_root(os.environ.get("CLAUDE_PROJECT_DIR") or payload["cwd"])
         resolve_reviewer_handoff(file_path, root)

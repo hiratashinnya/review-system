@@ -44,6 +44,14 @@ class TestPrefilter(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertTrue(self._ran(command))
 
+    def test_codex_reviewer_wrappers_start_the_hook(self):
+        for command in (
+            "python3 -m codex_worktree_exec --role pr-reviewer -C wt",
+            "python3 -m issue_start.readonly_workspace --role pr-reviewer -C wt",
+        ):
+            with self.subTest(command=command):
+                self.assertTrue(self._ran(command))
+
     def test_unrelated_commands_do_not_start_the_hook(self):
         self.assertFalse(self._ran("git status"))
         self.assertFalse(self._ran("python3 -m karte render --issue 1"))

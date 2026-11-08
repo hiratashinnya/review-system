@@ -51,7 +51,7 @@ commit/pushし、CP/VDをtmp handoffへ転載しない。作業完了receiptはa
 項目ごとに検査する。1a単独→1b整合→ownerによるplan/split/decision承認の順を維持する。
 2a合格後に2bが着手する。実装者は新規テストを著作せず、計画外判断なら上流へSTOPする。
 
-1a/1b/2a/2bのreviewは同一Issueのkarteへ連番roundで取り込む。reviewerは書込/pushせず、
+1a/1b/2a/2bのreviewは同一Issueのkarteへ連番roundで取り込む。reviewerは対象成果物の編集・pushをせず、
 PlanReviewをcommitted envelopeにしない。capture本体は #375、karteの機械配線は #310、
 将来run ledgerは #409 に委ねる。run/phase/dependency/expected outputの接続契約だけ保持し、
 別ledgerを作らない。レビュー後の是正は既存②-c、ownerによるmergeは②-dを適用する。
@@ -140,7 +140,7 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 ### ②-b 初回レビュー
 
 - 初回レビューのモデル層／推論予算はリスク信号で選ぶ。共有資産、広域変更、前例のない判断、権限境界、曖昧な仕様があれば判断ボトルネックとして高い側を選び、根拠を1行残す。具体的な設定キーと写像は各 PF wrapper に置く。
-- レビュー担当は各 finding の実害、根拠、期待値、再確認方法を構造化して返す（Claude Code では handoff ファイルへ書いて自分で台帳へ取り込み、全文はチャットに返さない。②-c）。構造化 finding は `harm`/`harm_detail`/`severity`/`scope`/`locus`/`summary`/`evidence`/`expected`/`recheck`/`status` をキーとして返す。レビューコメントには AI 対応であることと具体的な変更・根拠を残す。
+- レビュー担当は各 finding の実害、根拠、期待値、再確認方法を構造化して返す（Claude Code は handoff へ書いて本人が取り込み、Codex は外側 wrapper が自動取り込みする。全文はチャットに返さない。手順は②-c）。構造化 finding は `harm`/`harm_detail`/`severity`/`scope`/`locus`/`summary`/`evidence`/`expected`/`recheck`/`status` をキーとして返す。レビューコメントには AI 対応であることと具体的な変更・根拠を残す。
 - **スコープ外の指摘も同じ finding の列に入れる**。別のセクション・チャットでの列挙へ逃がさない。スコープ内外は `scope: in | out` の申告として記録するだけで、`harm` の判定・記録台帳・clean 判定のいずれの免除にもならない。レビュー担当の `scope` は申告であって確定ではなく、これを覆せるのはオーナーだけである。
 - **レビュー結果（初回・再レビューとも）は主文脈が当該 PR へ AI 帰属明記で記録する。** 依頼内の通常操作についての確認・報告と権限境界は `.ai/guidance/common.md`「作業分離・判断境界」に従う。
 - 承認・却下・clean を偽らない。未解消 finding があれば処置ループへ進む。
@@ -150,14 +150,16 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 - 是正は初回実装担当ではなく、レビュー指摘を受ける是正担当へ差し戻す。レビュー結果を先に記録し、是正担当は診断してから変更する。
 - **レビュー結果を記録するとき、実装担当・是正担当のハンドオフに載った `out_of_scope_findings` も同じ finding の列へ写して記録する**。記録の実行は主文脈が行う（当事者ロールには行わせない）。
 - **将来の finding-triager（#691）の分離・実装契約**：実装時には `.ai/skills/review-harm/SKILL.md` の全文をコンテキストへ供給して同一の実害基準を適用する。レビュー原本と triage 判断成果物を別に保持し、処置方針と scope のオーナー権限は変更しない。現時点で triager は未実装である。
-- **オーナーが決めた `disposition` と、オーナーが覆した `scope` は、主文脈が台帳へ記録する。主文脈はこれらを決めない。** Claude Code での手順は次のとおり。
-  1. 初回ラウンドの前に主文脈が `python3 -m karte activate --issue <N>` で進行ポインタを向ける。レビュー担当への依頼文には対象の Issue 番号と取り込むラウンド番号を書く（レポート先頭の `<!-- handoff issue=<N> round=<R> -->` と照合される）。レビュー担当（`pr-reviewer`）は finding レポートを handoff ファイル（`tmp/_handoff/pr-reviewer--<key>.md`）へ書き、自分で `python3 -m karte ingest-reviewer --from <path>` を実行して台帳へ取り込む。レポートの全文は主文脈を通らず、主文脈はレビュー担当の `HANDOFF: <path>` と判定・1行要約だけを受け取る。レポートに処置方針（`disposition` 系）が書かれていれば取り込みは拒否される。
-  2. `harm: real` の finding についてオーナーの処置方針（`fix-here` / `deferred` / `waived`）を仰ぐ。`deferred` なら行き先 Issue、`waived` なら許可者と理由もオーナーから得る。レビュー担当の `scope` 申告に疑義があるときも、**覆すかどうかは同じ場でオーナーに仰ぐ**（主文脈が独断で決めない）。
-  3. 主文脈がその決定を `python3 -m karte decide --finding <ID> --disposition <値> [--deferred-to <Issue> | --waived-by <許可者> --waived-reason <理由>] [--scope in|out]` で記録する。
-  4. 記録した決定は台帳に残り、次ラウンドの `ingest-reviewer` は `disposition` 系を上書きしない。オーナーが覆した `scope` も保持される（台帳の `scope` がレビュー担当の直近申告と食い違う finding は取り込み出力に列挙される）。申告の原本は `tmp/_karte/issue-<N>.declared-scope.jsonl`（追記専用）に残る。
-  - `ingest-reviewer` で取り込んだ Issue に主文脈が `ingest-review` で取り込むことはできない（`decide` で記録した決定の上書きを防ぐため拒否される）。
-  - `ingest-reviewer` は `--issue` / `--round` を受けない。`decide` / `activate` / `ingest-review` は主文脈専用で、どの当事者ロールにも許可しない。
-  - Claude Code 以外の実行環境（レビュー担当に書込経路がない）では従来どおり、主文脈がレポートへ `disposition:` とその付随キーを書き足して `ingest-review` で取り込む。前ラウンドの決定とオーナーが覆した `scope` は毎ラウンド全件再掲する（`disposition` の書き忘れは fail-close、`scope` の書き忘れは申告値へ戻る fail-open）。
+- **オーナーが決めた `disposition` と、オーナーが覆した `scope` は、主文脈が台帳へ記録する。主文脈はこれらを決めない。** 手順は次のとおり。
+  1. 初回ラウンドの前に主文脈が `python3 -m karte activate --issue <N>` で進行ポインタを向ける。
+  2. Claude Code の `pr-reviewer` は `tmp/_handoff/pr-reviewer--<key>.md` へレポートを書き、`python3 -m karte ingest-reviewer --from <path>` を実行する。`--issue` は指定せず、`--round` は通常省略する。ポインタ遅延から回復するときだけ明示でき、その値は台帳の最新 round と同じ場合に限る。
+  3. Codex を使う既存の承認済み工程レビューでは、trusted caller が primary checkout から `python3 -m issue_start.readonly_workspace --source <primary> --approval-file tmp/<approval>.json --role pr-reviewer -C <登録済みlinked worktree> --prompt-file tmp/<prompt>.md --output-file tmp/<未作成output>.md --binding-file tmp/<承認済みbinding>.json --model <model> --reasoning-effort <effort>` を実行する。readonly入口が承認・binding・入力を検証して linked worktree から executor を起動する。これにより D5 の `-C` と executor cwd の一致を保つ。primary から `codex_worktree_exec` を直接起動しない。prompt/output/binding は既存契約に従って用意し、output は新しい一意パスを使う。
+  4. Codex が正常終了すると executor wrapper が出力ファイルをそのまま読み、primary checkout の進行ポインタから Issue と次 round を決めて handoff を作り、既存 `ingest-reviewer` CLI で検証・取り込みする。Codex 本文から Issue/round を決めず、本文を解析・書換えず、別の LLM にも渡さない。全文は主文脈へ返さず、呼び出し側には `取り込み済み: <path> (issue-N round R)` の1行と警告行だけを返す（判定の要約は含めない）。承認済み binding の `expected.issue` は起動時の進行ポインタと照合し、取り込み直前にも Issue と round を再確認する。Codex 非ゼロ、空出力、ポインタ不在/不一致、ヘッダ不一致、取り込み失敗はすべて run 失敗とする。read-only profile、network 無効、Codex 側の karte 拒否は維持する。一般 PR レビューで承認済み artifact binding を用意する方法は確認できていないため、その場合は起動せず STOP する。
+  5. `harm: real` の finding についてオーナーの処置方針（`fix-here` / `deferred` / `waived`）を仰ぐ。`deferred` なら行き先 Issue、`waived` なら許可者と理由もオーナーから得る。レビュー担当の `scope` 申告に疑義があるときも、覆すかどうかは同じ場でオーナーに仰ぐ。
+  6. 主文脈がその決定を `python3 -m karte decide --finding <ID> --disposition <値> [--deferred-to <Issue> | --waived-by <許可者> --waived-reason <理由>] [--scope in|out]` で記録する。
+  7. 記録した決定は台帳に残り、次ラウンドの取り込みは `disposition` 系を上書きしない。オーナーが覆した `scope` も保持され、申告の原本は `tmp/_karte/issue-<N>.declared-scope.jsonl`（追記専用）に残る。レポートの専権キーは finding ブロック内なら空値も無視して警告する。前書きの専権キー行は拒否する。
+  - 実装・是正担当の `out_of_scope_findings` は主文脈が finding レポートに写し、`python3 -m karte ingest-review --issue <N> --round <最新R> --from <path>` で追記する。申告原本がある Issue では保護モードとなり、主文脈 `ingest-review` は新規 finding の追記専用である。既存 ID の再掲は全件拒否し、未再掲の open finding は引き継いで警告する。専権キーは無視して警告する。主文脈による追加は申告原本に記録しない。最新 round の明示でレビュー round を進めず、次の `ingest-reviewer` は進行ポインタの次 round を使う。ポインタが遅れて省略 round が台帳最新値と一致した場合、主文脈経路は同じ round へ追記する。
+  - `decide` / `activate` / `ingest-review` は主文脈専用で、Codex 側 gate は `pr-reviewer` に karte verb を許可しない。Codex の取り込みは外側 wrapper が行う。
 - **是正担当が `integrate-base-abort` の後に STOP したら**、主文脈は報告をオーナーへ打ち上げたうえで、返された退避 tar から必要な内容を取り出し、是正担当を再 dispatch するときに渡す。主文脈は衝突解消の適用・確定を行わない。詳細の正本は `docs/tools/gitgate-base-integration.md`「中止と回復」で、ここへ複製しない。
 - 再レビューは既定のレビュー設定で行う。ラウンド上限で打ち切らず、実害と無進捗を基準に続行・停止を判定する。
 - **clean の条件は「未解消 finding が0件」ではなく「clean を妨げる未解消 finding が0件」**である（次節）。clean ならマージ経路へ進む。残る finding が実害なしだけでも握りつぶさず、起票案＋理由付き推奨を添えてオーナー判断を仰ぐ。
@@ -200,7 +202,7 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 
 ## karte 判定の報告分担
 
-`karte ingest-review` / `karte close-attempt` の実行直後、実行環境が用意する通知機構が
+`karte ingest-review` / `karte ingest-reviewer` / `karte decide` / `karte close-attempt` の実行直後、実行環境が用意する通知機構が
 `karte status --json` の判定を **AI の要約を経ずに** オーナーへ届ける契約とする。通知の
 実装（発火経路・出力チャネル・検出対象コマンドの範囲）は PF 固有であり、各 PF の wrapper 側で
 定める（Claude Code の実装は `.claude/skills/issue-pipeline/SKILL.md`「karte 判定の直接通知

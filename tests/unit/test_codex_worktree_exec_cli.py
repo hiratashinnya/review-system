@@ -2,9 +2,11 @@
 
 import contextlib
 import io
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from codex_worktree_exec.cli import EXIT_REFUSED, EXIT_TIMEOUT, main
 from tests.unit.codex_worktree_exec_support import (
@@ -59,6 +61,22 @@ class CliTests(unittest.TestCase):
         self.assertIn(str(self.worktree / "tmp" / "o.md"), argv)
         stdin = Path(f"{self.log}.stdin").read_text(encoding="utf-8")
         self.assertTrue(stdin.endswith("README を直す\n"))
+
+    def test_non_reviewer_stdout_is_inherited_and_existing_output_is_allowed(self):
+        output = self.worktree / "tmp" / "o.md"
+        output.write_text("stale but permitted for non-reviewer\n", encoding="utf-8")
+        captured = []
+        real_popen = subprocess.Popen
+
+        def recording_popen(*args, **kwargs):
+            captured.append(kwargs)
+            return real_popen(*args, **kwargs)
+
+        with patch("codex_worktree_exec.launcher.subprocess.Popen", recording_popen):
+            code, _stderr = self.run_main(role="issue-fixer")
+        self.assertEqual(0, code)
+        self.assertIsNone(captured[-1]["stdout"])
+        self.assertIsNone(captured[-1]["stderr"])
 
     def test_each_failed_check_refuses_with_its_own_identifier(self):
         self.assert_refused_without_launch("CODEX_EXEC_ROLE_NOT_ALLOWED", role="unknown")

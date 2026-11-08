@@ -31,7 +31,7 @@ def record_decision(karte, finding_id, options, scope) -> list:
         if scope not in model.SCOPES:
             raise KarteUsageError(f"--scope は {list(model.SCOPES)} のいずれか: {scope!r}")
         finding.scope = scope
-        lines.append(f"scope: {scope}（レビューア申告との差分は declared-scope 原本で検出される）")
+        lines.append(f"scope: {scope}（申告原本にオーナー印を記録し、台帳へ即時反映）")
     return lines
 
 

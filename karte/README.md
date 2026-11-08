@@ -26,8 +26,8 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
 - **`ingest-review` では必須**。欠落は取り込みごと拒否する（`harm` 欄欠落と同じ扱い）。
   任意キーにすると書かれないため。
 - **レビューアの申告であって確定ではない**。ただし**覆せるのはオーナーだけ**であり、`disposition` と
-  同じくオーナー専権である。主文脈は覆しの判断主体ではなく、オーナーが決めた値を取り込みレポートへ
-  転記する担い手にすぎない（正本＝`.ai/skills/issue-pipeline/SKILL.md` ②-c。機械側がこれを
+  同じくオーナー専権である。主文脈は覆しの判断主体ではなく、オーナーが決めた値を記録する
+  担い手にすぎない（正本＝`.ai/skills/issue-pipeline/SKILL.md` ②-c。機械側がこれを
   検証していないことは下記「既知の限界」）。
 - **`scope: out` は実害判定・記録・verdict のいずれの免除にもならない。** スコープの内外は
   「誰がいつ直すか」の話であって「実害があるか」の話ではない（判定軸を混ぜない）。
@@ -52,14 +52,12 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
 - `waived` に許可者と理由を要求するのは、`.claude/rules/03-operational.md`
   「『対応不要』を AI が独断で書かない」に対する **記録の強制**（許可者と理由を書かずに
   `waived` を通せなくする）。**オーナー判断そのものの機械強制ではない**——下記「既知の限界」。
-- 宣言した `disposition` に属さない付随キー（例：`deferred` なのに `waived_by`）は拒否する。
-  取り違えて古い方針を現行の方針と誤読するのを防ぐため。
-- 値は毎ラウンドのレポートで上書きされる。**書き忘れると未決定へ倒れて `clean` を妨げる**
-  （fail-close 側）。だれがそれを書くか（＝毎ラウンドの再掲を誰が担うか）は
-  `.ai/skills/issue-pipeline/SKILL.md` ②-c を正本とする（**主文脈**が、オーナーの決定を
-  次ラウンドの取り込みレポートへ書き足してから `ingest-review` する。レビュー担当は
-  `disposition` を書かない契約）。Claude Code でレビュー担当が `ingest-reviewer` で取り込む経路では
-  上書きされず、主文脈が `decide` で記録する（下記「`ingest-reviewer` / `decide` / `activate`」）。
+- `decide` と非保護モードの `ingest-review` は、宣言した `disposition` に属さない付随キー
+  （例：`deferred` なのに `waived_by`）を拒否する。取り違えて古い方針を現行の方針と誤読するのを
+  防ぐため。保護モードの取り込みは専権キーを無視して警告する。
+- 非保護モードでは値は毎ラウンドのレポートで上書きされる。**書き忘れると未決定へ倒れて `clean` を妨げる**
+  （fail-close 側）。主文脈がオーナーの決定をレポートへ転記する。保護モードでは台帳の値を保持し、
+  主文脈が `decide` で決定を記録する（下記「`ingest-reviewer` / `decide` / `activate`」）。
 
 ### `clean` の解除力は `harm: real` にだけ与える（オーナー確定・2026-09-07）
 
@@ -76,21 +74,21 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
 
 ### 既知の限界（多層防御の一枚であって sandbox ではない）
 
-**保護水準は `disposition` 系と `scope` で 1 段違う。** 前者は記録だけを強制し、後者は記録すら
-強制していない。次の 2 つを混ぜて読まない。
+**非保護モードの保護水準は `disposition` 系と `scope` で 1 段違う。** 前者は記録だけを強制し、
+後者は記録すら強制していない。保護モードの申告原本とオーナー確定の印は後述する。
 
 #### `disposition` 系（`waived` / `deferred`）——記録は強制、オーナー判断は非強制
 
 - `waived_by` / `waived_reason` は自由記述のスカラであり、**書いた主体がオーナー本人かを
   機械側は区別しない**。`ingest-review` を実行するのは主文脈（AI）であり、
   `.claude/hooks/agent-command-gate.sh` と `.codex/hooks/agent-command-gate.sh` の
-  `KARTE_ALLOWED_SUBCOMMANDS` が締め出しているのは是正当事者ロール（`issue-fixer` 等）だけである。
+  ロール別許可表が `ingest-review` を当事者ロールから締め出す。
 - `deferred_to` は形式（`#123` / `123` / URL）だけを検査し、**指す Issue が実在するかは
   検証しない**。
 - **したがってこの 2 つについて強制しているのは記録であって、オーナー判断ではない。**
   この結び（「強制しているのは記録」）は `disposition` 系にだけ掛かる。
 
-#### `scope` の覆し——記録の強制すら無い
+#### 非保護モードの `scope` の覆し——記録の強制すら無い
 
 - **`scope` の覆しがオーナーの判断であることを機械側は検証していない**（Issue #531）。
   台帳は取り込まれた `scope` の値を受け取るだけで、それが誰の判断かも、レビューアの元の申告と
@@ -105,54 +103,85 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
   `pr-reviewer` は各ラウンドで新しい finding を起票できる（ブロック見出しが
   `### F-<issue>-<seq> または new`＝`.ai/agents/pr-reviewer.md`）ため、**round 3 で初出した
   finding にも round 1 とまったく同じ窓が開く**。
-  - **Claude Code ではこの窓を Issue #375 が塞いだ**。`pr-reviewer` 本人が handoff ファイルから
-    `ingest-reviewer` で取り込み、申告 scope の原本が初出ラウンドから
-    `tmp/_karte/issue-<N>.declared-scope.jsonl`（追記専用）に残る。台帳の `scope` がこの原本の
-    直近の値と食い違う finding はオーナーが覆したものとして機械的に検出でき（取り込み出力に列挙）、
-    次ラウンドの `ingest-reviewer` は覆した値を上書きしない。覆しの記録は `decide --scope`。
+  - **Issue #375 がこの窓を塞ぐ**。Claude Code の `pr-reviewer` は handoff ファイルから
+    `ingest-reviewer` で取り込み、Codex を使う場合は信頼された外側の `codex_worktree_exec` が
+    保存済み出力をそのまま同じ verb へ渡す。申告 scope の原本が初出ラウンドから
+    `tmp/_karte/issue-<N>.declared-scope.jsonl`（追記専用）に残る。`decide --scope` の印がある
+    finding はオーナーの値を保持し、今回の申告と異なれば取り込み出力に列挙する。
   - 覆しに `override_ref`＝`feedback_ledger` の台帳エントリ参照を要求する変更は Issue #523 のスコープ。
-  - 書込経路を持たない実行環境（主文脈が `ingest-review` で取り込む経路）では、従来どおり
-    `scope` の覆しをオーナーへ一本化しているのは**運用規律（契約）**である。
+  - `codex_worktree_exec` は Codex 本体の read-only 権限を変えず、取り込みをラッパー側で実行する。
+    Codex の `pr-reviewer` 自身に karte の書込権限は与えない。
 
 ### `ingest-reviewer` / `decide` / `activate`（Issue #375）
 
-- **`ingest-reviewer --from tmp/_handoff/pr-reviewer--<key>.md`**：`pr-reviewer`（Claude Code）が自分の
-  finding を取り込む専用 verb。検証は `ingest-review` と共通（ID 重複・未知 ID・K-06・harm/scope 必須・
-  distinct_from）で、加えて次を課す。
-  - `--issue` / `--round` は**受けない**。Issue は進行ポインタ、round は「ポインタの round ＋ 1」で決まる
-    （別 Issue の台帳へ書く経路を作らない）。
+- **`ingest-reviewer --from tmp/_handoff/pr-reviewer--<key>.md [--round <R>]`**：`pr-reviewer` の
+  finding を取り込む専用 verb。Claude Code は本人が実行し、Codex 実行時は外側ラッパーが Codex の
+  出力ファイルを変更せず handoff へ保存して実行する。ID 重複・未知 ID・harm/scope 必須・distinct_from を検証し、
+  保護モードの共通規則と次の制約を適用する。
+  - `--issue` は受けない。Issue は進行ポインタで決まる。round は省略時に「ポインタの round ＋ 1」だが、
+    通常は `--round` を省略し、ポインタの次 round を使う。ポインタ遅延から回復するときだけ明示でき、
+    明示値は台帳の最新 round と同じ場合に限り受け付ける。後退・飛び越しは拒否し、別 Issue の台帳へ
+    書く経路は作らない。
   - `--from` は `<repo-root>/tmp/_handoff/pr-reviewer--<英数._->.md` の通常ファイルだけ
     （`..`・symlink 構成要素・別ディレクトリ・別名を拒否。規則は `karte/handoff_path.py` に 1 箇所で、
     Write フックと共有）。
-  - レポートに `disposition` / `deferred_to` / `waived_by` / `waived_reason` があれば取り込みごと拒否する
-    （処置方針はオーナー専権）。台帳にある `disposition` 系は上書きしない。
-  - scope は直近の申告との一致を見て、一致していれば新しい申告で更新、食い違い（＝オーナーの覆し）なら保持する。
+  - 処置方針はオーナー専権であり、レポート中の `disposition` / `deferred_to` / `waived_by` /
+    `waived_reason` は finding ブロック内なら空値も含め無視して警告する。前書きの専権キー行は無視せず拒否する。
+    台帳の値は保持する。
+  - 保護モードの取り込みごとに、申告レポートで再掲されたかにかかわらず、オーナー印を台帳の全 finding へ
+    再適用する。印がない finding の scope は新しい申告で更新する。
     申告の原本は台帳より先に追記する。
 - **`activate --issue <N>`**（主文脈専用）：進行ポインタを対象 Issue へ向ける（round は取り込み済みの最新、
   台帳が無ければ 0）。初回の `ingest-reviewer` の前に実行する。
 - **`decide --finding <ID> [--disposition … --deferred-to … --waived-by … --waived-reason …] [--scope in|out]`**
   （主文脈専用）：オーナー決定を台帳へ直接記録する。`disposition` の付随キー規則は `ingest-review` と同じ。
-- **二経路は併存させない**：`ingest-reviewer` で取り込んだ Issue（申告 scope の原本ファイルがある）に
-  主文脈が `ingest-review` で取り込もうとすると、`decide` で記録したオーナー決定を上書きしてしまうため
-  fail-close で拒否する。申告 scope の原本が壊れている・欠損している場合も、台帳との差分を判定できない
-  ので `ingest-reviewer` は拒否する（終了コードは 4）。
+- **保護モード**：`ingest-reviewer` は常に、申告原本がある Issue の主文脈専用 `ingest-review` も
+  保護モードで動く。両経路で台帳の `disposition` 系とオーナー確定済み `scope` を保持し、専権キーを
+  無視して警告する。前ラウンドの未解消 finding の再掲が漏れた場合は変更せず未解消のまま引き継ぎ、
+  ID を警告する。解消は `status: resolved` の明示宣言だけである。警告は標準エラーに `警告: …`、
+  取り込み結果の標準出力にも対象キー・行と引き継いだ ID を出す。
+  保護モードの主文脈 `ingest-review` は新規 finding の追記専用である。既存 ID を再掲すると全件拒否し、
+  台帳・原本・進行ポインタを書かない。既存の未解消 finding を省略した場合は引き継いで警告する。
+  レビューア本人の `ingest-reviewer` は既存 ID を再掲できる。
+  主文脈の `ingest-review` は従来どおり `--issue` / `--round` / `--from` を受け、handoff パス・
+  ヘッダ・進行ポインタによる入力制約を課さない。新規 finding はレポートの scope で追加し、
+  disposition は未決とする。主文脈による追加はレビューアの申告ではないので申告原本に記録しない。
+  原本が壊れている場合は拒否する（終了コード 4）。原本がまだ無い場合の `ingest-review` は
+  非保護モードであり、従来どおり専権キーを上書きし、再掲漏れを K-06 で拒否する。
+  Codex の agent-command gate は `pr-reviewer` に karte verb を許可しない。Codex 経路では
+  `codex_worktree_exec` の外側が同じ検証・取り込みを実行する。
 - **handoff ヘッダ**：レポートの先頭（最初の `### ` より前）に `<!-- handoff issue=<N> round=<R> -->` の
   1 行が必須。進行ポインタから決まる取り込み先の Issue と次のラウンドに一致しないもの（ヘッダ無し・別 Issue・
   古い／再利用した handoff）は取り込まない（`### new` だけのレポートで別 Issue へ書く取り違えを防ぐ）。
-- **オーナー確定の印**：`decide --scope` は台帳の scope を更新したうえで、申告 scope の原本に
-  `by: owner` の印を足す。印のある finding の scope は `ingest-reviewer` が上書きしない（レビューアの申告は
+- **Codex 起動手順**：既存の承認済み工程レビューは、trusted caller が primary checkout から
+  `python3 -m issue_start.readonly_workspace --source <primary> --approval-file tmp/<approval>.json --role pr-reviewer -C <登録済みlinked worktree> --prompt-file tmp/<prompt>.md --output-file tmp/<未作成output>.md --binding-file tmp/<承認済みbinding>.json --model <model> --reasoning-effort <effort>` を実行する。
+  readonly入口が承認・binding・入力を検査して linked worktree から executor を起動する。D5 により executor の `-C` と cwd の Git toplevel は一致しなければならず、primary checkout から `codex_worktree_exec` を直接起動する形は拒否される。
+  prompt/output/binding は呼び出し側が既存契約に従って用意し、output は未作成の一意なパスを使う。一般 PR レビューで
+  承認済み artifact binding を用意する方法は確認できていないため、信頼検査を緩めず起動を停止する。Codex 非ゼロ終了、空出力、進行ポインタ不在・
+  Issue/最新 round 不一致、ヘッダ不一致、取り込み失敗では run を完了扱いにしない。正常終了後、wrapper は
+  ポインタの Issue と次 round からヘッダを決め、Codex 本文は加工せず、目印行が無ければ先頭に付けて primary checkout の handoff へ保存し、
+  `ingest-reviewer` を実行する。呼び出し側へは `取り込み済み: <path> (issue-N round R)` の1行と、取り込み出力の警告行だけを返す（判定の要約は含めない）。
+- **オーナー確定の印**：`decide --scope` は申告 scope の原本に `by: owner` の印を足してから
+  台帳の scope を更新する。印の保存後に台帳書込みが失敗した場合は、印を保存済みと再適用手順をエラーに表示する。
+  次の `decide` または保護モードの取り込みで台帳へ反映する。保護モードの取り込みは毎回、再掲の有無にかかわらず
+  オーナー印を台帳の全 finding へ適用する。印の保存自体が失敗した場合は台帳を更新しない。
+  印のある finding の scope は保護モードが上書きしない（レビューアの申告は
   原本として記録するだけ。保持した finding ID は取り込み出力に列挙される）。印の無い finding では、
   台帳の値が `ingest-review` 由来でもレビューアの申告が正当な訂正として反映される。
 - 申告 scope の原本（`tmp/_karte/issue-<N>.declared-scope.jsonl`）への追記は、既存の全行を検証したうえで
   全体を一時ファイル経由で置換する（途中までの行を作らない）。壊れていれば `ingest-reviewer` は
   復旧手順を示して拒否し、主文脈が `python3 -m karte activate --issue <N> --repair-declared-scope` で
-  壊れた行だけを除く（元は `.bak`、`.bak.1`、`.bak.2` … と世代を分けて残し、上書きしない）。
+  原本だけを修復する。このオプションは進行ポインタを動かさず、壊れた行だけを除く（元は `.bak`、
+  `.bak.1`、`.bak.2` … と世代を分けて残し、上書きしない）。
   `pr-reviewer` はこの verb も原本も触れない。
 - round は進行ポインタの `round`（0＝未取込。欠落・非 ASCII 数字・負数・Issue 不一致は拒否）＋1 で、ロックの内側で決める。
-  0 の扱いは `ingest-reviewer` だけが自動導出に使う（`activate` が書く）。`ingest-review` の初回は従来どおり
-  `--round 1` を明示する。
-  申告 scope の覆し判定は「これから取り込むラウンドより前」の申告だけを基準にするため、台帳書込みの
-  失敗後に同じラウンドを再試行しても、レビューアの新しい scope をオーナーの覆しと誤判定しない。
+  `activate` は round 0 を書くため、その直後に主文脈の `ingest-review` で `--round` を省略すると拒否される。
+  初回は `--round 1` を明示する。`ingest-reviewer` は round 0 を自動導出に使う。
+  保護モードの `ingest-review` は最新 round の明示で同じ round に追記できる。
+  ポインタが遅れて省略値が台帳の最新 round と一致した場合も同じ round への追記になる。小さい round は
+  拒否し、省略値が次 round なら次 round を使う。範囲外指摘の追記には最新 round を明示する。
+  オーナー確定の印で覆しを判定するため、台帳書込みの失敗後に同じラウンドを再試行しても、
+  レビューアの新しい scope をオーナーの覆しと誤判定しない。
 - `decide` / `activate` / `ingest-review` はどのロールの許可集合にも入れない
   （`agent-command-gate.sh` の `KARTE_SUBCOMMANDS_BY_ROLE`）。`issue-fixer` の許可 verb は従来どおり
   `render`/`append`/`close-attempt`/`check`/`status`。
@@ -306,10 +335,11 @@ python3 -m karte check [--issue <N>] [--round <R>]
 
 `issue-implementer` / `issue-fixer` がハンドオフに書く `out_of_scope_findings` も、finding と
 同じキー（`harm`/`harm_detail`/`severity`/`scope: out`/`locus`/`summary`/`evidence`/
-`expected`/`recheck`）を揃える。主文脈がそれを finding ブロックへ写して `ingest-review` する
-（`pr-reviewer` だけ直しても半分しか塞がらない）。**取り込みの実行は主文脈**で、是正当事者には
+`expected`/`recheck`）を揃える。主文脈がそれを finding ブロックへ写して `ingest-review` する。
+保護モードでは最新 round を `--round` で明示して追記し、レビューアの申告原本には記録しない。
+**取り込みの実行は主文脈**で、是正当事者には
 `ingest-review` を許さない（`.claude/hooks/agent-command-gate.sh` と
-`.codex/hooks/agent-command-gate.sh` の `KARTE_ALLOWED_SUBCOMMANDS`）。
+`.codex/hooks/agent-command-gate.sh` のロール別許可表）。
 
 ## `harm_detail` の内容 lint（Issue #511）
 
@@ -345,7 +375,7 @@ expected に書いて**返す」と指示していた。Issue #511 は契約側�
   別 Issue にすべき等の**見立てはどの欄にも書かない**——レビュー担当の申告は `scope: out` まで
   である（`.ai/agents/pr-reviewer.md`）。`expected` は「期待する観測可能な状態」を書く欄であり、
   見立ての退避先ではない。
-- **適用範囲は新規の `ingest-review` だけ**。既存カルテを読む側（`karte/model.py` の
+- **適用範囲は新規の `ingest-review` / `ingest-reviewer`**。既存カルテを読む側（`karte/model.py` の
   `parse`）には掛けない——`tmp/` は版管理外だが、進行中の Issue の台帳が読めなくなると
   是正ループが止まる（`scope` 必須化と同じ移行方針）。
 

@@ -25,12 +25,12 @@ INPUT_KINDS = {
 }
 
 
-def verify_artifact_binding(request, cwd: Path, worktree: Path) -> None:
+def verify_artifact_binding(request, cwd: Path, worktree: Path) -> int | None:
     """binding は trusted dispatcher が用意し、期待値を artifact から補わない。"""
     if request.binding_file is None:
         if request.role != "issue-fixer":
             raise CodexExecError("CODEX_EXEC_BINDING_MISSING", request.role)
-        return
+        return None
     try:
         binding = json.loads((cwd / request.binding_file).read_text(encoding="utf-8"))
         if binding["recipient"] != request.role:
@@ -48,10 +48,10 @@ def verify_artifact_binding(request, cwd: Path, worktree: Path) -> None:
             if binding["consultation"]["model"] != request.model:
                 raise ValueError("consultation model mismatch")
             validate_adviser_request(binding["consultation"], worktree, oid)
-            return
+            return None
         if "input_file" in binding:
             validate_initial_binding(binding, request.role, worktree, oid)
-            return
+            return None
         if set(binding) != {"recipient", "artifact", "artifact_digest", "expected"}:
             raise ValueError("binding fields mismatch")
         path = worktree / binding["artifact"]
@@ -71,5 +71,9 @@ def verify_artifact_binding(request, cwd: Path, worktree: Path) -> None:
         if data["artifact_type"] not in INPUT_KINDS.get(request.role, set()):
             raise ValueError("input kind incompatible with recipient")
         validate_work_unit_binding(binding, data, request.role, worktree, verified)
+        expected_issue = expected.get("issue")
+        if isinstance(expected_issue, int) and not isinstance(expected_issue, bool):
+            return expected_issue
+        return None
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
         raise CodexExecError("CODEX_EXEC_BINDING_INVALID", str(error)) from None

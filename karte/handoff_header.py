@@ -9,9 +9,9 @@
 import re
 
 from .errors import KarteUsageError
-from .verb_support import parse_int
+from .int_args import parse_int
 
-HEADER_RE = re.compile(r"^<!--\s*handoff\s+issue=(\S+)\s+round=(\S+)\s*-->\s*$")
+HEADER_RE = re.compile(r"<!--[ \t]*handoff[ \t]+issue=(\S+)[ \t]+round=(\S+)[ \t]*-->[ \t]*")
 FORMAT_HINT = "ファイルの先頭（最初の `### ` より前）に `<!-- handoff issue=<N> round=<R> -->` の 1 行が必要"
 
 
@@ -20,7 +20,7 @@ def _declared(report_text) -> list:
     for line in report_text.splitlines():
         if line.startswith("### "):
             break
-        match = HEADER_RE.match(line)
+        match = HEADER_RE.fullmatch(line)
         if match:
             found.append(match.groups())
     return found

@@ -44,8 +44,8 @@ verb:
                      コンテキストへ注入する」自動可視化は未配線のまま、Issue #512 が対応する
                      AC を移譲し**別の設計**で実装した——届け先を AI のコンテキスト
                      （``additionalContext``）ではなく**オーナーのチャット**（``systemMessage``）
-                     にし、トリガーも ``pr-reviewer`` 呼び出し後ではなく ``ingest-review``/
-                     ``close-attempt`` 実行直後にした（実体は :mod:`karte_notify`・
+                     にし、``ingest-review`` / ``ingest-reviewer`` / ``decide`` / ``close-attempt`` や
+                     Codex reviewer wrapper の実行を検出する（実体は :mod:`karte_notify`・
                      ``.claude/hooks/karte-notify.sh``）。理由は、AI のコンテキストへ注入する
                      だけでは「機械判定が AI の要約を経て歪む」経路（実例＝PR #509／Issue #431：
                      ``escalate: yes`` を主文脈が独自解釈して丸めた）を防げないため。この

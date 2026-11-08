@@ -91,3 +91,5 @@ Step 0 の後・診断より前に行い、その衝突解消の編集は是正�
 `ingest-review` は**是正当事者には許さない**（自分への指摘を自分で台帳へ書き換えられる）。
 `ingest-reviewer`・`decide`・`activate` も許されない。レビュー結果の取り込みは、`pr-reviewer`
 本人（`ingest-reviewer`）か主文脈（`ingest-review`）が行う（Issue #308 / #341 / #375）。
+実装・是正担当の `out_of_scope_findings` は主文脈が最新 round を明示して取り込む。申告原本がある
+Issue は保護モードとなり、オーナー決定を保持し、再掲漏れは未解消のまま引き継ぐ。

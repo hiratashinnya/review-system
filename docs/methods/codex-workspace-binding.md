@@ -9,7 +9,8 @@ Issue #452 の Codex repo supervisor 方式は Issue #538 の PR-A で退役し�
 - **Codex は主文脈にしない。** 主文脈は Claude Code であり、Codex はサブ実行者として使う
   （オーナー決定・2026-09-22・Issue #538）。
 - **Claude の工程ロールと `issue-fixer` は、自分の linked worktree で元ロールの権限を維持してCodexを起動できる。**
-  経路は `python3 -m codex_worktree_exec`（`codex exec -C <worktree>` の薄いラッパー）だけである（D12）。
+  read-only の `pr-reviewer` も、承認済みbindingを伴うレビューに限り同じexecutorを使える。経路は
+  `python3 -m codex_worktree_exec`（`codex exec -C <worktree>` の薄いラッパー）だけである（D12）。
 - **Codex は commit・push・PR 作成をしない。** network は無効で、`.git` へは書けない。commit・push・PR 作成は
   呼び出し側の Claude ロールが既存の `agent-command-gate` の下で行う。
 - 権限境界は版管理した permission profile（`.codex/config.toml`）、両PFの既存command hook、
@@ -58,8 +59,14 @@ python3 -m codex_worktree_exec --role <自ロール> -C <自分の worktree ル�
   相対パスは呼び出し元 cwd を起点とし、親 symlink を解決した実パスが検査済み worktree の `tmp/` 内に
   あることを起動前に確認する。境界外の絶対パス・`../`・symlink は拒否する。`tmp/` 自体が境界外へ
   symlink で移されている場合も拒否する。
-- 終了コードは、検査不合格が `2`（stderr に `codex_worktree_exec: <識別子>: <詳細>` を1行出す）、timeout が `124`、
-  それ以外は `codex exec` の終了コードをそのまま返す。
+- 終了コードは、通常ロールでは検査不合格が `2`（stderr に `codex_worktree_exec: <識別子>: <詳細>` を出す）、
+  timeout が `124`、起動後は `codex exec` の終了コードをそのまま返す。`pr-reviewer` はCodex出力を透過せず、
+  Codex異常終了または取り込み失敗を `2`、Codex成功かつ取り込み成功を `0` で返す。
+  `pr-reviewer` のIssueは承認済み `expected.issue` と起動時および取り込み直前の進行ポインタを照合し、
+  roundも起動時から変化していないことを要求する。bindingに `expected.issue` がない場合は Codex 起動前に
+  `CODEX_EXEC_BINDING_INVALID` または `CODEX_REVIEW_INGEST_FAILED` で停止する。
+  reviewer で Codex が異常終了した場合は、ANSI制御文字を除去した stderr の末尾を複数行（最大6行・1000文字）返す。
+- 取り込み失敗で `karte` が拒否理由を出した場合、拒否見出しそのものと、その直後に連続する箇条書きを返す（間に別の行が挟まるとそこで打ち切る）。全体が8行・1000文字以内なら省略せず、上限を超える場合は省略表示を含めて合計8行・1000文字以内にする。`N` は省略された行数とし、見出し1行または箇条書き1行が長い場合は「…」で切って返す。拒否見出しがない失敗では、空でない stderr/stdout の最後の行を返す。
 - 起動後、呼び出し側は Codex の変更を `python3 -m gitgate diff` と単体テストで自分で確かめてから commit する。
   依頼範囲外の変更が混じっていたら commit せず STOP して報告する。
 
@@ -76,6 +83,8 @@ python3 -m codex_worktree_exec --role <自ロール> -C <自分の worktree ル�
 | 5 | project trust | `CODEX_EXEC_TRUST_UNRESOLVED`／`CODEX_EXEC_PROJECT_UNTRUSTED` |
 | 6 | 依頼文・最終応答のファイル（D8） | `CODEX_EXEC_PROMPT_UNREADABLE`／`CODEX_EXEC_OUTPUT_INVALID` |
 | 7 | 起動と timeout（D9） | `CODEX_EXEC_LAUNCH_FAILED`／`CODEX_EXEC_TIMEOUT` |
+| 8 | `pr-reviewer` の Codex 実行・外側取り込み（Issue #375） | `CODEX_REVIEW_CODEX_FAILED`／`CODEX_REVIEW_INGEST_FAILED` |
+| 9 | 承認済み artifact binding | `CODEX_EXEC_BINDING_MISSING`／`CODEX_EXEC_BINDING_INVALID` |
 
 ### Codex に渡す argv
 
@@ -85,8 +94,9 @@ codex exec -C <worktree> -c default_permissions="<role>" -m <model> \
   -c model_reasoning_effort="<effort>" --output-last-message <最終応答> -
 ```
 
-依頼文は、固定の前置き（委譲しない・commit/push しない・範囲外を変更しない・最後に要約を返す）に本文を
-続けて stdin で渡す。sandbox や承認を迂回する flag は渡さない。ラッパーはモデルと推論予算の既定値を持たない（D10）。
+依頼文は、固定の前置き（委譲しない・commit/push しない・範囲外を変更しない）に本文を続けて stdin で渡す。
+通常ロールには最後に要約を求め、`pr-reviewer` には構造化レポート本文だけを最終応答にするよう求める。
+sandbox や承認を迂回する flag は渡さない。ラッパーはモデルと推論予算の既定値を持たない（D10）。
 
 ### Codex に渡す環境
 
@@ -151,10 +161,12 @@ profile の構文は、パスを絶対パスか `~/` 始まりで書く。`unitt
    （Bash の `agent-command-gate.sh` と `adr-notify.sh`）と user 層のフックが加算で走りうるが、権限境界をフックに
    依存させない。Codex が実行するコマンドは `agent_type` を持たないため、Codex 版 gate ではロール専用層の対象外となり、
    全ロール共通の merge／network・exec の deny だけが掛かる。
-4. **権限の非対称**：Codex には profile の filesystem／network 規則で「編集とテスト実行だけ」をさせる
-   （worktree 外・`.codex/`・git dir への書込みと network は不可）。merge と push の非対称を Codex に担わせない。
-   commit・push・PR 作成は呼び出し側の Claude ロールが `agent-command-gate` の下で行う。`pr-reviewer` には
-   ラッパーを許可せず、profile も置かない。
+4. **権限の非対称**：著作/fixerの Codex には profile の filesystem／network 規則で「編集とテスト実行だけ」をさせる
+   （worktree 外・`.codex/`・git dir への書込みと network は不可）。read-only の `pr-reviewer` はレビューだけを行い、
+   `--output-last-message` の保存後に外側の `codex_worktree_exec` が既存 `ingest-reviewer` を実行する（Issue #375 案B）。
+   この経路も linked worktree、D5、read-only profile、network無効、artifact binding の検査を維持する。
+   Codex 本体に karte の書込権限は与えず、`.codex/hooks/agent-command-gate.sh` の pr-reviewer×karte 拒否も変えない。
+   merge・push・PR 作成は引き続き呼び出し側の Claude ロールが `agent-command-gate` の下で行う。
 
 ## 実起動 spike の実測（Codex 0.157.0）
 
@@ -185,7 +197,7 @@ audit 推奨・オーナー承認の暫定決定。番号は audit の番号を�
 | ID | 暫定決定 | 覆る場合の影響範囲 |
 |---|---|---|
 | D1 | ラッパーは worktree の `.codex/config.toml` の blob OID を `origin/main:.codex/config.toml` と比べ、異なれば起動しない。比較先はローカルの `origin/main` ref で、ラッパーは fetch しない。 | 検査をやめると、呼び出し側が worktree 内で profile を緩めて起動できる。比較先を変えるなら `codex_worktree_exec/profile_pin.py`・同テスト・TD を改める。 |
-| D4 | `--role` の値と呼び出し元 agent_type の一致を Claude 側 gate で検査する。ロールの allowlist は `GATED_ROLES` から `pr-reviewer` を除いて導出する（`codex_worktree_exec/roles.py` の `CODEX_EXEC_ROLES`。gate もここを読む）。gate の基底集合には加えず、書込ロール専用集合へ加える。 | 書込ロールを増減するときは `GATED_ROLES` と `.codex/config.toml` の profile を同時に変える。導出をやめると gate とラッパーの許可集合が別々に保守され、基底集合への追加は `pr-reviewer` にも書込経路を与える。 |
+| D4 | `--role` の値と呼び出し元 agent_type の一致を Claude 側 gate で検査する。ロールの allowlist は `CODEX_EXEC_ROLES = GATED_ROLES`（`codex_worktree_exec/roles.py`）から導出し、`pr-reviewer` を含む。 | `GATED_ROLES` を変えるとCodexラッパーの許可集合も追随する。導出をやめるとgateとラッパーの許可集合が別々に保守される。 |
 | D5 | `-C` は登録済みの linked worktree で、かつ呼び出し元の cwd の toplevel と一致するものに限る。登録の確認は `gitgate.worktree.linked_worktree_paths` を再利用する。main checkout は指定できない。 | 条件を緩めると、別の dispatch の worktree や main checkout を Codex に書かせられる。 |
 | D6 | Codex 版 gate の allowlist にラッパーを入れない。Codex の中からの再帰起動は `.codex/rules/default.rules`（`python3`／`python -m codex_worktree_exec` を forbidden）と、ラッパー自身の検知（自分が子へ渡す `CODEX_WORKTREE_EXEC_ACTIVE`、および Codex が sandbox 内コマンドへ付ける `CODEX_SANDBOX`・`CODEX_SANDBOX_NETWORK_DISABLED`）で止める。 | Codex から Claude ロールを経ずに Codex を起動できる経路を作るなら、Codex 版 gate と execpolicy の両方を設計し直す。 |
 | D7 | 主文脈による直接起動は機械では止められない（gate のロール専用層は主文脈に掛からない）。「主文脈は実装を代行しない」を契約文に明記し、規律で守る。ラッパーは main checkout を `-C` に取らないため、主文脈が自分の checkout で起動しても止まる。 | 機械で止めるには、主文脈を識別するハーネス機能が要る（2026-07-11 のオーナー判断で gate 単独では不可と確定済み）。 |
