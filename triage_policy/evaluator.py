@@ -26,6 +26,8 @@ def suggest(policy: object, finding: object) -> dict:
             or finding["high_risk"] or finding["spec_decision_required"]
             or finding["scope_expansion_required"]):
         return {"candidate": "owner-review", "reason_codes": ["owner-judgment-required"]}
+    if finding["worsened"] and not finding["regression"]:
+        return {"candidate": "owner-review", "reason_codes": ["worsening-contradicts-regression"]}
     if finding["harm"] == "none" and any(finding[key] for key in MANDATORY):
         return {"candidate": "owner-review", "reason_codes": ["harm-contradicts-mandatory"]}
     for rule in policy["rules"]:
