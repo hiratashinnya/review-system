@@ -492,3 +492,62 @@ clean を通過した（PR #490 → Issue #493 の流出経路）。`scope` は�
 読めなくすると進行中の是正ループが止まるため。新規取り込み（:func:`parse_review`）
 側では必須にしてあるので、以後書かれるカルテには必ず ``scope`` が載る。
 ```
+
+## K-02 分割計画（#747）
+
+Issue #747（親 #745・K-02・下段 #796＝K-01）の設計。**この節は実装前の設計であり、実装は後続の是正ラウンドで行う**。設計者＝Claude Code (AI)。K-01 の節は変更しない。
+
+### 着手時点の実測
+- L1 head（53d4e7a8）で `python3 -m maintainability_lint check` は `accepted_debt=62`（全体）。`karte/model.py` の登録は `module-over-100-lines`（635行）の1件のみで、`comment-over-3-lines`・dataclass 同居の登録は 0。
+- Issue #747 本文の「初期11件」は K-01 前の件数で、現在値と食い違う。実装 PR では着手時と完了時の件数を再計測して記す。
+- 635行の内訳は、モジュール docstring（約110行・「追記規律」「改ざん防止の機械的裏付けと既知の限界」等）、import（約60行）、dataclass 4つ、解析・類似・描画の関数群。**docstring を残すだけで入口が100行を超える**ため、分割だけでは足りず docstring の移設が要る。
+
+### 新規モジュール（各100行以内・依存は上から下の一方向）
+| 順 | モジュール | 内容（移設元 `karte/model.py`） | 備考 |
+|---|---|---|---|
+| 0 | `vocabulary.py`（既存へ追記） | `FORMAT_VERSION` | 35行の既存に1行足すだけ |
+| 1 | `finding_record.py` | `Finding`（dataclass＋プロパティ） | dataclass のみ。長い docstring は本節の下へ逐語移設し、本体は短い docstring にして100行に収める |
+| 1 | `attempt_record.py` | `Attempt`, `Result` | dataclass のみ |
+| 1 | `karte_record.py` | `Karte`（dataclass＋参照メソッド）, `new_karte` | 具体ロジック class は持たない |
+| 2 | `finding_dedup.py` | `normalize_text`, `shingles`, `_jaccard`, `is_same_finding`, `SHINGLE_SIZE`, `DUPLICATE_SIMILARITY_THRESHOLD` | 既存 `similarity.py`（Attempt 類似）とは別物。名前で区別 |
+| 2 | `block_records.py` | `_finding_from_block`, `_attempt_from_block`, `_result_from_block` | 先頭の `_` は維持（互換） |
+| 3 | `karte_parse.py` | `parse` | `block_records` と `karte_record` に依存 |
+| 3 | `karte_render.py` | `_emit`, `render_finding`, `render_attempt`, `render_result`, `dumps` | `finding_record`/`value_codec` に依存 |
+| 4 | `model.py`（公開互換入口） | docstring 約20行＋再エクスポートのみ | 100行以内。ロジック・dataclass を持たない |
+
+- どのモジュールも `karte.model` を import しない（循環を作らない）。既存 K-01 モジュールにも `model` を import するものは無い想定で、実装時に grep で確認する。
+- `finding_record.py` が100行に収まらない場合も、判定述語（`cleared_by_disposition` 等）を別モジュールへ分けず、**docstring の移設で縮める**ことを先に試す。分けると述語の単一点性（Issue #503）を崩すため。
+
+### `karte.model` の再エクスポート名（漏れ防止）
+実装時に `vars(karte.model)` から機械的に列挙し、**`dataclass`/`field`/`re`/`unicodedata`/`annotations` 以外の全名**を再エクスポートする。着手時の実測は次のとおり。
+- 型: `Attempt Block Disposition Finding Karte KarteFormatError Result ReviewFinding`
+- 関数: `check_harm_detail check_list check_scalar dumps find_harm_detail_terms format_finding_id format_value is_same_finding matched_int new_karte normalize_for_term_match normalize_locus normalize_text parse parse_blocks parse_disposition parse_finding_id parse_review parse_value render_attempt render_finding render_result require_ascii_int shingles validate_change_kind validate_finding_ids validate_slug validate_targets`
+- 非公開名（互換のため維持）: `_attempt_from_block _emit _finding_from_block _jaccard _optional_enum _require_enum _require_int_list _require_nonempty _result_from_block`
+- 定数: `ATTEMPT_TITLE_RE CHANGE_KINDS CLEARING_DISPOSITIONS CLEARING_HARM DEFAULT_SCOPE DEFERRED_TO_RE DISPOSITIONS DISPOSITION_ALL_KEYS DISPOSITION_REQUIRED_KEYS DISPOSITION_TERMS DISTINCT_FROM_KEY DOC_HEADER_RE DUPLICATE_SIMILARITY_THRESHOLD FINDING_ID_RE FINDING_STATUSES FORBIDDEN_LIST_ITEM_CHARS FORBIDDEN_VALUE_CHARS FORMAT_VERSION HARM_DETAIL_FORBIDDEN_TERMS HARM_LEVELS KEY_RE NEW_FINDING_TITLES OUTCOMES PROCESS_TERMS RESULT_TITLE_RE SCOPES SECTION_ATTEMPTS SECTION_FINDINGS SEVERITIES SHINGLE_SIZE SLUG_RE`
+- import 行の数がそのままでは入口が100行を超えるため、1行に複数名を並べる（1名1行にしない）。`__all__` は足さない（`import *` の挙動を変えないため）。
+- `Finding` 等の `__module__` は `karte.finding_record` 等に変わる。`pickle` 等で `__module__` に依存する箇所が無いことを grep で確認し、あれば互換を再検討する。
+
+### モジュール docstring の移設（100行制約の要点）
+- 「追記規律」「改ざん防止の機械的裏付けと既知の限界」等の約110行は、本ファイルへ**逐語で**移設する（K-01 と同じ。移設前に必ず保全してから削る）。
+- 他文書が `karte/model.py` の「改ざん防止の機械的裏付けと既知の限界」を名指ししている（`karte/README.md`・`feedback_ledger/README.md`。`.claude/rules/05-skills-agents.md` も `karte/model.py` を名指しする記述がある）。**参照切れを避けるため、入口の docstring に同名の見出し＋要約数行を残し、全文への参照（本ファイルの節）を付ける**。`.claude/rules/*.md` は governance 正本集合に入るため、そこを書き換えるとドリフト検査が動く。書き換えずに済む方針を採る。
+- 連続4行以上の行コメントは作らない（docstring は対象外だが、dataclass 内の `#` コメントは3行以内。`Finding` の現状は3行以内）。
+
+### 互換性・同値性の守り方
+- 既存 `tests/unit/test_karte_model_compat.py` と `tests/fixtures/karte/model_parse_golden.json` が、parse の有効/無効入力の結果（成功は sha256、失敗は例外クラス名とメッセージ）と公開名の importability を固定している。**golden は書き換えない**（書き換えると分割前との同値性証拠が失われる）。
+- 足りない検出力の候補（追加はテストのみ。ソースは変えない）。要否は実装ラウンドで判断する。
+  1. **parse→dumps→parse の同値性**：VALID と各 `karte_extras()` について `parse(dumps(parse(x)))` が `parse(x)` と dataclass として等しいこと。現 golden が `dumps` 出力を固定しているか未確認で、固定していなければ `dumps` の出力固定が欠ける。
+  2. **render 系の直接入力**：`render_finding/attempt/result` を、locus 複数・空値・`resolved_round`・`rounds` 空の Finding 等で直接呼ぶ入力を `helper_calls()` に足す。
+  3. **`is_same_finding`/`shingles`/`normalize_text`**：境界（空・全角・閾値ちょうど 0.6・locus 交差のみ一致）の入力が `helper_calls()` にあるか確認し、無ければ追加。
+  4. **`Finding` の述語**：`cleared_by_disposition`/`needs_remediation`/`needs_disposition`/`max_consecutive_rounds` の真偽表（harm × disposition × status）。単一点の規則（Issue #503）が移設で壊れないことを固定する。
+  5. `karte.model` が新モジュールを import し、新モジュールが `karte.model` を import しないこと（循環の検査）。
+- 公開 API・CLI の出力・終了コード・書込副作用は変えない（#745 C01）。`#683`/`#614`/`#513` の動作変更を暗黙に取り込まない。
+
+### baseline を 0 にする手順
+1. 実装・docstring 移設後、`python3 -m maintainability_lint check` を実行する。新規モジュールに違反が出たら分割をやり直す（除外・例外の追加は禁止）。
+2. baseline は手で編集しない。`python3 -m maintainability_lint baseline` は現在の違反スナップショットを JSON で標準出力へ出す verb なので、その出力で `maintainability_lint/baseline.json` を更新する。差分は `karte/model.py` の登録削除だけであることを確認する（他の登録が増減していたら、下段・main の変更の取り込み結果なので理由を PR に記す）。
+3. `check` の `accepted_debt` が着手時から1減ること、`karte/model.py` を含む行が 0 件であることを PR に記録する。
+4. `python3 -m unittest discover -s tests/unit` を通す（資産を触った場合は `python3 -m asset_parity check` も）。
+
+### 未確認事項（実装時に確認）
+- golden の `names` に非公開名や stdlib 名が含まれるか（含まれるなら維持）。
+- `Finding` が100行に収まるか。収まらなければ docstring をさらに本ファイルへ移す。
