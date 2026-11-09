@@ -15,7 +15,7 @@ from unittest.mock import patch
 from codex_worktree_exec.cli import EXIT_REFUSED, main
 from codex_worktree_exec.errors import CodexExecError
 from codex_worktree_exec.review_handoff import _ingest, _save_handoff
-from karte import model, paths
+from karte import handoff_header, model, paths, review_envelope
 from tests.unit.codex_worktree_exec_support import clean_environ, make_repository, write_trust
 
 
@@ -58,6 +58,18 @@ class CodexReviewerHandoffTests(unittest.TestCase):
         )
         (self.worktree / "tmp").mkdir()
         (self.worktree / "tmp" / "prompt.md").write_text("Review the assigned change.", encoding="utf-8")
+        # 承認済み binding（trusted dispatcher が用意）。主文脈は同じ値を activate へ渡す。
+        (self.worktree / "tmp" / "binding.json").write_text(json.dumps({
+            "recipient": "pr-reviewer", "artifact": "tmp/artifact.toml", "artifact_digest": "b" * 64,
+            "expected": {"issue": 375, "run_id": "run-375", "target_key": "pr-697",
+                         "snapshot_oid": "a" * 40, "artifact_type": "ChangePlan"},
+        }), encoding="utf-8")
+        self.envelope = review_envelope.expected_of(
+            issue=375, phase="implementation", run_id="run-375", target_key="pr-697",
+            input_digest="b" * 64, snapshot_oid="a" * 40,
+        )
+        self.activate_argv = ["--run-id", "run-375", "--target-key", "pr-697", "--phase", "implementation",
+                              "--snapshot-oid", "a" * 40, "--input-digest", "b" * 64]
         self.output = self.worktree / "tmp" / "result.md"
         self.codex = self.directory / "fake-codex"
         self.ingest = patch(
@@ -133,11 +145,16 @@ class CodexReviewerHandoffTests(unittest.TestCase):
         self.ingest_mock.assert_called_once()
         worktree, handoff = self.ingest_mock.call_args.args
         self.assertEqual(self.worktree, worktree)
-        self.assertEqual("<!-- handoff issue=375 round=1 -->\n" + REPORT,
+        self.assertEqual(handoff_header.render_header(1, self.envelope) + "\n" + REPORT,
                          handoff.read_text(encoding="utf-8"))
 
     def test_existing_ingest_reviewer_cli_runs_from_linked_worktree_and_writes_primary_ledger(self):
-        handoff = _save_handoff(self.primary, REPORT, 375, 1)
+        activated = subprocess.run(
+            [sys.executable, "-m", "karte", "activate", "--issue", "375", *self.activate_argv],
+            cwd=self.primary, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(0, activated.returncode, activated.stderr)
+        handoff = _save_handoff(self.primary, REPORT, 375, 1, self.envelope)
         code, detail, warnings = _ingest(self.worktree, handoff)
         self.assertEqual(0, code, detail)
         self.assertEqual((), warnings)
@@ -322,7 +339,7 @@ class CodexReviewerHandoffTests(unittest.TestCase):
 
     def test_main_runs_real_ingest_reviewer_and_rejects_invalid_report_without_mutation(self):
         activated = subprocess.run(
-            [sys.executable, "-m", "karte", "activate", "--issue", "375"],
+            [sys.executable, "-m", "karte", "activate", "--issue", "375", *self.activate_argv],
             cwd=self.primary, capture_output=True, text=True, check=False,
         )
         self.assertEqual(0, activated.returncode, activated.stderr)
@@ -337,6 +354,11 @@ class CodexReviewerHandoffTests(unittest.TestCase):
 
         before = paths.karte_path(375, self.primary).read_bytes()
         self.output.unlink()
+        activated = subprocess.run(  # 取り込み成功で期待値は消えるので、次のレビューのために記録し直す
+            [sys.executable, "-m", "karte", "activate", "--issue", "375", *self.activate_argv],
+            cwd=self.primary, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(0, activated.returncode, activated.stderr)
         code, _out, err = self.run_main(content="レビュー本文だが finding block は無い\n")
         self.assertEqual(EXIT_REFUSED, code)
         self.assertIn("CODEX_REVIEW_INGEST_FAILED", err)
@@ -345,7 +367,7 @@ class CodexReviewerHandoffTests(unittest.TestCase):
 
     def test_real_ingest_warnings_are_returned_once(self):
         activated = subprocess.run(
-            [sys.executable, "-m", "karte", "activate", "--issue", "375"],
+            [sys.executable, "-m", "karte", "activate", "--issue", "375", *self.activate_argv],
             cwd=self.primary, capture_output=True, text=True, check=False,
         )
         self.assertEqual(0, activated.returncode, activated.stderr)
@@ -353,7 +375,7 @@ class CodexReviewerHandoffTests(unittest.TestCase):
         second = REPORT.replace("F-375-01", "F-375-02").replace(
             "検証が不足している", "別の検証が不足している"
         ).replace("source.py::check", "other.py::check")
-        first = _save_handoff(self.primary, REPORT + "\n" + second, 375, 1)
+        first = _save_handoff(self.primary, REPORT + "\n" + second, 375, 1, self.envelope)
         code, detail, _warnings = _ingest(self.worktree, first)
         self.assertEqual(0, code, detail)
         decided = subprocess.run(
@@ -362,6 +384,17 @@ class CodexReviewerHandoffTests(unittest.TestCase):
             cwd=self.primary, capture_output=True, text=True, check=False,
         )
         self.assertEqual(0, decided.returncode, decided.stderr)
+        decided = subprocess.run(  # F-02 は申し送り済み＝再掲不要（警告のみで完了する）
+            [sys.executable, "-m", "karte", "decide", "--finding", "F-375-02",
+             "--disposition", "deferred", "--deferred-to", "#901"],
+            cwd=self.primary, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(0, decided.returncode, decided.stderr)
+        activated = subprocess.run(
+            [sys.executable, "-m", "karte", "activate", "--issue", "375", *self.activate_argv],
+            cwd=self.primary, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(0, activated.returncode, activated.stderr)
         changed = REPORT.replace(
             "recheck: 不正入力を実行する",
             "recheck: 不正入力を実行する\ndisposition: waived",
@@ -372,9 +405,38 @@ class CodexReviewerHandoffTests(unittest.TestCase):
         self.assertEqual(1, out.count("オーナーが確定した scope を保持"))
         self.assertEqual(1, out.count("再掲されなかった未解消 finding を引き継ぎ"))
 
+    def test_real_ingest_with_omitted_reviewer_finding_is_not_a_completed_run(self):
+        """レビューアが申告した是正対象の finding を再掲しない出力は、台帳へ引き継いだ上で完了扱いにしない。"""
+        activated = subprocess.run(
+            [sys.executable, "-m", "karte", "activate", "--issue", "375", *self.activate_argv],
+            cwd=self.primary, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(0, activated.returncode, activated.stderr)
+        self.ingest.stop()
+        second = REPORT.replace("F-375-01", "F-375-02").replace(
+            "検証が不足している", "別の検証が不足している"
+        ).replace("source.py::check", "other.py::check")
+        first = _save_handoff(self.primary, REPORT + "\n" + second, 375, 1, self.envelope)
+        code, detail, _warnings = _ingest(self.worktree, first)
+        self.assertEqual(0, code, detail)
+        activated = subprocess.run(
+            [sys.executable, "-m", "karte", "activate", "--issue", "375", *self.activate_argv],
+            cwd=self.primary, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(0, activated.returncode, activated.stderr)
+        code, out, err = self.run_main(content=REPORT)
+        self.assertEqual(EXIT_REFUSED, code)
+        self.assertIn("CODEX_REVIEW_INGEST_FAILED", err)
+        self.assertIn("未完了（取り込み済み）", err)
+        self.assertIn("F-375-02", err)
+        self.assertEqual("", out)
+        ledger = model.parse(paths.karte_path(375, self.primary).read_text())
+        self.assertEqual([1, 2], ledger.finding("F-375-01").rounds)
+        self.assertEqual("open", ledger.finding("F-375-02").status)
+
     def test_real_ingest_rejection_returns_validation_bullets(self):
         activated = subprocess.run(
-            [sys.executable, "-m", "karte", "activate", "--issue", "375"],
+            [sys.executable, "-m", "karte", "activate", "--issue", "375", *self.activate_argv],
             cwd=self.primary, capture_output=True, text=True, check=False,
         )
         self.assertEqual(0, activated.returncode, activated.stderr)
@@ -398,7 +460,7 @@ class CodexReviewerHandoffTests(unittest.TestCase):
         self.assertFalse((self.primary / "tmp" / "_handoff").exists())
 
     def test_pointer_round_change_after_codex_start_fails_before_handoff(self):
-        advanced = _save_handoff(self.primary, REPORT, 375, 1)
+        advanced = _save_handoff(self.primary, REPORT, 375, 1, self.envelope)
         handoff_count = len(list((self.primary / "tmp" / "_handoff").glob("pr-reviewer--*.md")))
         code, out, err = self.run_main(
             pointer_after={"issue": 375, "round": 1}, advance_handoff=advanced
@@ -542,6 +604,46 @@ class CodexReviewerHandoffTests(unittest.TestCase):
         code, _out, _err = self.run_main(role="issue-fixer")
         self.assertEqual(0, code)
         self.ingest_mock.assert_not_called()
+
+    def test_unusable_binding_stops_before_codex_or_handoff(self):
+        (self.worktree / "tmp" / "binding.json").write_text(
+            json.dumps({"artifact_digest": "b" * 64, "expected": {"issue": 375}}), encoding="utf-8"
+        )
+        with patch("codex_worktree_exec.cli.run_codex") as run_codex:
+            code, _out, err = self.run_main()
+        self.assertEqual(EXIT_REFUSED, code)
+        self.assertIn("CODEX_REVIEW_INGEST_FAILED", err)
+        self.assertIn("review envelope", err)
+        run_codex.assert_not_called()
+        self.assertFalse((self.primary / "tmp" / "_handoff").exists())
+
+    def test_direct_ingest_requires_a_binding_derived_envelope(self):
+        from codex_worktree_exec.review_handoff import ingest_codex_output
+        self.output.write_text(REPORT, encoding="utf-8")
+        with self.assertRaises(CodexExecError) as caught:
+            ingest_codex_output(self.worktree, self.output, 375, (375, 0, 1))
+        self.assertEqual("CODEX_REVIEW_INGEST_FAILED", caught.exception.error_id)
+        self.assertIn("review envelope", str(caught.exception))
+        self.assertFalse((self.primary / "tmp" / "_handoff").exists())
+
+    def test_wrapper_header_must_match_the_expectation_recorded_by_the_main_context(self):
+        """主文脈が別 run・別 snapshot を記録していれば、binding 由来のヘッダでも ingest-reviewer が拒否する。"""
+        self.ingest.stop()
+        for flag, value, key in (("--run-id", "run-other", "run_id"), ("--snapshot-oid", "c" * 40, "snapshot_oid")):
+            with self.subTest(flag=flag):
+                argv = list(self.activate_argv)
+                argv[argv.index(flag) + 1] = value
+                activated = subprocess.run(
+                    [sys.executable, "-m", "karte", "activate", "--issue", "375", *argv],
+                    cwd=self.primary, capture_output=True, text=True, check=False,
+                )
+                self.assertEqual(0, activated.returncode, activated.stderr)
+                if self.output.exists():
+                    self.output.unlink()
+                code, _out, err = self.run_main()
+                self.assertEqual(EXIT_REFUSED, code)
+                self.assertIn(f"stale: {key}", err)
+                self.assertFalse(paths.karte_path(375, self.primary).exists())
 
 
 if __name__ == "__main__":

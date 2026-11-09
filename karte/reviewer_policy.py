@@ -38,6 +38,9 @@ class ReviewerIngestPolicy:
         self.owner_scopes = scope_ledger.owner_scopes(issue, repo_root, records=self.records)
         self.declared_now = {}
         self.kept_owner_scope = []  # オーナー確定の scope を保持した finding ID（申告と食い違うもの）
+        # レビューアの申告原本が無い台帳の scope（主文脈の取り込み由来）を、申告で置換した記録（検出用）
+        self.replaced_unattested = []
+        self.declared_ids = {finding_id for _line, (_round, finding_id, _scope, by) in self.records if not by}
 
     def apply(self, finding, item, is_new) -> None:
         """scope だけをレポート値で更新する。disposition 系は触らない。
@@ -54,6 +57,8 @@ class ReviewerIngestPolicy:
                 self.kept_owner_scope.append(finding.id)
             finding.scope = owner_scope
             return
+        if self.record_declarations and not is_new and finding.id not in self.declared_ids and finding.scope != item.scope:
+            self.replaced_unattested.append(f"{finding.id}（{finding.scope}→{item.scope}）")
         finding.scope = item.scope
 
     def persist(self, round_no) -> None:

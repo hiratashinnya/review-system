@@ -47,6 +47,7 @@ class HarmLaunchTests(unittest.TestCase):
                          'verify_project_trusted', 'verify_artifact_binding'):
                 stack.enter_context(patch.object(cli, name))
             stack.enter_context(patch.object(cli, 'capture_target', return_value=(375, 0, 1)))
+            stack.enter_context(patch.object(cli, 'review_envelope_of', return_value={}))
             stack.enter_context(patch.object(cli, 'ingest_codex_output', return_value='ingested'))
             return cli._launch([], clean_environ(), self.worktree, str(self.codex))
 

@@ -5,10 +5,13 @@
 
 import sys
 
-from . import ingest_accept, ingest_apply, ingest_checks, ingest_report, karte_rounds, model, paths, scope_ledger
+from . import (
+    ingest_accept, ingest_apply, ingest_checks, ingest_notes, ingest_report, karte_rounds, model, paths,
+    review_expectation, scope_ledger,
+)
 from .active_pointer import write_active
 from .errors import KarteUsageError
-from .exit_codes import EXIT_ERROR, EXIT_OK
+from .exit_codes import EXIT_ERROR
 from .ingest_types import IngestResult
 from .reviewer_policy import ReviewerIngestPolicy, ignore_owner_keys
 
@@ -16,8 +19,11 @@ from .reviewer_policy import ReviewerIngestPolicy, ignore_owner_keys
 def ingest_locked(repo_root, issue, round_no, report_text, policy=None, *, allow_same_round=False) -> int:
     """検証に 1 件でも掛かれば**一切書かず** ``EXIT_ERROR``。通れば台帳を置き換えて ``EXIT_OK``。
 
-    ``policy`` がある場合と申告原本がある場合はオーナー決定を保護する。
+    ``policy`` がある場合と申告原本がある場合はオーナー決定を保護する。レビューア本人の取り込みで
+    再掲漏れがあれば台帳は書くが ``EXIT_INCOMPLETE``（:func:`ingest_notes.exit_code_for`）。
     """
+    if policy is None:
+        review_expectation.refuse_main_context_ingest(repo_root, issue)  # レビューア本人の取り込み待ちは迂回させない
     if policy is None and scope_ledger.exists(issue, repo_root):
         policy = ReviewerIngestPolicy(repo_root, issue, round_no, record_declarations=False)
     path = paths.karte_path(issue, repo_root, create_dir=True)
@@ -87,7 +93,5 @@ def ingest_locked(repo_root, issue, round_no, report_text, policy=None, *, allow
     )
     for warning in warnings:
         print(f"  警告: {warning}")
-    if policy and policy.kept_owner_scope:
-        kept = ", ".join(policy.kept_owner_scope)
-        print(f"  オーナーが確定した scope を保持（レビューア申告と台帳が不一致）: {kept}")
-    return EXIT_OK
+    ingest_notes.print_policy_notes(policy)
+    return ingest_notes.exit_code_for(policy, karte, absent)

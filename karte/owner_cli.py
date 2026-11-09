@@ -1,6 +1,6 @@
 """主文脈専用の verb ``activate`` / ``decide``。"""
 
-from . import karte_rounds, model, owner_decision, paths, scope_ledger, scope_ledger_repair
+from . import handoff_header, karte_rounds, model, owner_decision, paths, review_expectation, scope_ledger, scope_ledger_repair
 from .active_pointer import write_active
 from .errors import KarteNotFound, KarteUsageError
 from .exit_codes import EXIT_OK
@@ -20,13 +20,20 @@ def cmd_activate(args, repo_root) -> int:
         for line in dropped:
             print(f"  {line}")
         return EXIT_OK
+    expected = review_expectation.from_args(args, issue)
     try:
         last = karte_rounds.last_round(load_karte(repo_root, issue)[1])
     except KarteNotFound:
         last = 0
     next_number = require_ascii_int(last + 1, KarteUsageError("次の round が桁数の上限を超える"))
-    write_active(repo_root, issue, last)
+    scope_ledger.arm(issue, repo_root)  # round 1 の前から保護モード（原本が無いと旧 ingest-review が無保護になる）
+    write_active(repo_root, issue, last, expected)
     print(f"=== activate: issue-{issue} round {last}（次の ingest-reviewer は round {next_number}）===")
+    if expected is not None:
+        print(f"  review envelope の期待値を記録（run_id={expected['run_id']} phase={expected['phase']}・"
+              "取り込み成功で消える・待機中は主文脈の ingest-review を拒否）")
+        print("  レビューアの handoff 先頭へそのまま置くヘッダ（dispatch prompt に渡す）:")
+        print("  " + handoff_header.render_header(next_number, expected))
     return EXIT_OK
 
 
@@ -61,6 +68,12 @@ def register(subparsers, add_issue) -> None:
         "--repair-declared-scope", action="store_true",
         help="壊れた申告 scope の原本の行を除いて復旧する（元は .bak* に世代を分けて残す）",
     )
+    for flag, text in (
+        ("run-id", "review run の識別子"), ("target-key", "review 対象の識別子"),
+        ("snapshot-oid", "レビュー対象の snapshot（40桁 OID）"),
+        ("input-digest", "レビュー入力の sha256（64桁 hex）"), ("phase", "test_design | implementation"),
+    ):
+        activate.add_argument(f"--{flag}", help=f"review envelope の期待値: {text}（5 項目を同時に指定）")
     activate.set_defaults(func=cmd_activate)
     decide = subparsers.add_parser("decide", help="オーナー決定を台帳へ記録する（主文脈専用）")
     add_issue(decide)

@@ -22,6 +22,7 @@ from .nesting_guard import refuse_nested_launch
 from .profile_pin import verify_profile_pinned
 from .project_trust import codex_home, verify_project_trusted
 from .prompt_files import read_prompt, resolve_output_target
+from .review_binding import review_envelope_of
 from .review_handoff import ingest_codex_output
 from .review_target import capture_target
 from .worktree_binding import bind_worktree
@@ -42,13 +43,14 @@ def _launch(
     body = read_prompt(request.prompt_file, cwd, worktree)
     output_file = resolve_output_target(request.output_file, cwd, worktree)
     is_reviewer = request.role == "pr-reviewer"
-    launch_target = None
+    launch_target = envelope = None
     if is_reviewer and output_file.exists():
         raise CodexExecError("CODEX_EXEC_OUTPUT_INVALID", "pr-reviewer output file must be new")
     if is_reviewer:
         launch_target = capture_target(
             paths.main_worktree_root(worktree), expected_issue
         )
+        envelope = review_envelope_of(cwd, request.binding_file)
     result = run_codex(
         build_codex_argv(request, worktree, output_file, codex),
         compose_prompt(request.role, worktree, body),
@@ -59,7 +61,7 @@ def _launch(
     )
     if not is_reviewer:
         return result
-    print(ingest_codex_output(worktree, output_file, expected_issue, launch_target))
+    print(ingest_codex_output(worktree, output_file, expected_issue, launch_target, envelope))
     return 0
 
 

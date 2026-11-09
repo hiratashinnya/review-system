@@ -6,15 +6,16 @@
 :mod:`karte.owner_cli`。
 """
 
-from . import handoff_header, handoff_path, ingest_review, paths, pointer_completion
+from . import handoff_header, handoff_path, ingest_review, paths, pointer_completion, review_expectation
 from .reviewer_policy import ReviewerIngestPolicy
 from .verb_boundary import fail_close
 
 @fail_close(locked=True)
 def cmd_ingest_reviewer(args, repo_root) -> int:
     issue, round_no = pointer_completion.ingest_target(args, repo_root, pointer_minimum=0)
+    expected = review_expectation.require(repo_root, issue)  # 主文脈が記録した期待値（handoff の自己申告ではない）
     report = paths.read_text(handoff_path.resolve_reviewer_handoff(args.source, repo_root))
-    handoff_header.check_header(report, issue, round_no)
+    handoff_header.check_header(report, issue, round_no, expected)
     policy = ReviewerIngestPolicy(repo_root, issue, round_no)
     return ingest_review.ingest_locked(
         repo_root, issue, round_no, report, policy, allow_same_round=args.round is not None

@@ -43,6 +43,15 @@ def record_declared(issue, repo_root, round_no, declared, *, records=None) -> No
         scope_records.append_lines(issue, repo_root, lines, records=records)
 
 
+def arm(issue, repo_root) -> None:
+    """原本が無ければ空の原本を作り、その Issue を最初の取り込みの前から保護モードにする。
+
+    原本の有無が保護モードの条件なので、``activate`` がレビューア初回の前に用意する（Issue #375 F-375-03）。
+    """
+    if not exists(issue, repo_root):
+        scope_records.append_lines(issue, repo_root, [])
+
+
 def record_owner(issue, repo_root, round_no, finding_id, scope) -> None:
     """オーナーが ``decide --scope`` で確定した scope の印を 1 件追記する。"""
     record = {"round": round_no, "id": finding_id, "scope": scope, "by": OWNER}

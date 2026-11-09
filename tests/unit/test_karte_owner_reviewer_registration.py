@@ -6,13 +6,21 @@ import subprocess
 import sys
 from unittest import mock
 
-from karte import cli, owner_cli, paths, reviewer_cli
+from karte import cli, handoff_header, owner_cli, paths, review_envelope, reviewer_cli
 from tests.unit.karte_support import (
     RootedCase, finding, karte_sandbox, report_text, verb_parsers, writer_lock_is_held,
 )
 
 
 REGISTRARS = (reviewer_cli.register, owner_cli.register)
+ENVELOPE = {
+    "run_id": "run-7", "target_key": "pr-7", "phase": "implementation",
+    "snapshot_oid": "a" * 40, "input_digest": "b" * 64,
+}
+ENVELOPE_FLAGS = [
+    "--run-id", "run-7", "--target-key", "pr-7", "--phase", "implementation",
+    "--snapshot-oid", "a" * 40, "--input-digest", "b" * 64,
+]
 
 
 class TestOwnerReviewerEntry(RootedCase):
@@ -39,11 +47,11 @@ class TestOwnerReviewerEntry(RootedCase):
         self.assertTrue(all(observed), observed)
 
     def prepare_finding(self):
-        self.assertEqual(0, self.run_registered(["activate", "--issue", "7"])[0])
+        self.assertEqual(0, self.run_registered(["activate", "--issue", "7", *ENVELOPE_FLAGS])[0])
         handoff = self.root / "tmp" / "_handoff" / "pr-reviewer--test.md"
         handoff.parent.mkdir(parents=True)
         handoff.write_text(
-            "<!-- handoff issue=7 round=1 -->\n\n"
+            handoff_header.render_header(1, review_envelope.expected_of(issue=7, **ENVELOPE)) + "\n\n"
             + report_text(("new", finding("a.py::f", "問題"))), encoding="utf-8"
         )
         return str(handoff)

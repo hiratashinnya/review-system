@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from karte import cli, handoff_path, karte_rounds, owner_cli, owner_decision, paths, pointer_completion, reviewer_cli, reviewer_policy, scope_directory, scope_ledger, scope_ledger_io, scope_records, verb_boundary
+from karte import cli, exit_codes, handoff_header, handoff_path, karte_rounds, owner_cli, owner_decision, paths, pointer_completion, review_envelope, reviewer_cli, reviewer_policy, scope_directory, scope_ledger, scope_ledger_io, scope_records, verb_boundary
 from karte.errors import KarteUsageError
 from karte.int_args import parse_int
 from karte.model import KarteFormatError
@@ -28,6 +28,12 @@ FINDING = {
     "summary": "build_attrs が既存 attrs を破棄している",
     "expected": "既存 attrs を保ったまま追加分だけマージする",
     "recheck": "required 付きフィールドを描画し required が残ることを確認する",
+}
+
+
+ENVELOPE_ARGS = {
+    "run_id": "run-375-a", "target_key": "pr-697", "phase": "implementation",
+    "snapshot_oid": "a" * 40, "input_digest": "b" * 64,
 }
 
 
@@ -57,8 +63,31 @@ class ReviewerIngestCase(unittest.TestCase):
         path.write_text(text, encoding="utf-8")
         return str(path)
 
-    def _activate(self):
-        return self._run(owner_cli.cmd_activate, issue=str(self.issue))
+    def _activate(self, **overrides):
+        """主文脈が review envelope の期待値つきでポインタを向ける（通常の運用と同じ形）。"""
+        return self._run(owner_cli.cmd_activate, issue=str(self.issue), **{**ENVELOPE_ARGS, **overrides})
+
+    def _expectation(self):
+        return review_envelope.expected_of(issue=self.issue, **ENVELOPE_ARGS)
+
+    def _header(self, round_no):
+        return handoff_header.render_header(round_no, self._expectation())
+
+    def _write_pointer(self, round_no, *, expect=True):
+        pointer = {"issue": self.issue, "round": round_no}
+        if expect:
+            pointer["review_expect"] = self._expectation()
+        paths.active_path(self.root, create_dir=True).write_text(json.dumps(pointer), encoding="utf-8")
+
+    def _rearm_expectation(self):
+        """取り込み成功で消える期待値を、次の取り込みのために主文脈が再度記録した状態にする。"""
+        try:
+            path = paths.active_path(self.root)
+            pointer = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, KartePathError):
+            return
+        pointer["review_expect"] = self._expectation()
+        path.write_text(json.dumps(pointer), encoding="utf-8")
 
     def _next_round(self):
         """進行ポインタの次ラウンド（ポインタが読めなければ 1）。"""
@@ -71,8 +100,9 @@ class ReviewerIngestCase(unittest.TestCase):
         return self._run(reviewer_cli.cmd_ingest_reviewer, source=self._handoff(text, name))
 
     def _ingest(self, text, name="pr-reviewer--r1.md"):
-        """取り込み先と一致するヘッダ（issue / round）を付けて取り込む。"""
-        header = f"<!-- handoff issue={self.issue} round={self._next_round()} -->\n\n"
+        """取り込み先と一致するヘッダ（issue / round / 共通 envelope）を付けて取り込む。"""
+        header = handoff_header.render_header(self._next_round(), self._expectation()) + "\n\n"
+        self._rearm_expectation()
         return self._ingest_raw(header + text, name)
 
     def _karte(self):
@@ -165,12 +195,8 @@ class TestIngestReviewer(ReviewerIngestCase):
     def test_reviewer_same_round_retry_requires_explicit_round(self):
         self._activate()
         self.assertEqual(cli.EXIT_OK, self._ingest(_report(scope="in"))[0])
-        report = f"<!-- handoff issue={self.issue} round=1 -->\n\n" + _report(
-            f"F-{self.issue}-01", scope="out"
-        )
-        paths.active_path(self.root, create_dir=True).write_text(
-            json.dumps({"issue": self.issue, "round": 0}), encoding="utf-8"
-        )
+        report = self._header(1) + "\n\n" + _report(f"F-{self.issue}-01", scope="out")
+        self._write_pointer(0)
         code, _, err = self._ingest_raw(report, "pr-reviewer--retry.md")
         self.assertEqual(cli.EXIT_ERROR, code)
         self.assertIn("round は単調増加", err)
@@ -190,12 +216,8 @@ class TestIngestReviewer(ReviewerIngestCase):
 
         for requested, pointer_round in ((1, 1), (3, 2)):
             with self.subTest(requested=requested):
-                paths.active_path(self.root, create_dir=True).write_text(
-                    json.dumps({"issue": self.issue, "round": pointer_round}), encoding="utf-8"
-                )
-                report = f"<!-- handoff issue={self.issue} round={requested} -->\n\n" + _report(
-                    f"F-{self.issue}-01", scope="out"
-                )
+                self._write_pointer(pointer_round)
+                report = self._header(requested) + "\n\n" + _report(f"F-{self.issue}-01", scope="out")
                 code, _, err = self._run(
                     reviewer_cli.cmd_ingest_reviewer,
                     source=self._handoff(report, f"pr-reviewer--round-{requested}.md"),
@@ -497,6 +519,7 @@ class TestIngestReviewerHardening(ReviewerIngestCase):
     def _assert_scope_parent_swap_is_rejected(self, operation):
         self._activate()
         self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])
+        self._rearm_expectation()  # 取り込み成功で消えた期待値を戻し、以降のポインタ内容を固定する
         ledger = self._declared_path()
         if operation in ("repair", "repair_backup"):
             ledger.write_text(ledger.read_text(encoding="utf-8") + "{broken\n", encoding="utf-8")
@@ -672,7 +695,8 @@ class TestIngestReviewerHardening(ReviewerIngestCase):
 
         report = _report("new", scope="in", summary="新規 finding", locus="new.py::new")
         code, _, err = self._ingest(report, "pr-reviewer--r2.md")
-        self.assertEqual(cli.EXIT_OK, code, err)
+        # F-01（レビューア申告・未解消・disposition 未決定）の再掲漏れなので、台帳は書くが未完了で返る（F-375-05）
+        self.assertEqual(exit_codes.EXIT_INCOMPLETE, code, err)
         self.assertEqual("out", self._finding(finding_id).scope)
 
         ledger = paths.karte_path(self.issue, self.root)
@@ -987,15 +1011,36 @@ class TestIngestReviewerHardening(ReviewerIngestCase):
         self.assertEqual(good, path.read_text(encoding="utf-8"))
         self.assertEqual(cli.EXIT_OK, self._ingest(_report(f"F-{self.issue}-01"), "pr-reviewer--r2.md")[0])
 
+    def test_recursion_error_from_json_loads_is_reported_as_corrupt_declared_scope(self):
+        """解釈系が RecursionError を出す版でも KarteFormatError として拒否する（版依存を patch で固定する）。"""
+        self._activate()
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])
+        path = self._declared_path()
+        original = path.read_text(encoding="utf-8") + '{"recursion-probe": 1}\n'
+        path.write_text(original, encoding="utf-8")
+        real_loads = json.loads
+
+        def fake_loads(text, *args, **kwargs):
+            if isinstance(text, str) and "recursion-probe" in text:
+                raise RecursionError("maximum recursion depth exceeded")
+            return real_loads(text, *args, **kwargs)
+
+        with mock.patch.object(json, "loads", side_effect=fake_loads):
+            with self.assertRaisesRegex(KarteFormatError, "repair-declared-scope"):
+                scope_records.read_records(self.issue, self.root)
+            code, _, err = self._ingest(_report(f"F-{self.issue}-01"), "pr-reviewer--r2.md")
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn("--repair-declared-scope", err)
+        self.assertEqual(original, path.read_text(encoding="utf-8"))
+
     def test_deep_declared_scope_fails_closed_and_can_be_repaired(self):
+        """深い入力が RecursionError になるか通常の型エラーになるかは Python の版で違う。どちらでも拒否・復旧できる。"""
         self._activate()
         self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])
         path = self._declared_path()
         good = path.read_text(encoding="utf-8")
         depth = 20_000
         broken = "[" * depth + "0" + "]" * depth + "\n"
-        with self.assertRaises(RecursionError):
-            json.loads(broken)
         original = good + broken
         path.write_text(original, encoding="utf-8")
 
@@ -1015,7 +1060,7 @@ class TestIngestReviewerHardening(ReviewerIngestCase):
 
     def test_r5_pointer_round_zero_is_only_derived_by_ingest_reviewer(self):
         """round 0（未取込）は ingest-reviewer だけが自動導出に使う。ingest-review の初回は従来どおり明示する。"""
-        self._activate()
+        self._run(owner_cli.cmd_activate, issue=str(self.issue))  # 期待値なし＝レビューア待ちではない
         path = self.root / "tmp" / "review-main.md"
         path.write_text(_report(), encoding="utf-8")
         code, _, _ = self._run(cli.cmd_ingest_review, issue=str(self.issue), round=None, source=str(path))
@@ -1049,7 +1094,8 @@ class TestIngestReviewerHardening(ReviewerIngestCase):
     def test_a3_stale_or_reused_handoff_is_not_ingested_as_a_new_round(self):
         self._activate()
         self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])           # round 1 を取り込み済み
-        stale = f"<!-- handoff issue={self.issue} round=1 -->\n\n" + _report(f"F-{self.issue}-01")
+        stale = self._header(1) + "\n\n" + _report(f"F-{self.issue}-01")
+        self._write_pointer(1)
         code, _, err = self._ingest_raw(stale, "pr-reviewer--r1.md")         # 同じ handoff の再利用
         self.assertEqual(cli.EXIT_ERROR, code)
         self.assertIn("round", err)
@@ -1144,6 +1190,145 @@ class TestIngestReviewerHardening(ReviewerIngestCase):
         root = Path(__file__).resolve().parents[2]
         for rel in (".claude/agents/pr-reviewer.md", ".ai/agents/pr-reviewer.md"):
             self.assertIn("主チェックアウトの絶対パス", (root / rel).read_text(encoding="utf-8"), rel)
+
+
+class TestReviewEnvelope(ReviewerIngestCase):
+    """handoff の共通 envelope（#371）束縛・round 1 保護・再掲漏れの可視化（Issue #375 是正ラウンド 1）。"""
+
+    def _legacy_ingest(self, round_no, text):
+        path = self.root / "tmp" / f"review-main-{round_no}.md"
+        path.write_text(text, encoding="utf-8")
+        return self._run(cli.cmd_ingest_review, issue=str(self.issue), round=str(round_no), source=str(path))
+
+    def test_stale_or_foreign_envelope_is_rejected_without_writing(self):
+        self._activate()
+        for key, value in (
+            ("run_id", "run-old"), ("target_key", "pr-other"), ("snapshot_oid", "c" * 40),
+            ("input_digest", "d" * 64), ("phase", "test_design"),
+        ):
+            with self.subTest(key=key):
+                header = handoff_header.render_header(1, {**self._expectation(), key: value})
+                code, _, err = self._ingest_raw(header + "\n\n" + _report())
+                self.assertEqual(cli.EXIT_ERROR, code)
+                self.assertIn(f"stale: {key}", err)
+                self.assertFalse(paths.karte_path(self.issue, self.root).exists())
+                self.assertEqual({}, self._declared_scopes())
+
+    def test_two_field_legacy_header_and_unknown_or_duplicate_keys_are_rejected(self):
+        self._activate()
+        good = self._header(1)
+        for header, fragment in (
+            (f"<!-- handoff issue={self.issue} round=1 -->", "envelope"),
+            (good.replace(" -->", " extra=1 -->"), "未知"),
+            (good.replace(" -->", " run_id=run-375-a -->"), "重複"),
+            (good.replace("status=ready", "status=stop"), "ready"),
+            (good.replace("snapshot_oid=" + "a" * 40, "snapshot_oid=abc"), "OID"),
+        ):
+            with self.subTest(header=header):
+                code, _, err = self._ingest_raw(header + "\n\n" + _report())
+                self.assertEqual(cli.EXIT_ERROR, code)
+                self.assertIn(fragment, err)
+        self.assertFalse(paths.karte_path(self.issue, self.root).exists())
+
+    def test_ingest_without_recorded_expectation_is_rejected_and_expectation_is_single_use(self):
+        self._run(owner_cli.cmd_activate, issue=str(self.issue))
+        code, _, err = self._ingest_raw(self._header(1) + "\n\n" + _report())
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn("期待値が無い", err)
+        self._activate()
+        source = self._handoff(self._header(1) + "\n\n" + _report(), "pr-reviewer--once.md")
+        self.assertEqual(cli.EXIT_OK, self._run(reviewer_cli.cmd_ingest_reviewer, source=source)[0])
+        code, _, err = self._run(reviewer_cli.cmd_ingest_reviewer, source=source)  # 同じ handoff の再利用
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn("期待値が無い", err)
+
+    def test_header_printed_by_activate_is_accepted_verbatim(self):
+        code, out, err = self._activate()
+        self.assertEqual(cli.EXIT_OK, code, err)
+        header = next(line.strip() for line in out.splitlines() if line.strip().startswith("<!-- handoff"))
+        self.assertEqual(self._header(1), header)
+        self.assertEqual(cli.EXIT_OK, self._ingest_raw(header + "\n\n" + _report())[0])
+
+    def test_activate_requires_every_envelope_argument_and_valid_values(self):
+        for overrides, fragment in (
+            ({"run_id": None}, "不足"), ({"snapshot_oid": "short"}, "OID"),
+            ({"input_digest": "zz"}, "sha256"), ({"phase": "review"}, "phase"),
+        ):
+            with self.subTest(overrides=overrides):
+                code, _, err = self._activate(**overrides)
+                self.assertEqual(cli.EXIT_ERROR, code)
+                self.assertIn(fragment, err)
+                self.assertFalse(paths.active_path(self.root).exists())
+
+    def test_legacy_ingest_review_is_refused_while_the_reviewer_ingest_is_pending(self):
+        self._activate()
+        code, _, err = self._legacy_ingest(1, _report(scope="out"))
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn("レビューア本人の取り込み待ち", err)
+        self.assertFalse(paths.karte_path(self.issue, self.root).exists())
+        self._run(owner_cli.cmd_activate, issue=str(self.issue))  # 期待値なしの activate で待ちを解除できる
+        self.assertEqual(cli.EXIT_OK, self._legacy_ingest(1, _report(scope="out"))[0])
+
+    def test_round_one_legacy_ingest_is_already_in_protected_mode_after_activate(self):
+        self._run(owner_cli.cmd_activate, issue=str(self.issue))
+        self.assertTrue(scope_ledger.exists(self.issue, self.root))
+        report = _report(scope="out", disposition="waived", waived_by="main", waived_reason="x")
+        code, _, err = self._legacy_ingest(1, report)
+        self.assertEqual(cli.EXIT_OK, code, err)
+        self.assertEqual("", self._finding(f"F-{self.issue}-01").disposition)
+        self.assertIn("オーナー専権の disposition を無視", err)
+        code, _, err = self._legacy_ingest(2, _report(f"F-{self.issue}-01"))
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn("追記専用", err)
+
+    def test_reviewer_declaration_replacing_a_scope_without_origin_is_detected(self):
+        self._run(owner_cli.cmd_activate, issue=str(self.issue))
+        self.assertEqual(cli.EXIT_OK, self._legacy_ingest(1, _report(scope="out"))[0])
+        self.assertEqual({}, self._declared_scopes())
+        self._activate()
+        code, out, err = self._ingest(_report(f"F-{self.issue}-01", scope="in"), "pr-reviewer--r2.md")
+        self.assertEqual(cli.EXIT_OK, code, err)
+        self.assertIn(f"申告原本のない scope をレビューア申告で置換", out)
+        self.assertIn(f"F-{self.issue}-01（out→in）", out)
+        self.assertEqual({f"F-{self.issue}-01": "in"}, self._declared_scopes())
+        self._activate()
+        code, out, _ = self._ingest(_report(f"F-{self.issue}-01", scope="in"), "pr-reviewer--r3.md")
+        self.assertNotIn("申告原本のない scope", out)
+
+    def test_open_finding_missing_from_the_reviewer_report_is_carried_over_but_not_completed(self):
+        """再掲漏れは引き継ぐ（台帳は書く）が終了コード 0 にしない。再掲すれば 0 に戻る。"""
+        self._activate()
+        other = _report("new", summary="別の問題: 例外を握りつぶしている", locus="c/d.py::swallow")
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report() + "\n" + other)[0])
+        code, out, err = self._ingest(_report(f"F-{self.issue}-01"), "pr-reviewer--r2.md")
+        self.assertEqual(exit_codes.EXIT_INCOMPLETE, code, err)
+        self.assertIn("再掲されなかった未解消 finding を引き継ぎ", err)
+        self.assertIn(f"未完了: 再掲漏れ F-{self.issue}-02", err)
+        self.assertTrue(out.splitlines()[-1].startswith("  未完了（取り込み済み）"))
+        self.assertEqual("open", self._finding(f"F-{self.issue}-02").status)  # 解消扱いにしない
+        self.assertEqual(2, karte_rounds.last_round(self._karte()))          # 台帳は書き込み済み
+        restated = _report(f"F-{self.issue}-01") + "\n" + _report(f"F-{self.issue}-02")
+        self.assertEqual(cli.EXIT_OK, self._ingest(restated, "pr-reviewer--r3.md")[0])
+
+    def test_omitted_findings_that_need_no_restatement_do_not_make_the_run_incomplete(self):
+        """オーナーが申し送りと決めたレビューア申告 finding・主文脈が足した finding の不在は警告のみ。"""
+        self._activate()
+        other = _report("new", summary="別の問題: 例外を握りつぶしている", locus="c/d.py::swallow")
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report() + "\n" + other)[0])
+        self.assertEqual(cli.EXIT_OK, self._decide(
+            finding=f"F-{self.issue}-02", disposition="deferred", deferred_to="#9")[0])
+        code, _, err = self._ingest(_report(f"F-{self.issue}-01"), "pr-reviewer--r2.md")
+        self.assertEqual(cli.EXIT_OK, code, err)
+        self.assertIn(f"再掲されなかった未解消 finding を引き継ぎ: F-{self.issue}-02", err)
+
+    def test_main_context_append_only_ingest_is_not_reported_as_incomplete(self):
+        """主文脈専用の追記専用モードは再掲しないのが通常なので、未完了にしない。"""
+        self._run(owner_cli.cmd_activate, issue=str(self.issue))
+        self.assertEqual(cli.EXIT_OK, self._legacy_ingest(1, _report())[0])
+        other = _report("new", summary="別の問題: 例外を握りつぶしている", locus="c/d.py::swallow")
+        code, _, err = self._legacy_ingest(1, other)
+        self.assertEqual(cli.EXIT_OK, code, err)
+        self.assertIn("再掲されなかった未解消 finding を引き継ぎ", err)
 
 
 if __name__ == "__main__":

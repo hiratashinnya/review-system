@@ -46,8 +46,13 @@ def read_active(repo_root, *, required: bool = False) -> dict:
     return data
 
 
-def write_active(repo_root, issue: int, round_no: int) -> None:
+def write_active(repo_root, issue: int, round_no: int, review_expect: dict | None = None) -> None:
+    """ポインタを置き換える。``review_expect``（review envelope の期待値）は ``activate`` だけが渡す。
+
+    取り込みは渡さないので、取り込みの成功でポインタが進むと期待値は消える（1 回限り）。
+    """
     path = paths.active_path(repo_root, create_dir=True)
-    paths.write_text_atomic(
-        path, json.dumps({"issue": int(issue), "round": int(round_no)}, ensure_ascii=False) + "\n"
-    )
+    pointer: dict = {"issue": int(issue), "round": int(round_no)}
+    if review_expect is not None:
+        pointer["review_expect"] = review_expect
+    paths.write_text_atomic(path, json.dumps(pointer, ensure_ascii=False) + "\n")

@@ -103,6 +103,38 @@
 Codex 経由の取り込みは下記の外側 wrapper 経路を使い、既存bindingを用意できない通常レビューの起動条件は未確認として扱う。
 `gh pr comment --body-file` の許可は見送った（別途検討）。
 
+**是正ラウンド 1（PR #697・F-375-02/03/05）の決定**：
+- **共通 envelope（F-375-02）**：Issue #375 の追加 AC は #371 と同じ envelope で review artifact を識別することである。
+  既存の `issue_envelope` は TOML 文書（IR/VD/CP/TD）の検査で、markdown の finding 本文には合わない。そこで
+  束縛キーの語彙（producer・phase・issue・run_id・target_key・input_digest・snapshot_oid・artifact_type）だけを
+  `karte/review_envelope.py` に写し（`issue_envelope.review_envelope` は再公開）、handoff 先頭ヘッダを共通項目つきに
+  拡張した。写しの一致は単体テストで機械検査する。標準ライブラリだけで `karte` 内に置くのは、`karte` が単独配置
+  （実プロセスの隔離コピーを使う既存テスト）でも動く設計だから。`issue_envelope` を直接 import する案は、その
+  隔離コピーで `ModuleNotFoundError` になるため採らなかった。
+  header が運ぶのは #371 の共通項目のうち schema/schema_version・producer・phase・issue・run_id・target_key・
+  input_digest・snapshot_oid・artifact_type・status・next_expected_artifact。`verification`・`unresolved_findings`・
+  `owner_decisions` は review では payload（finding 本文）と台帳が担うため header には持たない。
+  却下案＝`artifact_type: ReviewReport` を `issue_envelope.schema` の SPECS へ足す（index・check・store が SPECS を
+  走査するため、TOML 永続化を持たない review に副作用が及ぶ）。
+- **期待値の置き場**：reviewer の自己申告から期待値を補うと束縛にならない。期待値は主文脈が `activate` でポインタへ
+  記録する（Codex 経路はさらに binding 由来のヘッダ）。取り込み成功のポインタ更新で消えるので 1 回限りになり、
+  取り込み済み handoff の再利用が構造的に拒否される。`artifact_type` は `ReviewReport`、`next_expected_artifact` は
+  review が連鎖の終端なので常に空。phase は pr-reviewer の入力種別（TestDesign→`test_design`、ChangePlan→`implementation`）。
+  却下案＝期待値を `ingest-reviewer` の CLI 引数にする（pr-reviewer が自分で与えられるので自己申告と同じ）。
+- **round 1 の保護（F-375-03）**：保護モードの条件が「申告原本の存在」で、原本は最初の `ingest-reviewer` が作るため、
+  それ以前の旧 `ingest-review` が無保護だった。`activate` が空の原本を先に作って保護を前倒しし、期待値が残っている間は
+  旧 `ingest-review` を拒否する。原本のない scope をレビューア申告が置換したら取り込み結果に出す。
+  残る限界＝主文脈が期待値なしで `activate` して旧 `ingest-review` を使う経路は、新規 finding の scope を主文脈が
+  書ける（原本が無いのでその時点では検出できない）。後続のレビューア申告で食い違えば上記の置換として検出される。
+  却下案＝旧 `ingest-review` を全面拒否（implementer/fixer の `out_of_scope_findings` の取り込みに使うため不可）。
+- **再掲漏れ（F-375-05）**：保護モードの「再掲漏れでも台帳を変更せず引き継ぐ」決定は維持し、書き込みは行ったうえで
+  終了コード 5（`EXIT_INCOMPLETE`）で返す。対象を「レビューアが過去に申告した（原本がある）是正対象の未解消 finding」
+  に絞るのは、主文脈が足した finding（fixer の `out_of_scope_findings` 等）とオーナーが申し送り／処置不要と決めた
+  finding をレビューアが再掲しないのは正常だから（既存の単体テストが固定している挙動）。K-06 の拒否（何も書かない）へ戻す案は、
+  取り込み済みの有効な finding まで失う・既存決定の変更になるため採らなかった。`karte status` への表示案は
+  `karte/cli.py` が maintainability baseline の完全一致 fingerprint 対象で、変更に baseline 更新（オーナー確認）が要るため、
+  本是正では終了コードを選んだ（`karte status` の表示が必要ならその baseline 更新とあわせて別途判断する）。
+
 ## Codex 出力を外側 wrapper で取り込む案B（Issue #375・オーナー承認）
 
 Issue #375 の目的は「カルテ登録から主文脈の仲介をなくす」ことであり、Claude/Codex の違いで目的を変えない。
