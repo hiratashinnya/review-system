@@ -91,6 +91,14 @@ class TestTriagePolicy(unittest.TestCase):
                 self.assertEqual(suggest(self.policy, evidence(ac_violation=True, **{key: True}))
                                  ["candidate"], "owner-review")
 
+    def test_worsening_without_regression_evidence_is_owner_review(self):
+        for finding in (evidence(harm="none", optional_improvement=True, worsened=True),
+                        evidence(preexisting=True, worsened=True)):
+            with self.subTest(finding=finding):
+                result = suggest(self.policy, finding)
+                self.assertEqual(result["candidate"], "owner-review")
+                self.assertIn("worsening-contradicts-regression", result["reason_codes"])
+
     def test_no_harm_with_required_fix_is_conflict(self):
         self.assertEqual(suggest(self.policy, evidence(harm="none", regression=True))
                          ["reason_codes"], ["harm-contradicts-mandatory"])
