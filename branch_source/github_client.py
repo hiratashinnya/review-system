@@ -38,9 +38,7 @@ class GitHubBranchClient:
                 raise BranchSourceError("BRANCH_API_PERMISSION_OR_NOT_FOUND") from None
             raise BranchSourceError("API_UNAVAILABLE") from None
         except (urllib.error.URLError, TimeoutError):
-            # Issue #345 F-345-07: HTTP 応答すら得られていない（DNS/接続/tunnel/
-            # timeout）。GitHub が下した判断ではないので「到達不能」に分類する。
-            # `github_api_failure_reason` 経由の provenance 欠落 401/403 が
+            # DNS/timeout等はGitHub判断の証拠がないため到達不能としてfail-close（#345）。
             raise BranchSourceError("API_UNREACHABLE") from None
         except OSError:
             raise BranchSourceError("API_UNAVAILABLE") from None
