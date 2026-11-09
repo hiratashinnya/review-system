@@ -132,7 +132,8 @@ class TestTriagePolicy(unittest.TestCase):
                  approval(policy, allowed_phases=["planning"]))
         for proof in cases:
             with self.subTest(proof=proof):
-                self.assertFalse(evaluate(policy, finding, proof)["auto_applicable"])
+                self.assertFalse(evaluate(policy, finding, proof,
+                                          verify_owner=lambda p, digest: True)["auto_applicable"])
 
     def test_explicit_approval_enables_only_selected_result(self):
         policy = copy.deepcopy(self.policy)
@@ -144,7 +145,8 @@ class TestTriagePolicy(unittest.TestCase):
         self.assertEqual(result["disposition"], "fix-here")
         self.assertTrue(result["auto_applicable"])
         policy["auto_apply_enabled"] = False
-        self.assertFalse(evaluate(policy, evidence(ac_violation=True), approval(policy))["auto_applicable"])
+        self.assertFalse(evaluate(policy, evidence(ac_violation=True), approval(policy),
+                                  verify_owner=lambda proof, digest: proof["policy_digest"] == digest)["auto_applicable"])
 
     def test_trusted_verifier_fail_closed(self):
         policy = copy.deepcopy(self.policy)
@@ -167,7 +169,8 @@ class TestTriagePolicy(unittest.TestCase):
              evidence(harm="none", optional_improvement=True, advisory_verified=True)),
         ):
             with self.subTest(candidate=candidate):
-                self.assertFalse(evaluate(policy, finding, approval(policy))["auto_applicable"])
+                self.assertFalse(evaluate(policy, finding, approval(policy),
+                                          verify_owner=lambda proof, digest: True)["auto_applicable"])
                 self.assertEqual(evaluate(policy, confirmed, approval(policy),
                                           verify_owner=lambda proof, digest: True)["disposition"], candidate)
 
