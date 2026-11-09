@@ -53,7 +53,8 @@
         "ac_violation",
         "design_violation",
         "contract_violation",
-        "regression"
+        "regression",
+        "worsened"
       ],
       "any_true": [],
       "equals": {
