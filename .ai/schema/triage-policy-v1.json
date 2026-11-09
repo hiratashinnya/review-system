@@ -1,0 +1,336 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hiratashinnya/review-system/blob/main/.ai/schema/triage-policy-v1.json",
+  "title": "Issue #781: triage policy v1 and its non-operative evidence/approval contract",
+  "description": "Documentary JSON schema; Python implementation validates with stdlib. Owner approval is verified by trusted CLI, never by an untrusted agent assertion.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "policy_id",
+    "policy_version",
+    "status",
+    "auto_apply_enabled",
+    "enabled_phases",
+    "feature_flags",
+    "rules"
+  ],
+  "properties": {
+    "schema": {
+      "const": "triage-policy/v1"
+    },
+    "policy_id": {
+      "const": "review-finding-disposition"
+    },
+    "policy_version": {
+      "const": "1.0"
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "approved"
+      ]
+    },
+    "auto_apply_enabled": {
+      "type": "boolean"
+    },
+    "enabled_phases": {
+      "const": [
+        "review",
+        "remediation_review"
+      ]
+    },
+    "feature_flags": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fix-here",
+        "deferred",
+        "advisory"
+      ],
+      "properties": {
+        "fix-here": {
+          "type": "boolean"
+        },
+        "deferred": {
+          "type": "boolean"
+        },
+        "advisory": {
+          "type": "boolean"
+        }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "$ref": "#/$defs/rule"
+      }
+    }
+  },
+  "$defs": {
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "all_true",
+        "all_false",
+        "any_true",
+        "equals"
+      ],
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "fix-here",
+            "deferred",
+            "advisory"
+          ]
+        },
+        "all_true": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "all_false": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "any_true": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "equals": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "propertyNames": {
+            "enum": [
+              "harm",
+              "severity"
+            ]
+          }
+        }
+      }
+    },
+    "finding_evidence": {
+      "type": "object",
+      "required": [
+        "finding_id",
+        "policy_ref",
+        "phase",
+        "harm",
+        "severity",
+        "scope",
+        "reviewer_verified",
+        "evidence_complete",
+        "ac_relation_verified",
+        "reviewer_conflict",
+        "scope_override_requested",
+        "ac_violation",
+        "design_violation",
+        "contract_violation",
+        "regression",
+        "spec_decision_required",
+        "scope_expansion_required",
+        "preexisting",
+        "worsened",
+        "high_risk",
+        "optional_improvement",
+        "handoff_verified",
+        "advisory_verified"
+      ],
+      "properties": {
+        "finding_id": {
+          "type": "string"
+        },
+        "policy_ref": {
+          "type": "string"
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "review",
+            "remediation_review"
+          ]
+        },
+        "harm": {
+          "type": "string",
+          "enum": [
+            "real",
+            "none"
+          ]
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "blocker",
+            "major",
+            "minor"
+          ]
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "in",
+            "out"
+          ]
+        },
+        "reviewer_verified": {
+          "type": "boolean"
+        },
+        "evidence_complete": {
+          "type": "boolean"
+        },
+        "ac_relation_verified": {
+          "type": "boolean"
+        },
+        "reviewer_conflict": {
+          "type": "boolean"
+        },
+        "scope_override_requested": {
+          "type": "boolean"
+        },
+        "ac_violation": {
+          "type": "boolean"
+        },
+        "design_violation": {
+          "type": "boolean"
+        },
+        "contract_violation": {
+          "type": "boolean"
+        },
+        "regression": {
+          "type": "boolean"
+        },
+        "spec_decision_required": {
+          "type": "boolean"
+        },
+        "scope_expansion_required": {
+          "type": "boolean"
+        },
+        "preexisting": {
+          "type": "boolean"
+        },
+        "worsened": {
+          "type": "boolean"
+        },
+        "high_risk": {
+          "type": "boolean"
+        },
+        "optional_improvement": {
+          "type": "boolean"
+        },
+        "handoff_verified": {
+          "type": "boolean"
+        },
+        "advisory_verified": {
+          "type": "boolean"
+        }
+      },
+      "description": "Values must be grounded by #783 triager and the preserved reviewer source."
+    },
+    "owner_approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verified_by_trusted_cli",
+        "owner",
+        "feedback_ref",
+        "policy_ref",
+        "policy_digest",
+        "allowed_dispositions",
+        "allowed_phases"
+      ],
+      "properties": {
+        "verified_by_trusted_cli": {
+          "type": "boolean"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "feedback_ref": {
+          "type": "string"
+        },
+        "policy_ref": {
+          "type": "string"
+        },
+        "policy_digest": {
+          "type": "string"
+        },
+        "allowed_dispositions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "fix-here",
+              "deferred",
+              "advisory"
+            ]
+          }
+        },
+        "allowed_phases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "review",
+              "remediation_review"
+            ]
+          }
+        }
+      }
+    },
+    "evaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate",
+        "disposition",
+        "auto_applicable",
+        "reason_codes"
+      ],
+      "properties": {
+        "candidate": {
+          "type": "string",
+          "enum": [
+            "fix-here",
+            "deferred",
+            "advisory",
+            "owner-review"
+          ]
+        },
+        "disposition": {
+          "type": "string",
+          "enum": [
+            "fix-here",
+            "deferred",
+            "advisory",
+            "owner-review"
+          ]
+        },
+        "auto_applicable": {
+          "type": "boolean"
+        },
+        "reason_codes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}
