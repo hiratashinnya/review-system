@@ -4,7 +4,8 @@ from .evaluator import suggest
 from .loader import policy_digest
 
 
-def evaluate(policy: object, finding: object, approval: object = None) -> dict:
+def evaluate(policy: object, finding: object, approval: object = None,
+             *, verify_owner=None) -> dict:
     suggestion = suggest(policy, finding)
     candidate = suggestion["candidate"]
     result = {"candidate": candidate, "disposition": "owner-review",
@@ -15,7 +16,8 @@ def evaluate(policy: object, finding: object, approval: object = None) -> dict:
         result["reason_codes"].append("policy-not-enabled")
     if not policy["feature_flags"][candidate]:
         result["reason_codes"].append("feature-disabled:" + candidate)
-    if not _approved(approval, policy, candidate, finding["phase"]):
+    if (not _approved(approval, policy, candidate, finding["phase"])
+            or not _trusted_verification(verify_owner, approval, policy)):
         result["reason_codes"].append("owner-approval-not-verified")
     if candidate == "deferred" and not finding["handoff_verified"]:
         result["reason_codes"].append("handoff-not-verified")
@@ -44,3 +46,13 @@ def _approved(approval: object, policy: dict, candidate: str, phase: str) -> boo
             and candidate in approval["allowed_dispositions"]
             and isinstance(approval["allowed_phases"], list)
             and phase in approval["allowed_phases"])
+
+
+def _trusted_verification(verifier, approval: dict, policy: dict) -> bool:
+    """Recheck the real ledger record via an external trusted verifier; deny if absent."""
+    if not callable(verifier):
+        return False
+    try:
+        return verifier(approval, policy_digest(policy)) is True
+    except Exception:
+        return False
