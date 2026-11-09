@@ -49,6 +49,11 @@ class TestTriagePolicy(unittest.TestCase):
                           for entry in rules["prefixItems"]],
                          [entry["outcome"] for entry in self.policy["rules"]])
         self.assertIs(rules["items"], False)
+        for key in ("all_true", "all_false", "any_true"):
+            self.assertEqual(schema["$defs"]["rule"]["properties"][key]["items"]["enum"],
+                             list(BOOLEANS))
+        self.assertEqual(schema["$defs"]["finding_evidence"]["properties"]
+                         ["finding_id"]["minLength"], 1)
 
     def test_scope_out_does_not_waive_required_fix(self):
         self.assertEqual(suggest(self.policy, evidence(scope="out", ac_violation=True))
