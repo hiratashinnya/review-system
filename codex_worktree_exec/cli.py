@@ -1,7 +1,8 @@
 """検査後に `codex exec` を起動する。
 
 通常ロールはCodex終了コードを透過する。pr-reviewerは出力を透過せず、Codex実行と
-karte取り込みの成功を0、失敗を2で返す。検査拒否も2、timeoutは124。
+karte取り込みの成功を0、失敗を2で返す。検査拒否も2、timeoutは124。取り込み済みだが
+未完了（再掲漏れ・karteのEXIT_INCOMPLETE）は失敗と区別して5で返す。
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 from karte import paths
+from karte.exit_codes import EXIT_INCOMPLETE
 
 from .arguments import parse_request
 from .artifact_binding import verify_artifact_binding
@@ -29,6 +31,10 @@ from .worktree_binding import bind_worktree
 
 EXIT_REFUSED = 2
 EXIT_TIMEOUT = 124
+_EXIT_BY_ERROR_ID = {
+    "CODEX_EXEC_TIMEOUT": EXIT_TIMEOUT,
+    "CODEX_REVIEW_INGEST_INCOMPLETE": EXIT_INCOMPLETE,
+}
 
 
 def _launch(
@@ -81,4 +87,4 @@ def main(
         )
     except CodexExecError as error:
         print(f"codex_worktree_exec: {error}", file=sys.stderr)
-        return EXIT_TIMEOUT if error.error_id == "CODEX_EXEC_TIMEOUT" else EXIT_REFUSED
+        return _EXIT_BY_ERROR_ID.get(error.error_id, EXIT_REFUSED)

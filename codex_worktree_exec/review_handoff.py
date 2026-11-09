@@ -12,7 +12,7 @@ from karte import handoff_header, handoff_path, paths
 from karte.errors import KarteUsageError
 
 from .errors import CodexExecError
-from . import ingest_diagnostics
+from . import ingest_diagnostics, ingest_outcome
 from .review_target import progress_target
 
 WARNING_RE = re.compile(
@@ -91,7 +91,6 @@ def ingest_codex_output(
         raise CodexExecError(
             "CODEX_REVIEW_INGEST_FAILED", detail[-1] if detail else type(error).__name__
         ) from None
-    if code:
-        raise CodexExecError("CODEX_REVIEW_INGEST_FAILED", f"{path}: {detail}")
+    ingest_outcome.raise_unless_ingested(code, detail, path, issue, round_no)
     message = f"取り込み済み: {path} (issue-{issue} round {round_no})"
     return "\n".join((message, *warnings))

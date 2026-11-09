@@ -16,6 +16,7 @@ from codex_worktree_exec.cli import EXIT_REFUSED, main
 from codex_worktree_exec.errors import CodexExecError
 from codex_worktree_exec.review_handoff import _ingest, _save_handoff
 from karte import handoff_header, model, paths, review_envelope
+from karte.exit_codes import EXIT_INCOMPLETE
 from tests.unit.codex_worktree_exec_support import clean_environ, make_repository, write_trust
 
 
@@ -425,8 +426,9 @@ class CodexReviewerHandoffTests(unittest.TestCase):
         )
         self.assertEqual(0, activated.returncode, activated.stderr)
         code, out, err = self.run_main(content=REPORT)
-        self.assertEqual(EXIT_REFUSED, code)
-        self.assertIn("CODEX_REVIEW_INGEST_FAILED", err)
+        self.assertEqual(EXIT_INCOMPLETE, code)  # 取り込み失敗（2）とは別の終了コード（F-375-11）
+        self.assertIn("CODEX_REVIEW_INGEST_INCOMPLETE", err)
+        self.assertNotIn("CODEX_REVIEW_INGEST_FAILED", err)
         self.assertIn("未完了（取り込み済み）", err)
         self.assertIn("F-375-02", err)
         self.assertEqual("", out)
@@ -561,6 +563,30 @@ class CodexReviewerHandoffTests(unittest.TestCase):
         self.assertIn("入力形式が不正", err)
         self.assertIn("pr-reviewer--", err)
         self.ingest_mock.assert_called_once()
+
+    def test_ingest_exit_code_5_is_reported_as_ingested_but_incomplete_not_as_a_failure(self):
+        self.ingest_mock.return_value = (EXIT_INCOMPLETE, "未完了（取り込み済み）: 再掲漏れ F-375-02", ())
+        code, out, err = self.run_main()
+        self.assertEqual(EXIT_INCOMPLETE, code)
+        self.assertNotEqual(EXIT_REFUSED, code)
+        self.assertEqual("", out)
+        self.assertIn("CODEX_REVIEW_INGEST_INCOMPLETE", err)
+        self.assertNotIn("CODEX_REVIEW_INGEST_FAILED", err)
+        self.assertIn("取り込み済み・未完了", err)
+        self.assertIn("issue-375 round 1", err)  # 記録済みの round が分かる
+        self.assertIn("pr-reviewer--", err)  # 検査用に残した handoff
+        self.assertIn("karte activate", err)  # 再試行の手順（同じ handoff の再取り込みではない）
+        self.assertIn("F-375-02", err)
+
+    def test_ingest_exit_codes_other_than_5_stay_ingest_failures(self):
+        for returncode in (1, 2, 3, 4):
+            with self.subTest(returncode=returncode):
+                self.output.unlink(missing_ok=True)
+                self.ingest_mock.return_value = (returncode, "拒否（fail-close）: x", ())
+                code, _out, err = self.run_main()
+                self.assertEqual(EXIT_REFUSED, code)
+                self.assertIn("CODEX_REVIEW_INGEST_FAILED", err)
+                self.assertNotIn("INGEST_INCOMPLETE", err)
 
     def test_only_warning_lines_return_from_ingest(self):
         warning = "警告: オーナー専権の disposition を無視"

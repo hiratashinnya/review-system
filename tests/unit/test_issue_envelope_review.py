@@ -6,7 +6,7 @@ from pathlib import Path
 
 from issue_envelope import handoff
 from issue_envelope import review_envelope as reexported
-from karte import review_envelope
+from karte import handoff_header, review_envelope
 
 VALID = dict(
     issue=375, phase="implementation", run_id="run-1", target_key="pr-697",
@@ -77,6 +77,18 @@ class TestReviewEnvelope(unittest.TestCase):
         ):
             with self.subTest(overrides=overrides), self.assertRaisesRegex(ValueError, fragment):
                 review_envelope.normalize(_declared(**overrides))
+
+    def test_run_id_and_target_key_must_round_trip_through_the_handoff_header(self):
+        """ヘッダへ置けない値は期待値にできない（activate 時点で拒否され、取り込み不能の期待値が残らない）。"""
+        for key in ("run_id", "target_key"):
+            for value in ("a b", "a\tb", "a-->b", "a<!--b", "-lead", "a=b", "a\nb", "", " ", "x" * 129, "日本語"):
+                with self.subTest(key=key, value=value), self.assertRaisesRegex(ValueError, key):
+                    review_envelope.expected_of(**{**VALID, key: value})
+        for value in ("run-1", "pr-697", "run_375.a:b/c@d+e#f", "A" * 128, "7"):
+            with self.subTest(value=value):
+                expected = review_envelope.expected_of(**{**VALID, "run_id": value, "target_key": value})
+                header = handoff_header.render_header(1, expected)
+                handoff_header.check_header(header + "\n\n### F-375-01\n", 375, 1, expected)
 
     def test_missing_and_unknown_keys_are_rejected(self):
         missing = _declared()

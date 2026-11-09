@@ -16,6 +16,8 @@ PHASES = ("test_design", "implementation")
 BOUND = ("producer", "phase", "issue", "run_id", "target_key", "input_digest", "snapshot_oid", "artifact_type")
 DECLARED = ("schema", "schema_version", "status", "next_expected_artifact") + BOUND
 _TEXT = ("run_id", "target_key")
+# handoff ヘッダ（``key=value`` の空白区切り・HTML コメント）へそのまま往復できる値だけを通す（F-375-12）。
+_HEADER_SAFE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/@+#-]{0,127}")
 
 
 def _fixed(data, errors):
@@ -46,7 +48,10 @@ def normalize(raw: dict) -> dict:
         _fixed(data, errors)
         if data["issue"] <= 0:
             errors.append("issue は正の整数")
-    errors += [f"{key} が空" for key in _TEXT if not str(data[key]).strip()]
+    errors += [
+        f"{key} はヘッダに載せられる値（英数字で始まる 128 文字以内の英数字と . _ : / @ + # -）のみ"
+        for key in _TEXT if not _HEADER_SAFE.fullmatch(str(data[key]))
+    ]
     if not re.fullmatch(r"[0-9a-f]{40}", str(data["snapshot_oid"])):
         errors.append("snapshot_oid は40桁のOIDが必要")
     if not re.fullmatch(r"[0-9a-f]{64}", str(data["input_digest"])):

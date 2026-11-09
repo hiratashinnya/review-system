@@ -122,7 +122,7 @@ Codex 経由の取り込みは下記の外側 wrapper 経路を使い、既存bi
   review が連鎖の終端なので常に空。phase は pr-reviewer の入力種別（TestDesign→`test_design`、ChangePlan→`implementation`）。
   却下案＝期待値を `ingest-reviewer` の CLI 引数にする（pr-reviewer が自分で与えられるので自己申告と同じ）。
 - **round 1 の保護（F-375-03）**：保護モードの条件が「申告原本の存在」で、原本は最初の `ingest-reviewer` が作るため、
-  それ以前の旧 `ingest-review` が無保護だった。`activate` が空の原本を先に作って保護を前倒しし、期待値が残っている間は
+  それ以前の旧 `ingest-review` が無保護だった。期待値つきの `activate` が空の原本を先に作って保護を前倒しし（期待値なしの `activate` は待機取消の退避経路なので原本を作らない・F-375-10。先に作られた原本は取消でも消えない）、期待値が残っている間は
   旧 `ingest-review` を拒否する。原本のない scope をレビューア申告が置換したら取り込み結果に出す。
   残る限界＝主文脈が期待値なしで `activate` して旧 `ingest-review` を使う経路は、新規 finding の scope を主文脈が
   書ける（原本が無いのでその時点では検出できない）。後続のレビューア申告で食い違えば上記の置換として検出される。

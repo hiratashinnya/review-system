@@ -167,7 +167,10 @@ profile の構文は、パスを絶対パスか `~/` 始まりで書く。`unitt
    この経路も linked worktree、D5、read-only profile、network無効、artifact binding の検査を維持する。
    wrapper は binding の `expected`（run_id・target_key・snapshot_oid）と検証済み `artifact_digest` から review handoff の
    共通 envelope ヘッダを作り、`ingest-reviewer` が主文脈の `karte activate` で記録した期待値との一致を要求する
-   （別 run・古い snapshot の取り込みを拒否する。Issue #375）。
+   （別 run・古い snapshot の取り込みを拒否する。Issue #375）。`ingest-reviewer` が取り込み済みだが再掲漏れで未完了
+   （終了コード 5）を返した場合、wrapper は取り込み失敗（`CODEX_REVIEW_INGEST_FAILED`・終了コード 2）と区別して
+   `CODEX_REVIEW_INGEST_INCOMPLETE`（終了コード 5）を返す。台帳の round は記録済み・期待値は消費済みなので、同じ
+   handoff を再取り込みせず、主文脈が `karte activate` で期待値を記録し直して再レビューする。
    Codex 本体に karte の書込権限は与えず、`.codex/hooks/agent-command-gate.sh` の pr-reviewer×karte 拒否も変えない。
    merge・push・PR 作成は引き続き呼び出し側の Claude ロールが `agent-command-gate` の下で行う。
 

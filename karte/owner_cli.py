@@ -26,7 +26,8 @@ def cmd_activate(args, repo_root) -> int:
     except KarteNotFound:
         last = 0
     next_number = require_ascii_int(last + 1, KarteUsageError("次の round が桁数の上限を超える"))
-    scope_ledger.arm(issue, repo_root)  # round 1 の前から保護モード（原本が無いと旧 ingest-review が無保護になる）
+    if expected is not None:  # 期待値なし＝待機取消の退避経路。保護モードへは入れない（F-375-10）
+        scope_ledger.arm(issue, repo_root)  # round 1 の前から保護モード（原本が無いと旧 ingest-review が無保護になる）
     write_active(repo_root, issue, last, expected)
     print(f"=== activate: issue-{issue} round {last}（次の ingest-reviewer は round {next_number}）===")
     if expected is not None:

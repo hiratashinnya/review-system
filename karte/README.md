@@ -133,10 +133,14 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
     申告の原本は台帳より先に追記する。
 - **`activate --issue <N> [--run-id R --target-key K --snapshot-oid OID --input-digest D --phase P]`**
   （主文脈専用）：進行ポインタを対象 Issue へ向ける（round は取り込み済みの最新、台帳が無ければ 0）。
-  初回の `ingest-reviewer` の前に実行する。**申告 scope の原本（空）をここで作り、最初の取り込みの前から
-  保護モードにする**（原本が無いと round 1 の旧 `ingest-review` が無保護になるため・Issue #375 F-375-03）。
-  5 つの envelope 引数は**全部同時に**与え、review handoff の期待値としてポインタへ記録する
-  （下記「review handoff の共通 envelope」）。1 つも与えなければ期待値なし（レビューア待ちの解除）。
+  初回の `ingest-reviewer` の前に実行する。**envelope 引数つきの `activate` は、申告 scope の原本（空）をここで
+  作り、最初の取り込みの前から保護モードにする**（原本が無いと round 1 の旧 `ingest-review` が無保護になるため・
+  Issue #375 F-375-03）。5 つの envelope 引数は**全部同時に**与え、review handoff の期待値としてポインタへ記録する
+  （下記「review handoff の共通 envelope」）。1 つも与えなければ期待値なし（レビューア待ちの解除）で、
+  **この場合は原本を作らず保護モードへも入れない**（レビューアを待たず主文脈が取り込む退避経路を、追記専用に
+  しないため・F-375-10）。取り消すのは待ちだけで、先の `activate` が作った原本は消えず保護モードは残る。
+  `run_id` / `target_key` は handoff ヘッダへそのまま往復できる値（英数字で始まる 128 文字以内の
+  英数字と `. _ : / @ + # -`）に限り、空白・`-->` を含む値は `activate` が拒否する（F-375-12）。
 - **review handoff の共通 envelope（Issue #375・#371 契約）**：handoff 先頭の 1 行
   `<!-- handoff issue=N round=R schema=review-handoff/v1 schema_version=1 producer=pr-reviewer phase=P
   artifact_type=ReviewReport run_id=X target_key=Y input_digest=<sha256> snapshot_oid=<40hex> status=ready -->`
@@ -155,8 +159,10 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
   申告した（原本がある）是正対象の未解消 finding**（`needs_remediation`）が今回の `ingest-reviewer` 出力に
   再掲されていないときは、台帳は書き込み済み・未解消のまま引き継ぐが、**終了コード 5（`EXIT_INCOMPLETE`）**で
   返し、標準エラーに `未完了: 再掲漏れ <ID>`、標準出力の最後に `未完了（取り込み済み）: …` を出す。出力の欠落
-  （切り詰め等）を終了コード 0 の完了にしないため。Codex wrapper は非 0 を取り込み失敗（
-  `CODEX_REVIEW_INGEST_FAILED`）として返す。主文脈が足した finding・申し送り／処置不要と決まった finding の不在、
+  （切り詰め等）を終了コード 0 の完了にしないため。Codex wrapper は 5 を取り込み失敗
+  （`CODEX_REVIEW_INGEST_FAILED`・終了コード 2）と区別し、`CODEX_REVIEW_INGEST_INCOMPLETE`（終了コード 5）として
+  「取り込み済み・未完了（round は記録済み・期待値は消費済み）」を返す。同じ handoff を再取り込みせず、主文脈が
+  `activate` で期待値を記録し直して再レビューする（F-375-11）。主文脈が足した finding・申し送り／処置不要と決まった finding の不在、
   主文脈専用の追記専用モードは対象外（警告のみ・終了コード 0）。再掲漏れは解消ではなく、取り込み済みの round を
   やり直さず、次のレビューで `status: open|resolved` を明示して再掲させる。
   （`cli.py` のモジュール docstring の終了コード一覧は 0/2/3/4 のまま。5 の定義は `karte/exit_codes.py`。）
@@ -497,7 +503,9 @@ touched-set 自体が空（`--base` を誤って空 diff になったケース�
 ## 終了コード
 
 `dsv2` に合わせる：`0` OK ／ `2` 未検出 ／ `3` 類似飽和（`append` 拒否）／
-`4` 前提違反・検証失敗（fail-close）。
+`4` 前提違反・検証失敗（fail-close）。加えて `5`（`EXIT_INCOMPLETE`・定義は `karte/exit_codes.py`）は
+`ingest-review`（保護モード）／`ingest-reviewer` が台帳へ**取り込み済み**だがレビューアの再掲漏れがあり
+完了扱いにしない印（失敗ではない。台帳は書き込み済みで期待値も消費済み・Issue #375）。
 
 次の入力は例外（traceback の終了コード 1）ではなく `4` で拒否する（上の 4 種に収まる）：
 

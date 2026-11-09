@@ -3,6 +3,7 @@
 import argparse
 import ast
 import contextlib
+import errno
 import io
 import json
 import os
@@ -1253,6 +1254,7 @@ class TestReviewEnvelope(ReviewerIngestCase):
         for overrides, fragment in (
             ({"run_id": None}, "不足"), ({"snapshot_oid": "short"}, "OID"),
             ({"input_digest": "zz"}, "sha256"), ({"phase": "review"}, "phase"),
+            ({"run_id": "run 1"}, "run_id"), ({"target_key": "pr-->1"}, "target_key"),  # ヘッダへ往復できない値（F-375-12）
         ):
             with self.subTest(overrides=overrides):
                 code, _, err = self._activate(**overrides)
@@ -1269,8 +1271,28 @@ class TestReviewEnvelope(ReviewerIngestCase):
         self._run(owner_cli.cmd_activate, issue=str(self.issue))  # 期待値なしの activate で待ちを解除できる
         self.assertEqual(cli.EXIT_OK, self._legacy_ingest(1, _report(scope="out"))[0])
 
+    def test_activate_without_envelope_does_not_enter_protected_mode(self):
+        """期待値なしの activate は待機取消の退避経路。原本を作らず、主文脈の ingest-review は従来どおり（F-375-10）。"""
+        code, out, err = self._run(owner_cli.cmd_activate, issue=str(self.issue))
+        self.assertEqual(cli.EXIT_OK, code, err)
+        self.assertNotIn("review envelope の期待値を記録", out)
+        self.assertFalse(scope_ledger.exists(self.issue, self.root))
+        self.assertEqual(cli.EXIT_OK, self._legacy_ingest(1, _report())[0])
+        code, _, err = self._legacy_ingest(2, _report(f"F-{self.issue}-01"))  # 既存 ID の再掲は拒否されない
+        self.assertEqual(cli.EXIT_OK, code, err)
+        self.assertNotIn("追記専用", err)
+        self.assertFalse(scope_ledger.exists(self.issue, self.root))
+
+    def test_activate_with_envelope_arms_protection_and_cancelling_the_wait_keeps_it(self):
+        """期待値つきの activate だけが原本を作る。待機取消の activate は原本を消さない（保護モードは残る）。"""
+        self.assertEqual(cli.EXIT_OK, self._activate()[0])
+        self.assertTrue(scope_ledger.exists(self.issue, self.root))
+        self.assertEqual(cli.EXIT_OK, self._run(owner_cli.cmd_activate, issue=str(self.issue))[0])
+        self.assertTrue(scope_ledger.exists(self.issue, self.root))
+
     def test_round_one_legacy_ingest_is_already_in_protected_mode_after_activate(self):
-        self._run(owner_cli.cmd_activate, issue=str(self.issue))
+        self._activate()
+        self._run(owner_cli.cmd_activate, issue=str(self.issue))  # 待機取消。原本は期待値つき activate が作成済み
         self.assertTrue(scope_ledger.exists(self.issue, self.root))
         report = _report(scope="out", disposition="waived", waived_by="main", waived_reason="x")
         code, _, err = self._legacy_ingest(1, report)
@@ -1323,12 +1345,68 @@ class TestReviewEnvelope(ReviewerIngestCase):
 
     def test_main_context_append_only_ingest_is_not_reported_as_incomplete(self):
         """主文脈専用の追記専用モードは再掲しないのが通常なので、未完了にしない。"""
-        self._run(owner_cli.cmd_activate, issue=str(self.issue))
+        self._activate()
+        self._run(owner_cli.cmd_activate, issue=str(self.issue))  # 待機取消（原本は残るので保護モード）
         self.assertEqual(cli.EXIT_OK, self._legacy_ingest(1, _report())[0])
         other = _report("new", summary="別の問題: 例外を握りつぶしている", locus="c/d.py::swallow")
         code, _, err = self._legacy_ingest(1, other)
         self.assertEqual(cli.EXIT_OK, code, err)
         self.assertIn("再掲されなかった未解消 finding を引き継ぎ", err)
+
+
+class TestScopeDirectoryErrorReporting(ReviewerIngestCase):
+    """open の失敗と書込みの失敗を区別して報告する（F-375-07）。"""
+
+    def _ingested(self):
+        self._activate()
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])
+
+    def test_open_failure_is_reported_as_unable_to_open(self):
+        path = self.root / "tmp" / "_karte" / "issue-375.declared-scope.jsonl"
+        with mock.patch("karte.scope_directory.os.open", side_effect=PermissionError(13, "Permission denied")):
+            with self.assertRaisesRegex(KartePathError, "開けない"):
+                with scope_directory.open_scope_directory(path):
+                    self.fail("開けなかったのに本体へ入った")
+
+    def test_oserror_in_the_with_body_propagates_unchanged(self):
+        (self.root / "tmp" / "_karte").mkdir(parents=True)
+        path = self.root / "tmp" / "_karte" / "issue-375.declared-scope.jsonl"
+        full = OSError(errno.ENOSPC, "No space left on device")
+        with self.assertRaises(OSError) as caught:
+            with scope_directory.open_scope_directory(path):
+                raise full
+        self.assertIs(full, caught.exception)
+        self.assertNotIsInstance(caught.exception, KartePathError)
+
+    def test_write_failure_is_not_reported_as_unable_to_open(self):
+        self._ingested()
+        with mock.patch("karte.scope_atomic.os.replace", side_effect=OSError(errno.ENOSPC, "No space left on device")):
+            with self.assertRaises(OSError) as caught:
+                scope_ledger.record_owner(self.issue, self.root, 1, f"F-{self.issue}-01", "out")
+        self.assertNotIsInstance(caught.exception, KartePathError)
+        self.assertNotIn("開けない", str(caught.exception))
+        self.assertIn("No space left", str(caught.exception))
+        self.assertEqual({}, scope_ledger.owner_scopes(self.issue, self.root))  # 書込みに失敗したので印は残らない
+
+    def test_decide_reports_the_write_failure_cause_through_the_verb_boundary(self):
+        self._ingested()
+        with mock.patch("karte.scope_atomic.os.replace", side_effect=OSError(errno.ENOSPC, "No space left on device")):
+            code, _, err = self._decide(scope="out")
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn("No space left", err)
+        self.assertNotIn("開けない", err)
+        self.assertNotIn("保存済み", err)  # 印は保存されていないのでヒントも付けない
+
+    def test_decide_keeps_the_owner_mark_saved_hint_when_the_ledger_write_fails(self):
+        self._ingested()
+        with mock.patch(
+            "karte.owner_cli.owner_decision.write_karte", side_effect=OSError(errno.ENOSPC, "No space left on device")
+        ):
+            code, _, err = self._decide(scope="out")
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn("No space left", err)
+        self.assertIn("scope のオーナー印は保存済み", err)
+        self.assertEqual({f"F-{self.issue}-01": "out"}, scope_ledger.owner_scopes(self.issue, self.root))
 
 
 if __name__ == "__main__":
