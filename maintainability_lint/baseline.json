@@ -132,8 +132,8 @@
       "sha256": "5c5b459cdfaf32aa4c1b8f6a2dc5d2ca60bb3ddaa760bf1c7da5f77af1ec252b"
     },
     "karte/cli.py": {
-      "line_count": 1100,
-      "sha256": "6ebefa60cba4568291218fb3a11f7ae816a05a3de51f9f117c39901847eddd19"
+      "line_count": 1101,
+      "sha256": "568cc00e8a17cd7c21e34e85a094b8cc311e561504edde82832719999b0a9715"
     },
     "karte/model.py": {
       "line_count": 1297,
