@@ -117,11 +117,24 @@ class TestTriagePolicy(unittest.TestCase):
         policy = copy.deepcopy(self.policy)
         policy.update(status="approved", auto_apply_enabled=True)
         policy["feature_flags"]["fix-here"] = True
-        result = evaluate(policy, evidence(ac_violation=True), approval(policy))
+        self.assertFalse(evaluate(policy, evidence(ac_violation=True), approval(policy))["auto_applicable"])
+        result = evaluate(policy, evidence(ac_violation=True), approval(policy),
+                          verify_owner=lambda proof, digest: proof["policy_digest"] == digest)
         self.assertEqual(result["disposition"], "fix-here")
         self.assertTrue(result["auto_applicable"])
         policy["auto_apply_enabled"] = False
         self.assertFalse(evaluate(policy, evidence(ac_violation=True), approval(policy))["auto_applicable"])
+
+    def test_trusted_verifier_fail_closed(self):
+        policy = copy.deepcopy(self.policy)
+        policy.update(status="approved", auto_apply_enabled=True)
+        policy["feature_flags"]["fix-here"] = True
+        finding = evidence(ac_violation=True)
+        for fn in (None, lambda p, d: False, lambda p, d: "truthy",
+                   lambda p, d: 1 / 0):
+            with self.subTest(verifier=fn):
+                self.assertFalse(evaluate(policy, finding, approval(policy),
+                                          verify_owner=fn)["auto_applicable"])
 
     def test_deferred_and_advisory_require_verified_destinations(self):
         policy = copy.deepcopy(self.policy)
@@ -134,7 +147,8 @@ class TestTriagePolicy(unittest.TestCase):
         ):
             with self.subTest(candidate=candidate):
                 self.assertFalse(evaluate(policy, finding, approval(policy))["auto_applicable"])
-                self.assertEqual(evaluate(policy, confirmed, approval(policy))["disposition"], candidate)
+                self.assertEqual(evaluate(policy, confirmed, approval(policy),
+                                          verify_owner=lambda proof, digest: True)["disposition"], candidate)
 
 
 if __name__ == "__main__":
