@@ -156,6 +156,32 @@ class TestTriagePolicy(unittest.TestCase):
         self.assertFalse(evaluate(policy, evidence(ac_violation=True), approval(policy),
                                   verify_owner=lambda proof, digest: proof["policy_digest"] == digest)["auto_applicable"])
 
+    def test_status_and_each_action_flag_independently_block(self):
+        examples = (
+            ("fix-here", evidence(ac_violation=True)),
+            ("deferred", evidence(preexisting=True, handoff_verified=True)),
+            ("advisory", evidence(harm="none", optional_improvement=True,
+                                  advisory_verified=True)),
+        )
+        for candidate, finding in examples:
+            with self.subTest(candidate=candidate):
+                policy = copy.deepcopy(self.policy)
+                policy.update(status="approved", auto_apply_enabled=True)
+                policy["feature_flags"][candidate] = True
+
+                def outcome():
+                    proof = approval(policy)
+                    return evaluate(policy, finding, proof,
+                                    verify_owner=lambda p, digest: p["policy_digest"] == digest)
+
+                self.assertTrue(outcome()["auto_applicable"])
+                self.assertEqual(outcome()["disposition"], candidate)
+                policy["status"] = "draft"
+                self.assertFalse(outcome()["auto_applicable"])
+                policy["status"] = "approved"
+                policy["feature_flags"][candidate] = False
+                self.assertFalse(outcome()["auto_applicable"])
+
     def test_trusted_verifier_fail_closed(self):
         policy = copy.deepcopy(self.policy)
         policy.update(status="approved", auto_apply_enabled=True)
