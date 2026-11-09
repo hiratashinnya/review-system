@@ -1,6 +1,8 @@
 """Issue #781: decision-table positive and fail-closed negative examples."""
 
 import copy
+import json
+from pathlib import Path
 import unittest
 
 from triage_policy import evaluate, load_policy, policy_digest, suggest
@@ -37,6 +39,20 @@ class TestTriagePolicy(unittest.TestCase):
         self.assertEqual(self.policy["status"], "draft")
         self.assertFalse(self.policy["auto_apply_enabled"])
         self.assertTrue(all(value is False for value in self.policy["feature_flags"].values()))
+
+    def test_machine_schema_matches_runtime_rule_order(self):
+        schema_path = (Path(__file__).resolve().parents[2] / ".ai" / "schema"
+                       / "triage-policy-v1.json")
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        rules = schema["properties"]["rules"]
+        self.assertEqual([entry["properties"]["outcome"]["const"]
+                          for entry in rules["prefixItems"]],
+                         [entry["outcome"] for entry in self.policy["rules"]])
+        self.assertIs(rules["items"], False)
+
+    def test_scope_out_does_not_waive_required_fix(self):
+        self.assertEqual(suggest(self.policy, evidence(scope="out", ac_violation=True))
+                         ["candidate"], "fix-here")
 
     def test_mandatory_violations_have_priority(self):
         for key in ("ac_violation", "design_violation", "contract_violation", "regression"):
