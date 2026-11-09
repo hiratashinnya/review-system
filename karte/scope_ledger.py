@@ -44,9 +44,10 @@ def record_declared(issue, repo_root, round_no, declared, *, records=None) -> No
 
 
 def arm(issue, repo_root) -> None:
-    """原本が無ければ空の原本を作り、その Issue を最初の取り込みの前から保護モードにする。
+    """原本が無ければ空の原本を作り、その Issue を保護モードにする。
 
-    原本の有無が保護モードの条件なので、``activate`` がレビューア初回の前に用意する（Issue #375 F-375-03）。
+    原本の有無が保護モードの条件。作るのはレビューア本人の取り込みが検証を通った後だけ
+    （``activate`` は作らない。待機取消後に取り消せない保護を残さないため・Issue #375 F-375-10/16）。
     """
     if not exists(issue, repo_root):
         scope_records.append_lines(issue, repo_root, [])

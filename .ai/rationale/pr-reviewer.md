@@ -122,8 +122,13 @@ Codex 経由の取り込みは下記の外側 wrapper 経路を使い、既存bi
   review が連鎖の終端なので常に空。phase は pr-reviewer の入力種別（TestDesign→`test_design`、ChangePlan→`implementation`）。
   却下案＝期待値を `ingest-reviewer` の CLI 引数にする（pr-reviewer が自分で与えられるので自己申告と同じ）。
 - **round 1 の保護（F-375-03）**：保護モードの条件が「申告原本の存在」で、原本は最初の `ingest-reviewer` が作るため、
-  それ以前の旧 `ingest-review` が無保護だった。期待値つきの `activate` が空の原本を先に作って保護を前倒しし（期待値なしの `activate` は待機取消の退避経路なので原本を作らない・F-375-10。先に作られた原本は取消でも消えない）、期待値が残っている間は
-  旧 `ingest-review` を拒否する。原本のない scope をレビューア申告が置換したら取り込み結果に出す。
+  それ以前の旧 `ingest-review` が無保護だった。期待値が残っている間は旧 `ingest-review` を拒否して round 1 でも迂回させない。
+  当初案（`activate` が空の原本を先に作る）は F-375-10 で退けた：待機取消（期待値なしの `activate`）の後も原本が残り、
+  退避経路の主文脈 `ingest-review` が追記専用の保護モードになって既存 finding の status を更新できなくなる。取消時に空の
+  原本を消す案も退けた（レビューアが 0 件で取り込み済みの空の原本と区別できず、ファイル削除という新しい書込み経路が要る）。
+  採用＝`activate` はどちらの形でも原本を作らず、検証を通ったレビューア本人の取り込み（`ReviewerIngestPolicy.persist`）が、
+  申告が 0 件でも原本を作る（F-375-16）。これで原本の有無は「レビューアが取り込み済みか／オーナー印があるか」と一致し、
+  取消しても守るべきオーナー確定値だけが残る。原本のない scope をレビューア申告が置換したら取り込み結果に出す。
   残る限界＝主文脈が期待値なしで `activate` して旧 `ingest-review` を使う経路は、新規 finding の scope を主文脈が
   書ける（原本が無いのでその時点では検出できない）。後続のレビューア申告で食い違えば上記の置換として検出される。
   却下案＝旧 `ingest-review` を全面拒否（implementer/fixer の `out_of_scope_findings` の取り込みに使うため不可）。

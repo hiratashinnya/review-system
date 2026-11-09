@@ -61,8 +61,9 @@ def _open_child(parent, name, flags, *, create):
 def open_scope_directory(path, *, create=False):
     """repo-root → tmp → _karte を no-follow で開き、操作中は fd を保持する。
 
-    「開けない」と報告するのは開く段階の OSError だけ。``with`` 本体（読み書き）の OSError は
-    原因（ENOSPC・EROFS 等）を隠さずそのまま伝播する（F-375-07）。
+    「開けない」と報告するのは ``os.open`` 系の OSError だけ。開いた後の検査（``check``）が自分で出す
+    ``KartePathError`` と、``with`` 本体（読み書き）の OSError は原因（ENOSPC・EROFS 等）を隠さず
+    そのまま伝播する（F-375-07・F-375-20）。
     """
     root = path.parent.parent.parent
     fds = []
@@ -72,10 +73,10 @@ def open_scope_directory(path, *, create=False):
             fds.append(os.open(root, flags))
             fds.append(_open_child(fds[-1], "tmp", flags, create=create))
             fds.append(_open_child(fds[-1], "_karte", flags, create=create))
-            directory = ScopeDirectory(root, fds)
-            directory.check()
         except OSError as exc:
             raise KartePathError(f"申告 scope の置き場を開けない: {exc}") from exc
+        directory = ScopeDirectory(root, fds)
+        directory.check()  # 検査の失敗は check 自身が KartePathError で報告する（開けない、と読み替えない）
         yield directory
     finally:
         for fd in reversed(fds):

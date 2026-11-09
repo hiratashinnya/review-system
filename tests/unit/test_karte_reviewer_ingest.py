@@ -1283,21 +1283,75 @@ class TestReviewEnvelope(ReviewerIngestCase):
         self.assertNotIn("追記専用", err)
         self.assertFalse(scope_ledger.exists(self.issue, self.root))
 
-    def test_activate_with_envelope_arms_protection_and_cancelling_the_wait_keeps_it(self):
-        """期待値つきの activate だけが原本を作る。待機取消の activate は原本を消さない（保護モードは残る）。"""
-        self.assertEqual(cli.EXIT_OK, self._activate()[0])
-        self.assertTrue(scope_ledger.exists(self.issue, self.root))
-        self.assertEqual(cli.EXIT_OK, self._run(owner_cli.cmd_activate, issue=str(self.issue))[0])
-        self.assertTrue(scope_ledger.exists(self.issue, self.root))
+    def _declared_bytes(self):
+        return (paths.karte_dir(self.root) / f"issue-{self.issue}.declared-scope.jsonl").read_bytes()
 
-    def test_round_one_legacy_ingest_is_already_in_protected_mode_after_activate(self):
+    def test_activate_never_creates_the_original_so_cancelling_the_wait_restores_legacy_ingest(self):
+        """期待値つきの activate も原本を作らない。待機取消の後、主文脈の ingest-review は従来動作に戻る（F-375-10）。"""
+        self.assertEqual(cli.EXIT_OK, self._activate()[0])
+        self.assertFalse(scope_ledger.exists(self.issue, self.root))
+        self.assertEqual(cli.EXIT_OK, self._run(owner_cli.cmd_activate, issue=str(self.issue))[0])
+        self.assertFalse(scope_ledger.exists(self.issue, self.root))
+        self.assertEqual(cli.EXIT_OK, self._legacy_ingest(1, _report())[0])
+        code, _, err = self._legacy_ingest(2, _report(f"F-{self.issue}-01", status="resolved"))
+        self.assertEqual(cli.EXIT_OK, code, err)  # 既存 finding の status を更新できる
+        self.assertNotIn("追記専用", err)
+        self.assertEqual("resolved", self._finding(f"F-{self.issue}-01").status)
+        self.assertFalse(scope_ledger.exists(self.issue, self.root))
+
+    def test_rejected_reviewer_ingest_leaves_no_original_and_keeps_the_wait_cancellable(self):
         self._activate()
-        self._run(owner_cli.cmd_activate, issue=str(self.issue))  # 待機取消。原本は期待値つき activate が作成済み
+        code, _, _ = self._ingest_raw(self._header(1) + "\n\n### new\nharm: real\n")  # 必須キー欠落＝拒否
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertFalse(scope_ledger.exists(self.issue, self.root))
+        self.assertEqual(cli.EXIT_OK, self._run(owner_cli.cmd_activate, issue=str(self.issue))[0])
+        self.assertEqual(cli.EXIT_OK, self._legacy_ingest(1, _report())[0])
+
+    def test_original_made_by_a_reviewer_ingest_survives_cancelling_a_later_wait(self):
+        """レビューアが取り込み済みの原本（オーナー確定値の保護）は、後の待機取消でも保護モードのまま残る。"""
+        self._activate()
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report(scope="out"))[0])
+        self.assertEqual(cli.EXIT_OK, self._decide(scope="in")[0])
+        original = self._declared_bytes()
+        self.assertEqual(cli.EXIT_OK, self._activate()[0])
+        self.assertEqual(cli.EXIT_OK, self._run(owner_cli.cmd_activate, issue=str(self.issue))[0])
+        self.assertEqual(original, self._declared_bytes())
+        code, _, err = self._legacy_ingest(1, _report(f"F-{self.issue}-01", scope="out"))
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn("追記専用", err)
+        self.assertEqual("in", self._finding(f"F-{self.issue}-01").scope)
+        self.assertEqual(original, self._declared_bytes())
+
+    def test_reviewer_ingest_arms_the_original_even_when_nothing_is_declared(self):
+        """原本が無ければ、検証を通ったレビューア取り込みが自前で作る（F-375-16）。"""
+        policy = reviewer_policy.ReviewerIngestPolicy(self.root, self.issue, 1)
+        self.assertFalse(scope_ledger.exists(self.issue, self.root))
+        policy.persist(1)
         self.assertTrue(scope_ledger.exists(self.issue, self.root))
-        report = _report(scope="out", disposition="waived", waived_by="main", waived_reason="x")
+        self.assertEqual({}, self._declared_scopes())
+        policy.persist(1)  # 既にあれば何もしない
+        self.assertEqual({}, self._declared_scopes())
+
+    def test_ingest_reviewer_without_activate_is_refused_and_does_not_leave_an_unprotected_round_one(self):
+        """引数なし activate の直後の ingest-reviewer は期待値が無く拒否される。原本も作らない（F-375-16）。"""
+        self._run(owner_cli.cmd_activate, issue=str(self.issue))
+        code, _, err = self._ingest_raw(self._header(1) + "\n\n" + _report())
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn("期待値が無い", err)
+        self.assertFalse(scope_ledger.exists(self.issue, self.root))
+        self.assertFalse(paths.karte_path(self.issue, self.root).exists())
+
+    def test_round_one_legacy_ingest_is_refused_while_waiting_and_protected_after_the_reviewer_ingest(self):
+        self._activate()
+        code, _, err = self._legacy_ingest(1, _report())
+        self.assertEqual(cli.EXIT_ERROR, code)  # 待ちの間は round 1 でも迂回できない
+        self.assertIn("レビューア本人の取り込み待ち", err)
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])
+        report = _report(scope="out", summary="別件", locus="b.py::other",
+                         disposition="waived", waived_by="main", waived_reason="x")
         code, _, err = self._legacy_ingest(1, report)
         self.assertEqual(cli.EXIT_OK, code, err)
-        self.assertEqual("", self._finding(f"F-{self.issue}-01").disposition)
+        self.assertEqual("", self._finding(f"F-{self.issue}-02").disposition)
         self.assertIn("オーナー専権の disposition を無視", err)
         code, _, err = self._legacy_ingest(2, _report(f"F-{self.issue}-01"))
         self.assertEqual(cli.EXIT_ERROR, code)
@@ -1346,8 +1400,7 @@ class TestReviewEnvelope(ReviewerIngestCase):
     def test_main_context_append_only_ingest_is_not_reported_as_incomplete(self):
         """主文脈専用の追記専用モードは再掲しないのが通常なので、未完了にしない。"""
         self._activate()
-        self._run(owner_cli.cmd_activate, issue=str(self.issue))  # 待機取消（原本は残るので保護モード）
-        self.assertEqual(cli.EXIT_OK, self._legacy_ingest(1, _report())[0])
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])  # レビューア取り込みが原本を作り、以後は保護モード
         other = _report("new", summary="別の問題: 例外を握りつぶしている", locus="c/d.py::swallow")
         code, _, err = self._legacy_ingest(1, other)
         self.assertEqual(cli.EXIT_OK, code, err)
@@ -1377,6 +1430,28 @@ class TestScopeDirectoryErrorReporting(ReviewerIngestCase):
                 raise full
         self.assertIs(full, caught.exception)
         self.assertNotIsInstance(caught.exception, KartePathError)
+
+    def test_check_oserror_is_not_reported_as_unable_to_open(self):
+        """開いた後の検査（check）が出す OSError は『開けない』に読み替えず、そのまま伝播する（F-375-20）。"""
+        (self.root / "tmp" / "_karte").mkdir(parents=True)
+        path = self.root / "tmp" / "_karte" / "issue-375.declared-scope.jsonl"
+        failure = OSError(errno.EIO, "Input/output error")
+        with mock.patch.object(scope_directory.ScopeDirectory, "check", side_effect=failure):
+            with self.assertRaises(OSError) as caught:
+                with scope_directory.open_scope_directory(path):
+                    self.fail("検査に失敗したのに本体へ入った")
+        self.assertIs(failure, caught.exception)
+        self.assertNotIsInstance(caught.exception, KartePathError)
+
+    def test_check_stat_failure_is_reported_as_unable_to_inspect_not_unable_to_open(self):
+        (self.root / "tmp" / "_karte").mkdir(parents=True)
+        path = self.root / "tmp" / "_karte" / "issue-375.declared-scope.jsonl"
+        with mock.patch("karte.scope_directory.os.stat", side_effect=PermissionError(13, "Permission denied")):
+            with self.assertRaises(KartePathError) as caught:
+                with scope_directory.open_scope_directory(path):
+                    self.fail("検査に失敗したのに本体へ入った")
+        self.assertIn("検査できない", str(caught.exception))
+        self.assertNotIn("開けない", str(caught.exception))
 
     def test_write_failure_is_not_reported_as_unable_to_open(self):
         self._ingested()

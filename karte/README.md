@@ -133,12 +133,14 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
     申告の原本は台帳より先に追記する。
 - **`activate --issue <N> [--run-id R --target-key K --snapshot-oid OID --input-digest D --phase P]`**
   （主文脈専用）：進行ポインタを対象 Issue へ向ける（round は取り込み済みの最新、台帳が無ければ 0）。
-  初回の `ingest-reviewer` の前に実行する。**envelope 引数つきの `activate` は、申告 scope の原本（空）をここで
-  作り、最初の取り込みの前から保護モードにする**（原本が無いと round 1 の旧 `ingest-review` が無保護になるため・
-  Issue #375 F-375-03）。5 つの envelope 引数は**全部同時に**与え、review handoff の期待値としてポインタへ記録する
-  （下記「review handoff の共通 envelope」）。1 つも与えなければ期待値なし（レビューア待ちの解除）で、
-  **この場合は原本を作らず保護モードへも入れない**（レビューアを待たず主文脈が取り込む退避経路を、追記専用に
-  しないため・F-375-10）。取り消すのは待ちだけで、先の `activate` が作った原本は消えず保護モードは残る。
+  初回の `ingest-reviewer` の前に実行する。5 つの envelope 引数は**全部同時に**与え、review handoff の期待値として
+  ポインタへ記録する（下記「review handoff の共通 envelope」）。1 つも与えなければ期待値なし（レビューア待ちの解除）。
+  **`activate` はどちらの形でも申告 scope の原本を作らない**。原本を作るのは、検証を通ったレビューア本人の
+  取り込み（`ingest-reviewer`）だけで、申告が 0 件でも空の原本を残して以後を保護モードにする（F-375-16）。
+  待ちの間は期待値の存在が主文脈の旧 `ingest-review` を拒否する（round 1 でも迂回できない・F-375-03）ので、
+  原本が無くても保護は途切れない。`activate`（期待値なし）で待ちを取り消すと、レビューア取り込み前なら原本が無く
+  主文脈の `ingest-review` は従来動作に戻る（退避経路を追記専用にしない・F-375-10）。レビューアが既に取り込んで
+  原本がある Issue では、待ちを取り消しても原本は消えず保護モードが残る（オーナー確定の scope を守るため）。
   `run_id` / `target_key` は handoff ヘッダへそのまま往復できる値（英数字で始まる 128 文字以内の
   英数字と `. _ : / @ + # -`）に限り、空白・`-->` を含む値は `activate` が拒否する（F-375-12）。
 - **review handoff の共通 envelope（Issue #375・#371 契約）**：handoff 先頭の 1 行
@@ -165,10 +167,11 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
   `activate` で期待値を記録し直して再レビューする（F-375-11）。主文脈が足した finding・申し送り／処置不要と決まった finding の不在、
   主文脈専用の追記専用モードは対象外（警告のみ・終了コード 0）。再掲漏れは解消ではなく、取り込み済みの round を
   やり直さず、次のレビューで `status: open|resolved` を明示して再掲させる。
-  （`cli.py` のモジュール docstring の終了コード一覧は 0/2/3/4 のまま。5 の定義は `karte/exit_codes.py`。）
+  5 の定義は `karte/exit_codes.py`、`cli.py` のモジュール docstring の終了コード一覧にも載せている。
+  Codex wrapper の終了コード一覧（5 は `pr-reviewer` 専用の予約値）は `codex_worktree_exec/README.md`「終了コード」。
 - **`decide --finding <ID> [--disposition … --deferred-to … --waived-by … --waived-reason …] [--scope in|out]`**
   （主文脈専用）：オーナー決定を台帳へ直接記録する。`disposition` の付随キー規則は `ingest-review` と同じ。
-- **保護モード**：`ingest-reviewer` は常に、申告原本がある Issue（`activate` が最初の取り込みの前に作る）の
+- **保護モード**：`ingest-reviewer` は常に、申告原本がある Issue（レビューア本人の最初の取り込みが作る）の
   主文脈専用 `ingest-review` も保護モードで動く。両経路で台帳の `disposition` 系とオーナー確定済み `scope` を保持し、専権キーを
   無視して警告する。前ラウンドの未解消 finding の再掲が漏れた場合は変更せず未解消のまま引き継ぎ、
   ID を警告する。解消は `status: resolved` の明示宣言だけである。警告は標準エラーに `警告: …`、

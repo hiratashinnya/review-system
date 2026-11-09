@@ -436,6 +436,49 @@ class CodexReviewerHandoffTests(unittest.TestCase):
         self.assertEqual([1, 2], ledger.finding("F-375-01").rounds)
         self.assertEqual("open", ledger.finding("F-375-02").status)
 
+    def test_exit_code_5_end_to_end_records_the_ledger_and_consumes_the_expectation(self):
+        """ingest を実際に実行し、台帳記録・期待値の消費・wrapper 終了コード 5・再投入の拒否を通しで確認する（F-375-19）。"""
+        def activate():
+            done = subprocess.run(
+                [sys.executable, "-m", "karte", "activate", "--issue", "375", *self.activate_argv],
+                cwd=self.primary, capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(0, done.returncode, done.stderr)
+
+        pointer_path = self.primary / "tmp" / "_karte" / "active.json"
+        activate()
+        self.ingest.stop()
+        second = REPORT.replace("F-375-01", "F-375-02").replace(
+            "検証が不足している", "別の検証が不足している"
+        ).replace("source.py::check", "other.py::check")
+        first = _save_handoff(self.primary, REPORT + "\n" + second, 375, 1, self.envelope)
+        code, detail, _warnings = _ingest(self.worktree, first)
+        self.assertEqual(0, code, detail)
+        activate()
+        self.assertIn("review_expect", json.loads(pointer_path.read_text(encoding="utf-8")))
+
+        code, out, err = self.run_main(content=REPORT)  # F-02 を再掲しない
+        self.assertEqual(EXIT_INCOMPLETE, code, err)
+        self.assertEqual("", out)
+        self.assertIn("CODEX_REVIEW_INGEST_INCOMPLETE", err)
+        self.assertIn("期待値は消費済み", err)
+        ledger = model.parse(paths.karte_path(375, self.primary).read_text())
+        self.assertEqual([1, 2], ledger.finding("F-375-01").rounds)  # round 2 は台帳へ記録済み
+        self.assertEqual([1], ledger.finding("F-375-02").rounds)
+        self.assertEqual("open", ledger.finding("F-375-02").status)
+        pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+        self.assertEqual(2, pointer["round"])
+        self.assertNotIn("review_expect", pointer)  # 期待値は消費済み
+
+        self.output.unlink()
+        code, out, err = self.run_main(content=REPORT)  # 記録し直さずに再投入しても取り込まれない
+        self.assertEqual(EXIT_REFUSED, code)
+        self.assertIn("CODEX_REVIEW_INGEST_FAILED", err)
+        self.assertIn("期待値が無い", err)
+        self.assertEqual(
+            [1, 2], model.parse(paths.karte_path(375, self.primary).read_text()).finding("F-375-01").rounds
+        )
+
     def test_real_ingest_rejection_returns_validation_bullets(self):
         activated = subprocess.run(
             [sys.executable, "-m", "karte", "activate", "--issue", "375", *self.activate_argv],
