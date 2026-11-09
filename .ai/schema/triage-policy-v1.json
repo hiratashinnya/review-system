@@ -116,21 +116,78 @@
         "all_true": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "reviewer_verified",
+              "evidence_complete",
+              "ac_relation_verified",
+              "reviewer_conflict",
+              "scope_override_requested",
+              "ac_violation",
+              "design_violation",
+              "contract_violation",
+              "regression",
+              "spec_decision_required",
+              "scope_expansion_required",
+              "preexisting",
+              "worsened",
+              "high_risk",
+              "optional_improvement",
+              "handoff_verified",
+              "advisory_verified"
+            ]
           },
           "uniqueItems": true
         },
         "all_false": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "reviewer_verified",
+              "evidence_complete",
+              "ac_relation_verified",
+              "reviewer_conflict",
+              "scope_override_requested",
+              "ac_violation",
+              "design_violation",
+              "contract_violation",
+              "regression",
+              "spec_decision_required",
+              "scope_expansion_required",
+              "preexisting",
+              "worsened",
+              "high_risk",
+              "optional_improvement",
+              "handoff_verified",
+              "advisory_verified"
+            ]
           },
           "uniqueItems": true
         },
         "any_true": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "reviewer_verified",
+              "evidence_complete",
+              "ac_relation_verified",
+              "reviewer_conflict",
+              "scope_override_requested",
+              "ac_violation",
+              "design_violation",
+              "contract_violation",
+              "regression",
+              "spec_decision_required",
+              "scope_expansion_required",
+              "preexisting",
+              "worsened",
+              "high_risk",
+              "optional_improvement",
+              "handoff_verified",
+              "advisory_verified"
+            ]
           },
           "uniqueItems": true
         },
@@ -177,10 +234,11 @@
       ],
       "properties": {
         "finding_id": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "policy_ref": {
-          "type": "string"
+          "const": "review-finding-disposition@1.0"
         },
         "phase": {
           "type": "string",
@@ -282,16 +340,19 @@
           "type": "boolean"
         },
         "owner": {
-          "type": "string"
+          "type": "string",
+          "pattern": "\\S"
         },
         "feedback_ref": {
-          "type": "string"
+          "type": "string",
+          "pattern": "^FBK-"
         },
         "policy_ref": {
-          "type": "string"
+          "const": "review-finding-disposition@1.0"
         },
         "policy_digest": {
-          "type": "string"
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
         },
         "allowed_dispositions": {
           "type": "array",
