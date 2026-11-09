@@ -27,16 +27,6 @@
     "issue_start/worktree_ledger.py|09c0c483bbb9b752": 1,
     "karte/cli.py|57b1a37f983c7336": 1,
     "karte/cli.py|d87fcc8e5318e874": 1,
-    "karte/model.py|170b9a65e7d9ef73": 1,
-    "karte/model.py|1d9305ee49f03ed5": 1,
-    "karte/model.py|3219607d98ae1adf": 1,
-    "karte/model.py|39966b09aabb07a2": 1,
-    "karte/model.py|40c4b8476f255586": 1,
-    "karte/model.py|46dc59814d4f2ad2": 1,
-    "karte/model.py|6d574250da10ffea": 1,
-    "karte/model.py|b61b5edb5d280e53": 1,
-    "karte/model.py|e1cbd9df9da10e08": 1,
-    "karte/model.py|e22fd7599d44f325": 1,
     "project_status_sync/model.py|43d8fd6ab29f2cf1": 1
   },
   "mixed_class_files": {
@@ -132,12 +122,12 @@
       "sha256": "5c5b459cdfaf32aa4c1b8f6a2dc5d2ca60bb3ddaa760bf1c7da5f77af1ec252b"
     },
     "karte/cli.py": {
-      "line_count": 1100,
-      "sha256": "6ebefa60cba4568291218fb3a11f7ae816a05a3de51f9f117c39901847eddd19"
+      "line_count": 1101,
+      "sha256": "568cc00e8a17cd7c21e34e85a094b8cc311e561504edde82832719999b0a9715"
     },
     "karte/model.py": {
-      "line_count": 1297,
-      "sha256": "7282e031c2c7ab0e27b76139ef869539fb0cc44b6f5cd13fcade6f0cd5ff2b3a"
+      "line_count": 635,
+      "sha256": "bd4272c7120c925d5b90e472c80e02a7af2ba34cad4967874b4b4cfe15dfc891"
     },
     "karte/similarity.py": {
       "line_count": 241,

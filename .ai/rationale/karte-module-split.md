@@ -108,3 +108,387 @@ linked worktree（`issue-implementer` 等の isolated worktree）でも main wor
 
 ### `--round` 補完の戻り値（F-696-26）
 `pointer_round(args, repo_root, issue, no_round_hint: str) -> int` は、エラー文言の断片を呼び出し側から文字列で受け取り、さらに `ingest_target` が「`--round` が明示されたか」の判定を関数の内と外で二重に持っていた。`resolve_round(args, repo_root, issue, missing_hint: MissingRoundHint) -> ResolvedRound`（`karte/round_resolution.py`：案内の列挙と結果の dataclass＝データのみ）に改め、明示/補完の別（`explicit`）を戻り値で一度だけ返す。`ingest_target` は `explicit` だけを見て +1 を決める。上段が再利用するときも、案内は列挙値で選び、文言を組み立てない。
+
+## `karte/model.py` の解析責務分割（Issue #746・K-01・親 #745）
+
+`karte/model.py`（1297 行・連続コメント違反 10 件）から解析・検証責務を新モジュールへ移した際、連続コメント 3 行以内（Issue #539）に縮めたコード側の説明を、移設元の文言のまま保管する。公開名は `karte.model` から従来どおり再エクスポートしている（挙動比較は `tests/unit/test_karte_model_compat.py`）。
+
+| 新モジュール | 移設元（`karte/model.py`） |
+|---|---|
+| `format_error.py` | `KarteFormatError` |
+| `vocabulary.py` | 列挙値・セクション名・書式正規表現 |
+| `value_codec.py` | `parse_value`/`format_value`/`check_scalar`/`check_list`/`normalize_locus` |
+| `finding_id.py` | `format_finding_id`/`parse_finding_id` |
+| `block_parser.py` | `Block`/`parse_blocks` |
+| `block_fields.py` | `_require*`/`_optional*`（公開名 `require*`/`optional*` へ改名） |
+| `disposition.py` | `Disposition`/`parse_disposition` |
+| `harm_detail_lint.py` | `harm_detail` 内容 lint |
+| `field_validators.py` | `validate_*` |
+| `review_finding.py`/`review_block.py`/`review_report.py` | `ReviewFinding`/`parse_review`（ブロック変換と報告集約を分離） |
+
+### `karte/vocabulary.py`：語彙定義の移設元コメント
+
+`change_kind`（`CHANGE_KINDS`）：
+
+```text
+``change_kind``＝是正の変更種別。類似判定の**宣言信号**（:mod:`karte.similarity`）が
+``root_cause`` 一致に加えて見る軸であり、飽和検知（同じアプローチの無駄連打の停止）の入力。
+
+``doc``（Issue #503 観測2・2026-09-09 追加）＝**文書だけを変更する是正**
+（README・`docs/**`・エージェント定義本文・docstring のみ。コードの挙動を変えない）。
+追加前は文書のみのラウンドで実態に合う値が無く、是正担当が已むなく ``config`` を選んだ
+（Issue #493 の是正ラウンド2 で実測）。実態と違う値が入ると (a) 後から読む者が
+「設定を変えた是正」と誤読し、(b) 飽和判定が**別の ``config`` 変更との距離を実態より近く**
+算出する——是正ラウンドの相当数は文書のみの変更なので、再発頻度は低くない。
+
+**既存カルテの ``config`` 記録は遡って読み替えない**（Issue #503・本 PR で確定）。
+台帳は追記のみ（本モジュール docstring「追記規律」）で、書かれた Attempt ブロックは
+どの verb も書き換えないから、過去の ``config`` は ``config`` のまま残る。移行スクリプトも
+読み替えマップも持たない。理由は 2 つ——
+  * 遡って書き換えると append-only の不変条件（＝改ざん防止の前提）を自ら破ることになる。
+  * 「当時どう申告したか」は飽和判定が実際に使った入力であり、後から書き換えると
+    過去ラウンドの判定結果を再現できなくなる（監査可能性の喪失）。
+**飽和判定への影響**は「新しい ``doc`` の Attempt は、過去の ``config`` の Attempt と
+``change_kind`` 経由では類似と判定されなくなる」ことに限られる（``root_cause`` 一致＋
+``targets`` 交差、あるいは実測 touched-set 一致の経路は従来どおり効く）。すなわち
+語彙追加は飽和判定を**緩める方向**に働きうるが、それは「実態が違う変更を同種と数えていた」
+過大計上の解消であって、検知力の意図的な低下ではない。
+```
+
+`SEVERITIES`：
+
+```text
+指摘の優先度（``harm`` とは独立の軸。``harm: none`` でも ``severity: major`` はあり得る）。
+```
+
+`scope`（`SCOPES`）：
+
+```text
+``scope``（Issue #495）＝レビューアの**申告**としての当該 PR スコープ内/外。
+**免除力を持たない**——``scope: out`` でも ``harm`` の判定・台帳への記録・verdict の
+ゲートはまったく同じに掛かる。スコープ外指摘を別経路（チャットでの列挙）へ逃がすと、
+実害判定もカルテ記録も verdict も一度に迂回でき、実害ありの指摘が未処置のまま
+clean を通過した（PR #490 → Issue #493 の流出経路）。`scope` は監査材料として残すだけ。
+```
+
+`DEFAULT_SCOPE`（移行措置）：
+
+```text
+移行措置（Issue #495・互換性）: ``scope`` を持たない**既存カルテ**は ``in`` として読む。
+`tmp/` は版管理外だが、進行中の Issue の台帳が読めなくなると是正ループが止まるため。
+**新規の ``ingest-review`` では必須**（:func:`parse_review` は既定へ倒さず拒否する）。
+```
+
+`disposition`（`DISPOSITIONS`）：
+
+```text
+``disposition``（Issue #495）＝``harm: real`` の指摘に対するオーナー判断の記録。
+  ``fix-here`` … 当該 PR で直す（直るまで clean を妨げる）。
+  ``deferred``  … 別 Issue へ申し送る（``deferred_to`` 必須）。
+  ``waived``    … オーナーが明示的に処置不要を許可（``waived_by``/``waived_reason`` 必須。
+                  CLAUDE.md「『対応不要』を AI が独断で書かない」に対する**記録の強制**で、
+                  許可者本人であることの機械検証ではない＝:func:`parse_disposition` の
+                  「既知の限界」）。
+```
+
+`CLEARING_DISPOSITIONS`：
+
+```text
+「当該 PR では処置しない」とオーナーが決めた disposition（Issue #495 の二層設計）。
+``status`` は ``open`` のまま残す——``deferred`` を ``resolved`` にすると
+「別 Issue へ移したと書くだけで指摘が消える」経路ができ、本 Issue が塞ぐ穴が形を変えて再発する。
+
+**この 2 定数を参照してよいのは :attr:`Finding.cleared_by_disposition` だけ**
+（Issue #503）。判定経路ごとに個別実装すると同じ取りこぼしが経路の数だけ生まれる
+——実際、Issue #495 の実装が除外を verdict 算出にしか入れなかったため、``check`` の
+診断網羅要求（観測1）と無進捗検知（観測3）が同じ穴を別々に開けていた。以後
+``deferred``/``waived`` を参照する判定を足すときは、この述語を経由させれば自動的に
+同じ規則が効く。
+```
+
+`CLEARING_HARM`：
+
+```text
+**解除力は ``harm: real`` の finding にだけ与える**（オーナー確定・2026-09-07・PR #496 F-495-01）。
+``disposition`` はそもそも「``harm: real`` に対するオーナー判断の記録」として導入した
+（:data:`DISPOSITIONS` の説明・Issue #495「提案挙動」3〜5 はいずれも ``harm: real`` が主語）。
+解除力を harm の値によらず与えると、``harm: none`` の未解消 finding に ``deferred`` と
+適当な Issue 番号を 2 行書くだけで verdict が ``no-harm-only`` から ``clean`` へ変わり、
+「未解消がすべて ``none`` になったらオーナーへ打ち上げる」既存の STOP
+（`.ai/skills/issue-pipeline/SKILL.md`「実害の定義とエスカレーション」）を AI が単独で
+消せてしまう——本 Issue が塞いだ「ラベルを書くだけで clean を通す」経路と同型のものを
+``harm: none`` 側に新設することになる。
+``harm: none`` に ``disposition`` を書くこと自体は拒否しない（申し送り先の記録は残せる）。
+記録は残るが verdict は動かない、という非対称でよい。
+```
+
+`DEFERRED_TO_RE`：
+
+```text
+``deferred_to``（Issue #495）は**行き先を機械的に解決できる形**だけを受ける。
+「別 Issue で対応」のような散文を許すと、申し送りの宛先が不明のまま clean を通せてしまい、
+`deferred` を必須化した目的（リンク無しの申し送りを作らない）が達成できない。
+```
+
+`FORBIDDEN_VALUE_CHARS`/`FORBIDDEN_LIST_ITEM_CHARS`：
+
+```text
+台帳の値に持ち込めない文字（1行 key: value ＋ `[a, b]` 記法を壊すため）。
+```
+
+### `karte/value_codec.py`：`normalize_locus` の docstring（全文）
+
+```text
+    """``locus`` をリストへ正規化する（スカラ 1 件でもリストでも受ける）。
+
+    レビューアが 1 箇所しか書かないときに ``[...]`` を強制すると書き味が悪いのでスカラを許し、
+    台帳側は常にリストで持つ（表示・比較の分岐を 1 箇所に閉じる）。空は空リスト＝任意キー。
+
+    **スカラ経路もリスト要素と同じ文字検査を通す**（:data:`FORBIDDEN_LIST_ITEM_CHARS`）。
+    ここを緩めると、角括弧を省いて ``locus: a.md::x, b.toml::x`` と書いたときに 1 要素として
+    受理され、:func:`format_value` が ``[a.md::x, b.toml::x]`` と書き出すので、**台帳を読み直した
+    時点で 2 要素へ静かに割れる**。:func:`is_same_finding` は locus の交差で再発番を判定するため、
+    レポート側（1 要素）と台帳側（2 要素）で照合面がズレ、**同一指摘の再発番を見逃す**方向に効く
+    ——locus を複数化した目的そのものを裏切るので、fail-close で拒否する。
+    """
+```
+
+### `karte/block_parser.py`：`parse_blocks` の docstring と inline コメント（全文）
+
+```text
+    """``## Section`` / ``### Title`` ＋ ``key: value`` 行の決定論パーサ。
+
+    解釈できない行が 1 行でもあれば :class:`KarteFormatError`（fail-close）。
+
+    ``allow_preamble``
+        最初の ``### `` 見出しより**前**の自由記述行（レポート冒頭のタイトル・総括）を
+        読み飛ばす。レビューレポート（レビューアが書く入力）専用の緩和で、カルテ本体
+        （機械が書き機械が読む正本）は既定どおり 1 行でも解釈できなければ拒否する。
+        1 件目のブロックに入った後は緩和しない——要約の折り返し行を黙って捨てると
+        指摘の内容が欠落するため、そこは fail-close のままにする。
+    """
+...
+        if allow_preamble and not seen_block and not matched:
+            continue  # 1 件目の `### ` より前の自由文だけを無視する（レビューレポート限定）。
+            # `key: value` 形の行は preamble でも黙って捨てず拒否する（K-10：無言の欠落防止）。
+```
+
+### `karte/block_fields.py`：`_optional_enum` の docstring（全文）
+
+```text
+    """任意キーを列挙で検証する（未記載・空は ``default``・綴り違いは fail-close）。
+
+    「無い」（＝既定へ倒してよい）と「値が不正」（＝倒すと意味が変わる）を分ける。
+    :func:`_optional_status` と同じ考え方で、綴り間違いを黙って既定へ落とさない。
+    """
+```
+
+### `karte/disposition.py`：コメントと docstring（全文）
+
+`Disposition` の docstring：
+
+```text
+    """``harm: real`` の指摘に対するオーナー判断の記録（Issue #495）。
+
+    ``kind`` が空文字＝**未決定**。未決定のまま未解消で残る ``harm: real`` の finding が
+    1 件でもある間、``status`` の verdict は ``clean`` を返さない（:mod:`karte.cli`）。
+    """
+```
+
+`DISPOSITION_REQUIRED_KEYS` のコメント：
+
+```text
+``disposition`` の値ごとに**必須**の付随キーと、**書いてはならない**付随キー。
+片方だけを検査すると「別の kind の付随キーが残ったまま」の台帳を許してしまい、
+後から読んだ側が古い申し送り先を現行の処置方針と誤読する（PR2：機械判定できる所は機械で）。
+```
+
+`parse_disposition` の docstring：
+
+```text
+    """``disposition`` とその付随キーを読む（未記載は未決定・不整合は fail-close）。
+
+    * ``deferred`` は ``deferred_to``（行き先 Issue）を必須にする——リンク無しの申し送りは
+      行き先不明になり、「別 Issue へ回す」と書くだけで指摘を消せる経路になる。
+    * ``waived`` は ``waived_by`` と ``waived_reason`` を必須にする。これは
+      `.claude/rules/03-operational.md`「『対応不要』を AI が独断で書かない」に対する
+      **記録の強制**で、誰が許可したかと理由が無い処置不要を台帳へ入れられなくする。
+    * 宣言した ``disposition`` に属さない付随キーは空でなければならない（取り違え防止）。
+
+    **既知の限界（オーナー判断そのものは機械強制していない・PR #496 F-495-04）**:
+    ``waived_by``/``waived_reason`` は自由記述のスカラであり、**書いた主体がオーナー本人か
+    どうかを機械側は区別しない**。``ingest-review`` を実行するのは主文脈（AI）であり、
+    `.claude/hooks/agent-command-gate.sh` の ``KARTE_ALLOWED_SUBCOMMANDS`` が締め出して
+    いるのは是正当事者ロールだけである。``deferred_to`` も :data:`DEFERRED_TO_RE` の
+    **形式**だけを検査し、指す Issue が実在するかは検証しない。したがってここで強制して
+    いるのは**記録**であって**オーナー判断**ではない——多層防御の一枚であって sandbox では
+    ない（本モジュール docstring「改ざん防止の機械的裏付けと既知の限界」と同じ制約＝
+    Issue #129）。運用規律（`.claude/rules/03-operational.md`）との併用が前提。
+    """
+```
+
+### `karte/harm_detail_lint.py`：Issue #511 の設計コメント（全文）
+
+```text
+--- harm_detail の内容 lint（Issue #511） -------------------------------------
+
+``harm_detail`` は**放置したときに何が壊れるか**だけを書く欄である
+（`.ai/agents/pr-reviewer.md` の finding 書式定義）。ところが実運用では
+**処置方針（disposition）と判断経緯**が同じ欄へ書かれ、そのまま台帳へ入った
+（Issue #511「実際に発生した混入」＝PR #509 の F-431-07「…本PRの差分範囲外の既存行に
+おける既存パターンで、新規追加テストによる新規発生ではない」／F-431-02
+「…（オーナー確認済み・…で fix-here）」）。
+
+これは書き手の不注意だけが原因ではない——**契約が誤指示を出し、機械検査がそれを通す**
+という構造に支えられていた（`.ai/agents/pr-reviewer.md` が「別 Issue にすべきだと
+考える場合も…harm_detail と expected に書いて返す」と指示する一方、同じ節が
+「処置方針は書かない。オーナー専権」と述べていた自己矛盾）。契約側は Issue #511 で
+是正済みで、本 lint はその機械側の半分である。
+
+**なぜ実害があるか**：処置方針が ``harm_detail`` に混ざると、(a) オーナーが決める前に
+「対応不要」等の結論が台帳へ既成事実として載り、(b) ``disposition``/``waived_reason``
+という**そのための欄**が空のまま verdict ゲートを素通りする見かけになり、
+(c) 後から読む者が「実害」と「処置方針」を区別できなくなる。
+
+**判定の性質**：決定論的な部分文字列一致（形態素解析器のような外部依存は持てない
+＝標準ライブラリのみの制約）。照合前に ASCII 大小文字を畳み、空白を除去するので
+「別 Issue」と「別Issue」は同一視される。取りこぼし（fail-open）はありうるが、
+観測された混入の型は確実に捕まえる。誤検出は :mod:`karte.allowlist` へ
+**理由付きで**登録して抑制する（消さず理由を残す運用）。
+
+処置方針（disposition）の語彙。**オーナー専権**の判断であり、レビュー担当も
+是正担当も ``harm_detail`` に書いてはならない（どこで直すべきかという見立ては
+そもそもどの欄にも書かず、決まったオーナー判断だけが
+``disposition``/``deferred_to``/``waived_reason`` に載る）。
+```
+
+`PROCESS_TERMS` のコメント：
+
+```text
+判断経緯・プロセスの語彙。「なぜそう判断したか」であって「放置すると何が壊れるか」
+ではない。観測された混入（Issue #511）はすべてこの型だった。
+```
+
+`normalize_for_term_match`/`check_harm_detail` の docstring：
+
+```text
+    """語彙照合用の正規化（ASCII 大小文字を畳み、空白をすべて除去する）。
+
+    :func:`normalize_text`（再発番判定用）とは別物で、**記号を落とさない**
+    ——``fix-here`` のハイフンを落とすと ``fix here`` 以外の無関係な並びまで
+    一致しうるため。空白の除去は「別 Issue」「別Issue」の表記ゆれを吸収する。
+    """
+
+    """``harm_detail`` の内容 lint（fail-close・Issue #511）。
+
+    :data:`HARM_DETAIL_FORBIDDEN_TERMS` のいずれかを含み、かつ
+    :mod:`karte.allowlist` に理由付きで登録されていなければ
+    :class:`KarteFormatError` を送出する。呼び出し元（:func:`parse_review`）が
+    他の検証エラーと同じ列に集約するので、取り込みは**レポート全体**として拒否される
+    （1 件だけ黙って落とすと、指摘が記録されないまま消える）。
+```
+
+### `karte/review_block.py`：`_optional_status`/`_parse_distinct_from` の docstring（全文）
+
+```text
+    """レビューレポートの任意キー ``status``（既定 ``open``）を読む（K-06）。
+
+    ``resolved`` と**書いたときだけ**解消として扱う。値の綴り間違いは既定へ倒さず
+    :class:`KarteFormatError`（fail-close）——「resolve」等の誤記を黙って ``open`` に
+    落とすと、レビューアの解消宣言が無言で失われる。
+    """
+
+    """任意キー ``distinct_from``（再発番判定のペア限定エスケープハッチ・K-05）を読む。
+
+    スカラ（``distinct_from: F-307-01``）とリスト（``distinct_from: [F-307-01, F-307-02]``）の
+    両方を受ける。形式違反・対象 issue 違いはここで拒否し、**台帳に実在するか**は
+    台帳を持つ CLI 側で検査する（ここは書式の責務だけを負う）。
+    """
+```
+
+### `karte/review_report.py`：`parse_review` の docstring（全文）
+
+```text
+    """レビューレポートをパースする（``### F-<issue>-<seq>`` か ``### new`` のブロック列）。
+
+    ``harm`` 欄の欠落・不正な ID 形式・要約欠落はすべて集めて 1 度に報告する
+    （1 件ずつ往復させない）。1 件でもあれば :class:`KarteFormatError`（fail-close）。
+
+    レポート冒頭の前書き（``# レビュー結果`` とその下の総括文）は無視する。ブロックが
+    1 件も無いときは「解釈できない行」ではなく **finding ブロックが無い** と報告する
+    ——書式違反の指摘より「取り込むものが無い」ことの方が呼び出し側の処置に直結する。
+
+    必須キー: ``harm`` / ``harm_detail`` / ``severity`` / ``scope`` / ``summary`` /
+    ``evidence`` / ``expected`` / ``recheck``（``locus`` は任意）。``scope`` は Issue #495 で
+    必須化した——スコープ外と分類された指摘が finding の列に入らず、実害判定・カルテ記録・
+    verdict のすべてを迂回して ``clean`` を通過した（PR #490 → Issue #493）。任意キーにすると
+    書かれないので、欠落は取り込みごと拒否する（``harm`` 欠落と同じ扱い）。
+    **台帳（:func:`parse`）側では任意**＝``scope`` を持たない既存カルテを読むための移行措置。
+    ``severity`` / ``expected`` / ``recheck`` は
+    Issue #341 F-341-01 で必須化した——``pr-reviewer`` の出力契約が必須と宣言している一方で
+    台帳が持っておらず、2 ラウンド目以降に ``expected``（解消条件）と ``recheck``（再検証手順）を
+    復元できなかった。``evidence`` は同レビューの書式 feedback で追加——「そう言える根拠」を
+    ``harm_detail``（実害の内容）に混ぜると、再レビュー側が実体確認の有無を検証できない。
+
+    ``harm_detail`` は**非空であることに加えて内容も検査する**（Issue #511・
+    :func:`check_harm_detail`）。処置方針・判断経緯の語彙を含むレポートは取り込みごと
+    拒否する。**この lint は新規の ``ingest-review`` にだけ掛かり**、既存カルテを読む
+    :func:`parse` 側には掛けない（``tmp/`` は版管理外だが、進行中の Issue の台帳が
+    読めなくなると是正ループが止まる——``scope`` 必須化と同じ移行方針）。
+
+    ``locus`` は**スカラでもリストでも書ける**（:func:`normalize_locus` が正規化する）。
+    同じ欠陥が対称ミラーの複数ファイルに出るときは ``locus: [a, b]`` と書いて **1 指摘のまま**
+    複数箇所を指す——箇所ごとに finding を割ると未解消件数が水増しされ、``status`` の
+    「同一 finding が N ラウンド連続未解消」判定まで歪む。
+
+    任意キー:
+      ``status``
+          ``open``（既定）／``resolved``。**解消は明示宣言でのみ成立する**（K-06）。
+          再掲されなかった finding を「不在＝解消」と見なす旧仕様は、部分的なレポートを
+          1 回取り込むだけで ``harm: real`` の指摘が消える fail-open だったため廃止した。
+      ``distinct_from``
+          ``F-<issue>-<seq>``（``[a, b]`` で複数可）。再発番判定（:func:`is_same_finding`）の
+          **偽陽性に対する明示的なエスケープハッチ**で、ここに名指しした相手との**ペアに限って**
+          判定を無効化する（K-05）。判定そのもの・閾値は動かさない。ID の実在検査は台帳を持つ
+          CLI 側（``cmd_ingest_review``）で行う。
+      ``disposition`` / ``deferred_to`` / ``waived_by`` / ``waived_reason``
+          オーナー判断の記録（Issue #495・詳細は :func:`parse_disposition`）。
+          **レビューアが埋める欄ではない**——取り込み時点で未決定なのが通常で、
+          未決定の ``harm: real`` が未解消で残る間は ``status`` の verdict が ``clean`` を
+          返さない。決まった処置方針を主文脈が次ラウンドのレポートに書いて取り込む。
+    """
+```
+
+`harm` 検証を先に済ませる理由（inline コメント）：
+
+```text
+``harm`` の検証を先に済ませてから内容 lint を掛ける（欄の欠落という
+より基本的な違反を、内容違反が覆い隠さないようにするため）。
+```
+
+### `karte/model.py` 側に残した `Finding`/`parse` の field コメント（移設元の全文）
+
+```text
+``locus`` は**リスト**（Issue #341 レビュー feedback）。同じ欠陥が対称ミラー
+（`.claude/` ↔ `.codex/` 等）の複数ファイルに出る本リポジトリでは、1 箇所しか持てないと
+**同一欠陥が複数 finding に分裂**し、未解消件数が水増しされて `status` の
+「同一 finding が N ラウンド連続未解消」判定まで歪む。1 指摘＝1 欠陥のまま複数箇所を指せる。
+
+``evidence``＝そう言える**根拠**（読んだファイル/行・実行したコマンドと結果）。
+``harm_detail``（実害の内容）と混ざると、再レビュー側が「本当に実体で確認したのか」を
+検証できない。`pr-reviewer` の「指摘の根拠は必ず実体で確認する」を書式側で要求する。
+
+``expected`` / ``recheck`` は**ラウンドをまたぐ**情報なので台帳に持つ（Issue #341 F-341-01）。
+``expected``＝どうなっていれば解消か（``issue-fixer`` の Step 1 診断の入力契約）。
+``recheck``＝次ラウンドで何を実行して解消を判定するか（再レビュー側の判定根拠）。
+ここに持たないと 2 ラウンド目以降に台帳から復元できず、是正も再検証も
+「レビューアのチャット発言を覚えている」ことに依存してしまう。
+
+``scope``（Issue #495）＝レビューアの申告（当該 PR のスコープ内/外）。**免除力を持たない**。
+既定は :data:`DEFAULT_SCOPE`＝``scope`` を持たない既存カルテの移行措置でもある。
+
+移行措置（Issue #495）: ``scope`` は**台帳側では任意**で、欠落は :data:`DEFAULT_SCOPE`
+として読む。`tmp/_karte/` に実在する既存カルテ（本 Issue 起票時点で 19 件）を
+読めなくすると進行中の是正ループが止まるため。新規取り込み（:func:`parse_review`）
+側では必須にしてあるので、以後書かれるカルテには必ず ``scope`` が載る。
+```
