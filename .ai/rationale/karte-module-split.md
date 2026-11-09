@@ -495,7 +495,7 @@ clean を通過した（PR #490 → Issue #493 の流出経路）。`scope` は�
 
 ## K-02 分割計画（#747）
 
-Issue #747（親 #745・K-02・下段 #796＝K-01）の設計。**この節は実装前の設計であり、実装は後続の是正ラウンドで行う**。設計者＝Claude Code (AI)。K-01 の節は変更しない。
+Issue #747（親 #745・K-02・下段 #796＝K-01）の分割を実装した。設計者＝Claude Code (AI)。K-01 の節は変更しない。
 
 ### 着手時点の実測
 - L1 head（53d4e7a8）で `python3 -m maintainability_lint check` は `accepted_debt=62`（全体）。`karte/model.py` の登録は `module-over-100-lines`（635行）の1件のみで、`comment-over-3-lines`・dataclass 同居の登録は 0。
@@ -542,6 +542,13 @@ Issue #747（親 #745・K-02・下段 #796＝K-01）の設計。**この節は�
   5. `karte.model` が新モジュールを import し、新モジュールが `karte.model` を import しないこと（循環の検査）。
 - 公開 API・CLI の出力・終了コード・書込副作用は変えない（#745 C01）。`#683`/`#614`/`#513` の動作変更を暗黙に取り込まない。
 
+### 実装時の互換契約と実測（F-799-01・02）
+- 入口 docstring は「改ざん防止の機械的裏付けと既知の限界」と `Edit(/tmp/_karte/**)` を残し、追記規律・二層保護・Bash の限界を要約する。既存の `test_the_model_docstring_documents_the_edit_deny` は変更しない。
+- 公開面の維持を最優先する #745 C01 に従い、repo 内に外部参照のない非公開名9個と `matched_int`・`require_ascii_int` も含めた76名を `REQUIRED_NAMES` で固定する。4変異（閾値・shingle 長・解除条件・是正条件）を追加テストで検出する。
+- 分割前の実測では、`mutations(VALID)` の成功入力4件で往復等価性が成立しない。`diagnosis` と `note` のリスト入力は文字列化後の再解析で引用符が増える。動作を変更せず、この4件は分割前の実測値を固定し、それ以外の成功入力の往復等価性を検査する。
+- 実装後の物理行数: `vocabulary.py` 37、`finding_record.py` 70、`attempt_record.py` 29、`karte_record.py` 70、`finding_dedup.py` 48、`block_records.py` 88、`karte_parse.py` 62、`karte_render.py` 72、`model.py` 78。
+- `python3 -m maintainability_lint check` は `violations=1 accepted_debt=61`。違反は短縮後の `karte/model.py` に残る stale-baseline のみで、新規モジュールの違反はない。baseline の更新は呼び出し元が行う。
+
 ### baseline を 0 にする手順
 1. 実装・docstring 移設後、`python3 -m maintainability_lint check` を実行する。新規モジュールに違反が出たら分割をやり直す（除外・例外の追加は禁止）。
 2. baseline は手で編集しない。`python3 -m maintainability_lint baseline` は現在の違反スナップショットを JSON で標準出力へ出す verb なので、その出力で `maintainability_lint/baseline.json` を更新する。差分は `karte/model.py` の登録削除だけであることを確認する（他の登録が増減していたら、下段・main の変更の取り込み結果なので理由を PR に記す）。
@@ -551,3 +558,309 @@ Issue #747（親 #745・K-02・下段 #796＝K-01）の設計。**この節は�
 ### 未確認事項（実装時に確認）
 - golden の `names` に非公開名や stdlib 名が含まれるか（含まれるなら維持）。
 - `Finding` が100行に収まるか。収まらなければ docstring をさらに本ファイルへ移す。
+
+## K-02 実装で移設した docstring（#747）
+
+旧 `karte/model.py` の説明を逐語保全する。field コメントは K-01 節にも全文を記録している。
+
+### `module`
+
+```python
+"""カルテ書式のデータモデル・パーサ・シリアライザ・バリデータ。
+
+書式（``tmp/_karte/issue-<N>.md``）:
+
+    # Karte: issue-307
+
+    ## Findings
+
+    ### F-307-01
+    status: open
+    harm: real
+    harm_detail: required 属性が消え必須入力が素通りする
+    severity: blocker
+    scope: in
+    disposition: fix-here
+    deferred_to:
+    waived_by:
+    waived_reason:
+    locus: [review_system/forms.py::build_attrs, .codex/forms.toml::build_attrs]
+    summary: build_attrs が既存 attrs を破棄している
+    evidence: forms.py:120 を Read。attrs = {...} で辞書を作り直している
+    expected: 既存 attrs を保ったまま追加分だけマージする
+    recheck: required 付きフィールドを描画し required 属性が残ることを確認する
+    rounds: [1, 2]
+    resolved_round:
+
+    ## Attempts
+
+    ### Attempt 1
+    round: 1
+    finding_ids: [F-307-01]
+    root_cause: boundfield-attrs-overwrite
+    change_kind: logic
+    targets: [review_system/forms.py::build_attrs]
+    diagnosis: 既存 attrs を dict リテラルで作り直している
+
+    ### Result 1
+    attempt: 1
+    finding_ids: [F-307-01]
+    touched: [review_system/forms.py, review_system/forms.py::build_attrs]
+    outcome: partial
+    note: required は残ったが aria-* が欠ける
+
+追記規律:
+  * ``## Findings`` は **ID 付き指摘台帳**。``ingest-review`` だけがこのセクションを更新する
+    （status/rounds の遷移を持つ台帳なので、セクション単位で書き直す）。
+  * ``### Attempt k`` / ``### Result k`` は **追記のみ**。いったん書かれたブロックは
+    どの verb も書き換えない。``close-attempt`` は Attempt を書き換えるのではなく
+    対応する ``### Result k`` を追記する（実測 touched-set の記録先）。
+
+改ざん防止の機械的裏付けと既知の限界（Issue #363 F-363-09）:
+  * この追記規律は CLI（本モジュール・``karte/cli.py``）が既存 Attempt/Result への再実行を
+    ``KarteUsageError`` で拒否することで守られる。それに加え ``.claude/settings.json`` の
+    ``permissions.deny`` に ``Edit(/tmp/_karte/**)`` を登録し、
+    Edit/Write 系ツールによる ``tmp/_karte/**`` への直接書込みを全ロール共通で拒否する
+    （是正当事者自身を含む——権限規則はロールを区別しないので例外を作らない）。
+    ``python3 -m karte`` 経由の追記はこの deny の対象外で従来どおり機能する。
+    ``Edit`` 規則は ``Write`` も覆うため、``Write(/tmp/_karte/**)`` 専用のエントリは置かない
+    （置くと Claude Code が "never matches" 警告を出す。経緯は
+    ``.ai/rationale/karte-deny-write-entry.md``）。**台帳の保護は実際には二層で成立している**。
+    非隔離で動く主文脈には ``permissions.deny`` が発火する（実測：``Edit`` エントリのみの状態で
+    メインチェックアウトの ``tmp/_karte/probe-pattern-522.md`` への ``Write`` が
+    "File is in a directory that is denied by your permission settings." で拒否された）。
+    隔離ロール（是正・実装当事者）には worktree isolation が同じ書込みを構造的に拒否する
+    （実測：隔離 worktree からメインチェックアウトの同パスへの ``Write`` が "This agent is
+    isolated in the worktree ... Edit the worktree copy of this file instead of the
+    shared-checkout path." で拒否された。自分の worktree 内への ``Write``/``Edit`` は成功するが、
+    そこは CLI が参照しない場所であり本物の台帳ではない）。
+  * **既知の限界**：この deny は Claude Code の Edit/Write ツール経由の書込みだけを塞ぐ。
+    Bash 経由の ``sed -i``・``tee``・シェルリダイレクト等でのファイル改変には掛からない。
+    多層防御の一枚であって sandbox ではない（``.claude/hooks/agent-command-gate.sh`` の
+    静的検査と同じ制約＝Issue #129）。訂正が必要な Result の内容誤りは、当事者が
+    この防御を回避して直接書き換えるのではなく、主文脈による確認つき訂正、または
+    安全な訂正用 verb の新設（本 Issue の範囲外）等、当事者以外が介在する経路を通すこと。
+
+スコープ外指摘の一本化（Issue #495）:
+  ``## Findings`` は**スコープの内外を問わない単一の指摘台帳**である。スコープ外の指摘を
+  別のセクション・別の経路（チャットでの列挙）へ逃がすと、実害判定（``harm``）・カルテ記録・
+  ``status`` の verdict をまとめて迂回でき、実害ありの指摘が未処置のまま ``clean`` を
+  通過する（PR #490 でこれが起き、Issue #493 が merge 後に流出した）。よって
+  * ``scope``（``in``/``out``）は**申告**として残すが**免除力を持たない**、
+  * ``harm: real`` にはオーナー判断（``disposition``）の記録を要求し、
+  * 未決定のまま残る間は verdict を ``clean`` にしない、
+  という3点で経路を1本に閉じる。``issue-implementer``/``issue-fixer`` のハンドオフ
+  ``out_of_scope_findings`` も、同じ書式の finding ブロックへ写して ``ingest-review``
+  （実行するのは主文脈）でこの列に取り込む。
+
+``harm_detail`` の内容 lint（Issue #511）:
+  ``harm_detail`` は**放置時の実害だけ**を書く欄で、処置方針（「対応不要」「別 Issue」）や
+  判断経緯（「オーナー確認済み」「新規発生ではない」）を書く欄ではない。
+  :func:`check_harm_detail` が :func:`parse_review`（＝``ingest-review`` の入力）に対して
+  これを機械的に検査し、違反はレポート全体の取り込みごと拒否する（fail-close）。
+  既知の誤検出は :mod:`karte.allowlist` へ**理由付きで**登録して抑制する。
+  **既存カルテを読む :func:`parse` 側には掛けない**（``scope`` 必須化と同じ移行方針）。
+
+値の書式は「1行 1 ``key: value``」のみ（複数行の自由記述は持たない＝決定論パースのため）。
+``[a, b]`` はリスト、それ以外はスカラ文字列として解釈する。
+
+解析・検証の部品（語彙・値/ブロックのパーサ・``disposition``・``harm_detail`` lint・レビュー
+レポートのパーサ等）は責務別のモジュールへ分け、公開名は本モジュールから再エクスポートする
+（Issue #746・移設した設計理由は ``.ai/rationale/karte-module-split.md``）。
+
+依存仕様: :mod:`karte` の docstring（Issue #307「カルテの実体」「finding ID による結合」
+「Attempt の機械比較可能ヘッダ」）／Issue #495「提案挙動」1〜6（finding の一本化・``scope``・
+``disposition``・verdict ゲート・``deferred`` を ``resolved`` にしない・ハンドオフの取り込み）／
+Issue #503「提案挙動」（``deferred``/``waived`` の除外を単一の述語
+:attr:`Finding.needs_remediation` へ集約し、verdict・``check``・無進捗検知が共有する）・
+「観測2」（``change_kind`` に文書のみの変更を表す ``doc`` を追加し、既存の ``config`` 記録は
+遡って読み替えない）／Issue #511「提案挙動」（``harm_detail`` に処置方針・経緯の語彙を
+検出したら取り込みごと拒否し、該当行と検出語を示す）。
+"""
+```
+
+### `Finding`
+
+```python
+    """ID 付き指摘（台帳の 1 行）。"""
+```
+
+### `cleared_by_disposition`
+
+```python
+        """「当該 PR では処置しない」とオーナー判断で決まったか（Issue #495／#503）。
+
+        **``deferred``/``waived`` の除外規則はここ 1 箇所にだけ書く。** ``status`` の
+        verdict・``check`` の診断網羅要求・無進捗検知は、いずれもこの述語を経由する
+        :attr:`needs_remediation` を通して同じ規則を共有する（Issue #503）。
+
+        **``harm: none`` には解除力を与えない**（:data:`CLEARING_HARM`・オーナー確定
+        2026-09-07）。``harm: none`` の finding に ``disposition`` を書いても記録が残るだけで
+        verdict は ``no-harm-only`` のまま——実害なしの指摘だけが残った状態はオーナーへ
+        打ち上げる（AI が 2 行書いて STOP を消せる経路を作らない）。
+
+        ``status`` を ``resolved`` に倒さないのは、「別 Issue へ移したと書くだけで指摘が
+        台帳から消える」経路を作らないため（二層設計）。よってこの述語が ``True`` でも
+        finding は ``status: open`` のまま台帳に残る。
+        """
+```
+
+### `needs_remediation`
+
+```python
+        """**この PR で是正が求められている未解消 finding か**（Issue #503・判定の単一点）。
+
+        3 つの判定経路がこの述語だけを共有する:
+          * ``status`` の verdict … ``clean`` を妨げる未解消 finding
+            （:meth:`Karte.remediation_findings`）。
+          * ``check`` の診断網羅要求 … 当該ラウンドで診断（Attempt）が要る finding。
+          * 無進捗検知 … 「3 ラウンド連続で未解消」を数える対象。
+
+        Issue #495 の実装は除外を verdict 算出にしか入れておらず、``check`` は
+        ``deferred`` の finding にも診断を要求して**毎ラウンド必ず 1 回 block**し
+        （Issue #503 観測1）、無進捗検知は誰も直さないと決めた finding を拾って
+        ``escalate: yes`` を偽陽性で出していた（同 観測3）。どちらも「常に鳴るゲートは
+        本物を検出できなくなる」形で安全機構を形骸化させるため、除外を 1 箇所へ寄せる。
+        """
+```
+
+### `needs_disposition`
+
+```python
+        """``harm: real`` なのにオーナー判断（disposition）が未決定のまま未解消か。
+
+        ``scope`` の値によらない——``scope: out``（スコープ外の申告）は実害判定・記録・
+        ゲートのいずれの免除にもならない、が Issue #495 の要点そのもの。
+        """
+```
+
+### `max_consecutive_rounds`
+
+```python
+        """未解消のまま連続して挙げられたラウンド数の最大値（無進捗判定に使う）。"""
+```
+
+### `Attempt`
+
+```python
+    """1 回の是正試行の宣言（機械比較可能ヘッダ）。"""
+```
+
+### `Result`
+
+```python
+    """Attempt の処置結果（実測 touched-set の記録先・追記のみ）。"""
+```
+
+### `remediation_findings`
+
+```python
+        """**この PR で是正が求められている未解消 finding**（Issue #503・単一の集合）。
+
+        verdict の「``clean`` を妨げる未解消」（``status --json`` の ``blocking_findings``）・
+        ``check`` の診断網羅要求・無進捗検知は、いずれもこの 1 つの集合を使う。
+        除かれるのは **``harm: real`` かつ** ``deferred``/``waived`` のものだけ
+        （:data:`CLEARING_HARM`）。``harm: none`` は ``disposition`` を書いても残る。
+        """
+```
+
+### `undecided_findings`
+
+```python
+        """``harm: real`` かつ disposition 未決定のまま未解消の finding（Issue #495）。"""
+```
+
+### `parse`
+
+```python
+    """カルテ文書全体をパースする。書式違反は :class:`KarteFormatError`。"""
+```
+
+### `normalize_text`
+
+```python
+    """比較用の正規化（``casefold`` ＋ 「文字・数字」以外を区切りへ畳む・空白圧縮）。
+
+    **保持する文字を列挙しない**（K-07）。以前は ``[^0-9a-z ぁ-ヿ 一-鿿]+`` という
+    ホワイトリストで畳んでいたため、全角英数・ハングル・アクセント付きラテン・CJK 拡張漢字
+    （Ext-A 以降）が丸ごと空白になり、要約がそれらだけで構成されると正規化結果が**空文字**に
+    なった。空文字同士は :func:`is_same_finding` の完全一致判定でも n-gram 判定でも
+    「同一ではない」と扱われる（:func:`_jaccard` は空集合を 0.0 で返す）ため、
+    **再発番を見逃す fail-open** になっていた。
+
+    そこで :mod:`unicodedata` の一般カテゴリで「文字（``L*``）・数字（``N*``）」だけを残し、
+    それ以外（記号・句読点・空白・制御）を区切りに畳む。文字体系を列挙しないので、
+    新しい文字種が出てきても取りこぼさない（fail-open が構造的に起きない）。
+
+    NFKC 等の互換正規化は**行わない**——全角と半角、丸数字と数字を勝手に同一視すると、
+    「別物として起票された指摘」を再発番と誤検出しうる（偽陽性は K-05 の逃げ道と違って
+    レビューアが正当な新規指摘を挙げられなくなる方向の害）。畳むのは大小文字だけに留める。
+    """
+```
+
+### `shingles`
+
+```python
+    """比較用の文字 n-gram 集合（既定は bigram）。
+
+    語の区切りに**空白を使わない**（＝空白位置が言い換えで揺れる）ため、空白トークン化は
+    使わない。``「既存 attrs を破棄」`` と ``「既存の attrs を破棄」`` は空白トークンでは
+    ``が既存`` / ``が既存の`` という別トークンになり、同一指摘なのに一致率が閾値を割る。
+    文字 n-gram は言語非依存・決定論的で、語形の揺れ（助詞の挿入・「（再掲）」等の付記）に
+    強い。形態素解析器のような外部依存も要らない（標準ライブラリのみの制約）。
+    """
+```
+
+### `is_same_finding`
+
+```python
+    """「同一指摘に新しい ID を振り直した」かどうかの決定論判定。
+
+    2 つの独立した信号の OR:
+      * 要約の正規化文字列が完全一致（locus は問わない＝一字一句の再掲）。
+      * locus が**交差**し、かつ要約の文字 n-gram Jaccard 係数が閾値以上
+        （言い換え・付記つきの再掲）。
+
+    locus の交差を必須にしているのは、同じ箇所への**別の**指摘（例「docstring が古い」）を
+    誤って同一視しないため——文字 n-gram だけで判定を回すと、短い要約同士が偶然似ただけで
+    再発番と誤検出し、レビューアが正当な新規指摘を挙げられなくなる。
+
+    ``locus`` は複数箇所を持てる（Issue #341 レビュー feedback）ので、完全一致ではなく
+    **1 箇所でも共通なら同じ箇所とみなす**（``targets`` の交差判定と同じ考え方）。
+    完全一致にすると、前ラウンドで 1 箇所だけ直してミラー側が残った再掲を「別物」と誤判定し、
+    再発番を見逃す。
+
+    それでも残る偽陽性（同一 locus に出た短い別指摘同士が閾値を超える）には、レビュー
+    レポート側の ``distinct_from``（K-05）で**名指ししたペアだけ**判定を外せる。閾値
+    :data:`DUPLICATE_SIMILARITY_THRESHOLD` は逃がすために動かさない——「通すために閾値を
+    下げる」と、本来検出したい再発番まで一律に見逃す。
+    """
+```
+
+### `dumps`
+
+```python
+    """カルテ全体を文字列化する（``## Attempts`` を最後に置き、追記が必ずそこに入る）。"""
+```
+
+### 旧行コメント（逐語）
+
+```python
+    # Karte: issue-307
+    ## Findings
+    ### F-307-01
+    ## Attempts
+    ### Attempt 1
+    ### Result 1
+# 同一指摘の再発番判定（`is_same_finding`）に使う文字 n-gram の粒度と閾値。
+    # ``locus`` はリスト（ミラー複数ファイルの同一欠陥を 1 指摘で指す・Issue #341）。
+    # ``evidence``＝そう言える根拠（読んだファイル/行・実行したコマンドと結果）。
+    # ``expected``＝解消の条件、``recheck``＝次ラウンドの判定手順（ラウンドをまたぐため台帳に持つ）。
+    # ``scope``＝レビューアの申告（免除力なし）。既定は ``scope`` 無しの既存カルテの移行措置。
+    # ``disposition``＝オーナー判断の記録。空文字＝未決定。
+    # --- 参照 ---
+# --- パース ------------------------------------------------------------------
+    # ``scope`` は台帳側では任意（欠落は DEFAULT_SCOPE）。新規取り込み側で必須にしてある。
+# --- 同一指摘の再発番検出 -----------------------------------------------------
+# --- シリアライズ -------------------------------------------------------------
+```
