@@ -171,6 +171,8 @@ def karte_extras():
     yield "bad-scope", VALID.replace("scope: in", "scope: maybe")
     yield "locus-comma", VALID.replace("locus: [a.py::f, b.toml::f]", "locus: a.py::f, b.toml::f")
     yield "nul", VALID.replace("a.py::f]", "a\x00.py]", 1)
+    yield "heading-four-hashes", VALID.replace("### F-307-02", "#### F-307-02")
+    yield "heading-no-space", VALID.replace("### F-307-02", "###F-307-02")
 
 
 def review_extras():
@@ -192,6 +194,10 @@ def review_extras():
     yield "multi-errors", REPORT.replace("harm: real", "harm: huge").replace("severity: minor", "severity: tiny")
     yield "dispo-in-report", REPORT.replace("disposition: waived", "disposition: deferred")
     yield "continuation", REPORT.replace("summary: 要約", "summary: 要約\n折り返し行")
+    yield "heading-four-hashes", REPORT.replace("### new\n", "#### new\n")
+    yield "heading-no-space", REPORT.replace("### new\n", "###new\n")
+    yield "title-new-finding", REPORT.replace("### new\n", "### new-finding\n")
+    yield "title-upper-new", REPORT.replace("### new\n", "### NEW\n")
 
 
 def helper_calls():

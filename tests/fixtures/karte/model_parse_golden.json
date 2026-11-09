@@ -657,6 +657,12 @@
 "review/term-別 issue": "KarteFormatError: レビューレポートの検証に失敗:\n  - 5 行目 'F-307-01': harm_detail に処置方針・判断経緯の語彙が含まれる: ['別 Issue']。harm_detail には**放置時の実害**だけを書く（どこで直すべきかという見立ては書かない。決まったオーナー判断だけが disposition/deferred_to/waived_reason に載る）。実害の記述としてその語が不可避なら、まず言い換えを試し、それでも残るなら karte/allowlist.py へ理由付きで登録する。",
 "review/term-別Issue": "KarteFormatError: レビューレポートの検証に失敗:\n  - 5 行目 'F-307-01': harm_detail に処置方針・判断経緯の語彙が含まれる: ['別 Issue']。harm_detail には**放置時の実害**だけを書く（どこで直すべきかという見立ては書かない。決まったオーナー判断だけが disposition/deferred_to/waived_reason に載る）。実害の記述としてその語が不可避なら、まず言い換えを試し、それでも残るなら karte/allowlist.py へ理由付きで登録する。",
 "review/term-対応不要": "KarteFormatError: レビューレポートの検証に失敗:\n  - 5 行目 'F-307-01': harm_detail に処置方針・判断経緯の語彙が含まれる: ['対応不要']。harm_detail には**放置時の実害**だけを書く（どこで直すべきかという見立ては書かない。決まったオーナー判断だけが disposition/deferred_to/waived_reason に載る）。実害の記述としてその語が不可避なら、まず言い換えを試し、それでも残るなら karte/allowlist.py へ理由付きで登録する。",
-"review/wrong-section": "KarteFormatError: レビューレポートの検証に失敗:\n  - 3 行目: レビューレポートのセクションは 'Findings' のみ（'Other' は不可）"
+"review/wrong-section": "KarteFormatError: レビューレポートの検証に失敗:\n  - 3 行目: レビューレポートのセクションは 'Findings' のみ（'Other' は不可）",
+"parse/heading-four-hashes": "KarteFormatError: 24 行目: 解釈できない行: '#### F-307-02'",
+"parse/heading-no-space": "KarteFormatError: 24 行目: 解釈できない行: '###F-307-02'",
+"review/heading-four-hashes": "KarteFormatError: 18 行目: 解釈できない行: '#### new'",
+"review/heading-no-space": "KarteFormatError: 18 行目: 解釈できない行: '###new'",
+"review/title-new-finding": "ok:f64d606a5e6ca004f326bd69fe4042ad013269c268c69d587bb9bea9153da54c",
+"review/title-upper-new": "ok:59e8a1b09200cac77c1b4d396786a647c274bf2571fbd909d8de1bcd178e1cbd"
 }
 }
