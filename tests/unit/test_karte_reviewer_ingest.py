@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from karte import cli, exit_codes, handoff_header, handoff_path, karte_rounds, owner_cli, owner_decision, paths, pointer_completion, review_envelope, reviewer_cli, reviewer_policy, scope_directory, scope_ledger, scope_ledger_io, scope_records, verb_boundary
+from karte import cli, exit_codes, handoff_header, handoff_path, karte_rounds, owner_cli, owner_decision, paths, pointer_completion, review_envelope, review_expectation, reviewer_cli, reviewer_policy, scope_directory, scope_ledger, scope_ledger_io, scope_records, verb_boundary
 from karte.errors import KarteUsageError
 from karte.int_args import parse_int
 from karte.model import KarteFormatError
@@ -1331,6 +1331,62 @@ class TestReviewEnvelope(ReviewerIngestCase):
         self.assertEqual({}, self._declared_scopes())
         policy.persist(1)  # 既にあれば何もしない
         self.assertEqual({}, self._declared_scopes())
+
+    def test_zero_finding_report_through_the_real_ingest_path(self):
+        """ヘッダと空本文（申告 0 件）の実 ingest-reviewer 経路の挙動を固定する（F-375-23）。"""
+        self._activate()
+        code, _, err = self._ingest("")
+        self.assertEqual(cli.EXIT_ERROR, code)  # finding ブロックの無いレポートは申告 0 件の完了ではなく拒否される
+        self.assertIn("finding ブロック", err)
+        self.assertFalse(scope_ledger.exists(self.issue, self.root))  # 原本も台帳も作らない
+        self.assertFalse(paths.karte_path(self.issue, self.root).exists())
+        self.assertIsNotNone(review_expectation.pending(self.root, self.issue))  # 期待値は消費されない
+        self.assertEqual(cli.EXIT_OK, self._run(owner_cli.cmd_activate, issue=str(self.issue))[0])
+        self.assertEqual(cli.EXIT_OK, self._legacy_ingest(1, _report())[0])  # 待機取消後は従来動作のまま
+
+    def test_ledger_write_failure_after_the_original_leaves_a_protected_original_and_a_retryable_round(self):
+        """原本→台帳の順序の代償（F-375-22）：台帳の書込み失敗で原本だけが残り、同じ handoff の再実行で回復する。"""
+        self._activate()
+        ledger_path = paths.karte_path(self.issue, self.root)
+        real_write = paths.write_text_atomic
+
+        def fail_for_ledger(path, text):
+            if Path(path) == ledger_path:
+                raise OSError(errno.ENOSPC, "No space left on device")
+            return real_write(path, text)
+
+        with mock.patch.object(paths, "write_text_atomic", side_effect=fail_for_ledger):
+            code, _, err = self._ingest(_report())
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn("No space left", err)
+        self.assertFalse(ledger_path.exists())  # 台帳に round は無い
+        self.assertTrue(scope_ledger.exists(self.issue, self.root))  # 原本だけが残る
+        self.assertEqual({f"F-{self.issue}-01": "in"}, self._declared_scopes())
+        self.assertIsNotNone(review_expectation.pending(self.root, self.issue))  # ポインタも期待値も動かない
+        self.assertEqual(1, len(scope_records.read_records(self.issue, self.root)))
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])  # 同じ round の再実行で回復する
+        self.assertEqual(1, karte_rounds.last_round(self._karte()))
+        self.assertEqual(1, len(scope_records.read_records(self.issue, self.root)))  # 原本の記録は重複しない
+
+    def test_cancelling_the_wait_after_a_ledger_write_failure_keeps_the_protected_mode(self):
+        """再試行しない場合、原本は消えないので待機取消でも主文脈の ingest-review は保護モードのまま（F-375-22）。"""
+        self._activate()
+        ledger_path = paths.karte_path(self.issue, self.root)
+        real_write = paths.write_text_atomic
+
+        def fail_for_ledger(path, text):
+            if Path(path) == ledger_path:
+                raise OSError(errno.EROFS, "Read-only file system")
+            return real_write(path, text)
+
+        with mock.patch.object(paths, "write_text_atomic", side_effect=fail_for_ledger):
+            self.assertEqual(cli.EXIT_ERROR, self._ingest(_report())[0])
+        self.assertEqual(cli.EXIT_OK, self._run(owner_cli.cmd_activate, issue=str(self.issue))[0])
+        self.assertTrue(scope_ledger.exists(self.issue, self.root))
+        self.assertEqual(cli.EXIT_OK, self._legacy_ingest(1, _report("new", summary="別件", locus="b.py::other"))[0])
+        code, _, err = self._legacy_ingest(2, _report(f"F-{self.issue}-01"))
+        self.assertEqual(cli.EXIT_ERROR, code)  # 既存 ID の再掲は従来動作に戻らず拒否される
+        self.assertIn("追記専用", err)
 
     def test_ingest_reviewer_without_activate_is_refused_and_does_not_leave_an_unprotected_round_one(self):
         """引数なし activate の直後の ingest-reviewer は期待値が無く拒否される。原本も作らない（F-375-16）。"""
