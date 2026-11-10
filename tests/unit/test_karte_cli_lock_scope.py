@@ -5,7 +5,7 @@ import threading
 import unittest
 from unittest import mock
 
-from karte import cli, paths
+from karte import cli, paths, report_source
 from karte.verb_boundary import fail_close
 from tests.unit.karte_support import RootedCase, finding, ingest_argv, report_text, writer_lock_is_held
 
@@ -41,7 +41,7 @@ class TestCliLockScope(RootedCase):
         self.assertIn(cli._prepare_ingest, closure)
 
     def test_ingest_prepares_outside_lock_and_writes_inside(self):
-        observed = self.probe(cli, "_read_report", lambda: self.run_verb(ingest_argv(7, 1), REPORT), False)
+        observed = self.probe(report_source, "read_report", lambda: self.run_verb(ingest_argv(7, 1), REPORT), False)
         self.assertEqual([False], observed)
         self.root.joinpath("tmp/_karte/issue-7.md").unlink()
         self.root.joinpath("tmp/_karte/active.json").unlink()
