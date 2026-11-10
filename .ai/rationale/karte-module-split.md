@@ -1092,3 +1092,74 @@ Issue #748（親 #745・K-03・下段 #799＝K-02）の設計と実装結果。�
     # （clean を妨げる未解消 ⊇ clean を妨げる実害あり ⊇ 実害あり・disposition 未決定）に並べ、
     # 3 つの集合の関係を読み手が取り違えないようにする。
 ```
+
+## K-04 分割計画（#749）
+
+Issue #749（親 #745・K-04・下段 #806＝K-03）の設計。**この節は実装前の設計であり、実装は後続の是正ラウンドで行う**。設計者＝Claude Code (AI)。K-01〜K-03 の節は変更しない。
+
+### 着手時点の実測（L3 head 5a03714b 上）
+- `python3 -m maintainability_lint check`: `violations=0 accepted_debt=59`（全体）。
+- `karte/cli.py` の登録は `module-over-100-lines`（621行）の1件のみ（コメント違反は K-03 で 0）。Issue #749 本文の「初期基準5件」は K-03 前の値で、現在値と食い違う。
+- karte 関連で他に残る登録: `karte/similarity.py`（241行）・`karte/touched.py`（105行）・`karte_notify/hook.py`（175行）・`karte_notify/notify.py`（270行）。いずれも `module-over-100-lines` のみ。K-05（#750）・K-06（#751）の対象で、**本 stack では扱わない**。#683 の本文が変更対象に挙げているのは `karte/cli.py` と `karte/model.py` だけなので、これら4ファイルは #683 の変更対象外の見込み（#683 の実装中に触る必要が生じたら報告する）。
+- `cli.py` の構成（行数）: モジュール docstring 91、import・再エクスポート 約30、`_read_report` 26、`_resolve_close_attempt_number` 43、`_prepare_ingest`＋`cmd_ingest_review` 25、`cmd_render` 8、`cmd_append` 61、`cmd_close_attempt` 77、`_validate_outcome` 5、`cmd_check` 96、`cmd_status` 10、`build_parser` 91、`main` 5。
+- **`decide` verb は `cli.py` の外にある**（`owner_cli.py`・`reviewer_cli.py` が `extra_registrars` として `python3 -m karte` の `__main__.py` から登録される）。K-04 の対象は `cli.py` に残る verb（ingest-review・render・append・close-attempt・check・status）と引数解析で、`owner_cli`/`reviewer_cli` は動かさない。
+
+### 方針
+- 各 verb 関数は**同一の関数オブジェクトのまま**移す（`@fail_close(locked=..., prepare=...)` の宣言を verb の定義側に残す）。`cli.cmd_*` を `cli.py` で再エクスポートすれば、`tests/unit/test_karte_verb_boundary.py`（`cmd_*.__doc__` が空でないこと・`locked` 属性）・`test_karte_cli*.py`（`cli.cmd_*` の直接呼び出し）は無変更で通る。**docstring は空にしない**（`verb_boundary` のテストが `__doc__` の存在を要求する）。長い docstring は本節の下へ逐語移設し、verb 側には1〜3行の要約を残す。
+- 文言・出力順・終了コード・書込順・例外の種類とメッセージは1文字も変えない（#745 C01）。**#721（argparse の usage error の終了コード）は本 Issue で扱わない**。現行の終了コード・usage error の挙動を維持し、#728 の断定（L0・PR #795 で処置済み）がそのまま通ることを確認する。#683 の動作変更は入れない。
+- 引数定義と `cmd_*` の対応（`set_defaults(func=...)`）は動かさない。`argparse` の `help`・`required`・`choices`・`nargs`・`default` を移設時に変えない。
+
+### 新規モジュール（各100行以内・依存は上から下の一方向）
+| 順 | モジュール | 移す内容（移設元 `karte/cli.py`） |
+|---|---|---|
+| 1 | `report_source.py` | `STDIN_SOURCE`、`_read_report`（→`read_report`） |
+| 1 | `close_attempt_target.py` | `_resolve_close_attempt_number`（→`resolve_close_attempt_number`）、`_validate_outcome`（→`validate_outcome`） |
+| 2 | `verb_ingest_review.py` | `_prepare_ingest`（→`prepare_ingest`）、`cmd_ingest_review` |
+| 2 | `verb_append.py` | `cmd_append` |
+| 2 | `close_attempt_report.py` | `cmd_close_attempt` が出力する本文（`=== close-attempt` から `カルテ:` まで）と、飽和注意の出力（`print` の順序を保つ） |
+| 3 | `verb_close_attempt.py` | `cmd_close_attempt`（検証・実測 diff・追記。出力は `close_attempt_report` に委ねる） |
+| 2 | `verb_check.py` | `cmd_check`（docstring は要約のみ） |
+| 2 | `verb_show.py` | `cmd_render`、`cmd_status`（K-03 後の薄い入口） |
+| 2 | `parser_ingest_args.py` | `ingest-review` の引数定義 |
+| 2 | `parser_attempt_args.py` | `append`・`close-attempt` の引数定義 |
+| 2 | `parser_inspect_args.py` | `render`・`check`・`status` の引数定義 |
+| 4 | `parser_core.py` | `build_parser`（`add_issue`・各 `parser_*_args` の呼び出し・`extra_registrars`・`require_declared`） |
+| 5 | `cli.py`（入口） | 要約 docstring・再エクスポート・`main` |
+
+- 依存の向き: `report_source`/`close_attempt_target` → `verb_*` → `parser_*_args` → `parser_core` → `cli`。**どのモジュールも `karte.cli` を import しない**（循環を作らない）。`verb_*` は `pointer_completion`・`karte_loader`・`model`・`paths`・`similarity`・`touched`・`saturation_groups` など既存モジュールにだけ依存する。
+- 各モジュールが100行に収まらない場合は、責務で更に分ける（行数のために任意の位置で切らない）。`dataclass` は作らない。連続4行以上の行コメントは作らない。
+- `verb_close_attempt.py` と `close_attempt_report.py` の境界は、「書込（`paths.append_text`）までを `verb_close_attempt`、`print` 群を `close_attempt_report`」を基本とする。**`print` と書込の順序は変えない**（書込後に `parse` し直して飽和を判定する現行の順序を保つ）。
+
+### `cli.py` に残す公開名と再エクスポート（漏れ防止）
+着手時の `vars(karte.cli)` の実測（`_` 始まりを含む、`__` 始まりを除く）は次のとおり。実装時に**同じ手順で機械的に列挙して照合**する（K-03 では `_group_directive` の再エクスポート漏れが指摘された）。
+- 関数・型・定数: `EXIT_ERROR EXIT_OK EXIT_SATURATED KarteUsageError STALL_ROUNDS STDIN_SOURCE build_parser cmd_append cmd_check cmd_close_attempt cmd_ingest_review cmd_render cmd_status main`
+- 非公開名（互換のため維持）: `_group_directive _prepare_ingest _priors_for _read_report _resolve_close_attempt_number _saturated_groups _stalled_ids _status_payload _validate_outcome`
+- モジュール属性（`from . import x` された名）: `active_pointer argparse fail_close ingest_review int_args json karte_loader model paths pointer_completion read_stream_text render_lines repo_roots require_declared similarity status_lines sys touched_mod`
+- 既存テストが `cli.<name>` として使う名（実測）: `EXIT_OK EXIT_ERROR cmd_status cmd_ingest_review cmd_check cmd_render build_parser main model cmd_close_attempt cmd_append _saturated_groups _status_payload _stalled_ids _priors_for __file__`。`cli.__file__` は `test_karte_cli_split_exclusion.py` が `karte/` ディレクトリの特定に使うので、`cli.py` が `karte/` 直下に残ることが前提。
+- モジュール属性（`model` 以外）は、外部から `cli.<module>` で参照されないことを grep で確認できれば再エクスポートしなくてよい（現時点の実測では `cli.model` のみ）。確認できなければ維持する。`mock.patch` の対象文字列に `karte.cli.<name>` を使うテストは無い（`repo_roots._PACKAGE_ROOT`・`sys.stdin` など他モジュールの属性のみ）。実装時に再確認する。
+- `main(argv=None, extra_registrars=())` は `cli.py` に残す。`karte/__init__.py` と `karte/__main__.py` は `from .cli import main`。**`python3 -m karte` の入口（`__main__.py`）・`.claude/hooks`・`agent-command-gate.sh` の許可 verb 一覧は変えない**。`build_parser` を `main` 内で `cli` の名前空間から引くので、`cli.build_parser` の差し替えは従来どおり効く。
+- 外部 import 元（実測）: `karte/__init__.py`・`karte/__main__.py`、tests の `test_karte_*.py`（`from karte import cli`）、`tests/unit/karte_support.py`。`karte_notify`・`issue_start`・`.claude/hooks` は `karte.cli` を import しない（`python3 -m karte_notify.hook` は別系統）。docstring が `karte/cli.py::...` を名指しする箇所（`karte/README.md`・`karte/pointer_completion.py`・`karte_notify/*`・`karte/similarity.py`）は、移設後も名前自体は再エクスポートで残る。参照の更新は本 PR のスコープ外とし、必要なら別 Issue で申し送る（K-05（#750）が `similarity.py` を、K-06（#751）が `karte_notify` を扱うので、そこでの更新が自然）。`karte/README.md` と `karte/pointer_completion.py` は「verb の一覧・補完の規約は `karte.cli` の docstring」と指すので、**入口 docstring に verb 一覧と補完規約の要約と、全文の所在（本ファイル）を残す**。
+
+### 同値性・安全性の検証（足りない回帰検出力）
+既存 `tests/unit/test_karte_cli.py` 等（#720・#728 で強化済み）は**一切書き換えない**。K-03 の `cli_render_status_golden.json` は render/status しか固定しない。足りない部分を、**分割前のコードで先に記録**してから分割する（K-01〜K-03 と同じ手順）。
+1. `tests/unit/test_karte_cli_verbs_compat.py` と `tests/fixtures/karte/cli_verbs_golden.json` を追加。全 verb（ingest-review・append・close-attempt・check と、`python3 -m karte` 経由の `decide` 等の登録 verb）について、同一入力の stdout/stderr 全文・終了コードを記録する。
+2. **書込副作用**: 各ケースの前後で `tmp/_karte/` 配下（台帳・`active.json`・`.writer.lock`）のファイル一覧と内容の sha256 を比較する。拒否ケース（検証失敗・飽和・未知 ID・空 diff・空の stdin）は**台帳とポインタが1バイトも変わらない**こと（拒否時無副作用）。ロック内で拒否する ingest は `tmp/_karte/` と `.writer.lock` を残す（台帳・ポインタは書かない）という現行契約も固定する。
+3. **引数・利用エラー**: `argparse` の拒否（必須欠落・不正な choices・未知の verb・`--from` 欠落）の stderr 全文と終了コードを記録する。**現状の終了コードをそのまま固定**し、#721 の挙動変更を取り込まない。`build_parser()` の全 verb の `format_help()` 全文の sha256 も固定する（`help`・`choices`・`nargs`・`required`・`default` の変更検出）。
+4. **未検出の終了コード**: カルテ未作成（`EXIT_NOT_FOUND` 相当）・ガード違反（`EXIT_ERROR`）・`fail_close` が変換する例外種別ごとの終了コード。
+5. **ロック契約**: `locked=True` の verb（ingest-review・append・close-attempt）と `locked=False` の verb（render・check・status）の宣言が移設後も同一であること（`require_declared` と `verb.locked` を verb ごとに固定）。同時実行（ロック競合時の拒否）が既存テストで固定されているかを実装 PR で確認し、無ければ追加する。
+6. **identity**: `cli.cmd_*` が各 `verb_*` モジュールの同一オブジェクトであること、`@fail_close` の宣言（`locked`・`prepare`）が保たれること。
+7. 変異検出の確認（実装 PR で実測して記す）: `cmd_append` の飽和判定の削除、`cmd_close_attempt` の書込と `parse` の順序入れ替え、`cmd_check` の `pending` 判定の削除、`build_parser` の1つの `required` の変更、`cmd_close_attempt` の再エクスポート削除が、いずれもこのテスト群で検出されること。
+
+### baseline の手順と K-04 完了後に残る登録
+- baseline は手で編集しない。`python3 -m maintainability_lint baseline` の出力で `maintainability_lint/baseline.json` を更新する。fixer は契約上更新できないため、主文脈が機械的に実行する（K-02・K-03 と同じ）。
+- 予定差分: `karte/cli.py` の登録削除のみ（`module-over-100-lines` の1件）。**`accepted_debt` は 59→58 の見込み**。新規モジュール13件（上表）に違反が出ないこと。新規免除・対象除外は追加しない。
+- K-04 完了後に baseline に残る karte 関連登録（K-05・K-06 の対象。本 stack では扱わない）: `karte/similarity.py`（241行）、`karte/touched.py`（105行）、`karte_notify/hook.py`（175行）、`karte_notify/notify.py`（270行）。いずれも `module-over-100-lines`。`karte/cli.py`・`karte/model.py` の登録は 0 になり、#683 本体の PR で baseline.json を触らずに済む。
+
+### docstring の移設（100行制約の要点）
+- `cli.py` のモジュール docstring（91行）、`cmd_ingest_review`・`cmd_check`・`_resolve_close_attempt_number`・`build_parser` の長い docstring は、実装者が移設前に本節の下へ**逐語で**追記してから短くする（PR8 区分1：経緯は削除せず rationale へ移す）。本節は設計であり、逐語の移設は実装 PR で行う。
+- 入口 `cli.py` の見込み行数（実測の根拠）: 要約 docstring 約15行＋`from __future__`・再エクスポート約45行（1行に複数名を並べ、`from . import x` は使う名だけに絞る）＋`main` 約8行＝約70行。100行を超えそうな場合は、まず再エクスポートする互換名を「テスト・外部が実際に参照する名」へ絞る（上の grep 結果で不要と確認できたモジュール属性を落とす）。それでも超える場合の対処（再エクスポート専用モジュールの新設等）は、PR7 の様式で選択肢と推奨を添えて主文脈へ報告して判断を仰ぐ。`import *` は使わない。
+
+### 未確認事項（実装時に確認）
+- 各新規モジュールが100行に収まるか（`verb_close_attempt.py`・`verb_check.py` が最有力の超過候補）。
+- `tests/unit/test_karte_cli.py` が、`cli` の docstring・ソースの文字列（`inspect.getsource` 等）に依存していないこと。
+- `agent-command-gate.sh`・`.codex/hooks/agent-command-gate.sh` が verb 名の許可一覧を持つので、verb 名・登録経路を変えていないこと。
