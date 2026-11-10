@@ -30,7 +30,13 @@ def check_catalog(catalog: dict[str, dict], *, canonical: bool = False,
                   raw_files: dict[str, str] | None = None) -> list[str]:
     errors = []
     for key, doc in catalog.items():
-        errors.extend(key + ": " + error for error in validate_record(doc))
+        try:
+            findings = validate_record(doc)
+        except (TypeError, ValueError, AttributeError, KeyError, IndexError) as exc:
+            findings = ["malformed schema: " + str(exc)]
+        errors.extend(key + ": " + error for error in findings)
+        if findings:
+            continue
         if canonical and raw_files is not None and key in raw_files:
             try:
                 if render(doc) != raw_files[key]:
@@ -40,8 +46,9 @@ def check_catalog(catalog: dict[str, dict], *, canonical: bool = False,
         for ref in doc.get("related_ids", []):
             if ref not in catalog:
                 errors.append(key + ": missing related advisory: " + str(ref))
-        errors.extend(key + ": " + error for error in duplicate_errors(
-            doc, {name: item for name, item in catalog.items() if name != key}))
+        valid_peers = {name: item for name, item in catalog.items() if name != key
+                       and not validate_record(item)}
+        errors.extend(key + ": " + error for error in duplicate_errors(doc, valid_peers))
     return sorted(set(errors))
 
 

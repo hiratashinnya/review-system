@@ -29,8 +29,12 @@ def compare_to_base(root: Path, catalog: dict[str, dict],
                     ref: str) -> tuple[list[str], dict[str, dict]]:
     originals = base_files(root, ref)
     errors, other = [], {}
+    ancestor = git(root, "merge-base", "HEAD", ref).decode("utf-8").strip()
+    present_at_fork = base_files(root, ancestor)
     for key, data in originals.items():
         if key not in catalog:
+            if key in present_at_fork:
+                errors.append(key + ": deletion of existing advisory is forbidden")
             other[key] = tomllib.loads(data.decode("utf-8"))
             continue
         path = LEDGER / (key + ".toml")

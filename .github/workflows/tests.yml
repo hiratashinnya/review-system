@@ -149,3 +149,19 @@ jobs:
 
       - name: Feedback ledger lint (Issue #522, fail-close on ERROR only)
         run: python3 -m feedback_ledger check --canonical --require-base
+
+
+  advisory-ledger:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history for lost-update verification
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+      - name: Validate Advisory ledger against target branch
+        run: python3 -m advisory check --against-ref "origin/${{ github.base_ref }}" --require-base

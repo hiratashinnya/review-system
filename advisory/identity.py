@@ -41,6 +41,7 @@ def duplicate_errors(candidate: dict, catalog: dict[str, dict]) -> list[str]:
         if left == right:
             errors.append("duplicate topic: " + key)
         elif (SequenceMatcher(None, left, right).ratio() >= 0.82
-              and not candidate["duplicate_reason"].strip()):
+              and not (candidate["duplicate_reason"].strip()
+                       or record["duplicate_reason"].strip())):
             errors.append("possible semantic duplicate (distinct reason required): " + key)
     return errors

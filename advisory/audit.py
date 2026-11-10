@@ -28,6 +28,13 @@ def append_event(record: dict, action: str, previous_status: str,
     events.append(event)
 
 
+def seal_last_event(record: dict) -> None:
+    """Refresh the new event after save adds the trusted base revision."""
+    event = record["history"][-1]
+    event["payload_digest"] = digest(payload(record))
+    event["digest"] = digest({k: v for k, v in event.items() if k != "digest"})
+
+
 def validate_events(record: dict) -> list[str]:
     events, errors = record.get("history"), []
     if not isinstance(events, list) or not events:

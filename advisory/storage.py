@@ -5,6 +5,7 @@ import os
 import tempfile
 from pathlib import Path
 
+from .audit import seal_last_event
 from .catalog import check_catalog, load_catalog
 from .gitbase import base_for_write, compare_to_base
 from .paths import directory, record_path, writer_lock
@@ -39,6 +40,7 @@ def save(root: Path, entry: dict, *, expected_sha256: str | None,
             raise ValueError("advisory ID exists on base branch")
         if entry["id"] in remote:
             raise ValueError("cannot create duplicate advisory on base")
+        seal_last_event(entry)
         catalog[entry["id"]] = entry
         combined = {**remote, **catalog}
         errors = check_catalog(combined)
