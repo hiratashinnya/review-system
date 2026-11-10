@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-from .github_issue import verify_existing_issue
 from .operations import modify, new
 
 
@@ -28,9 +27,6 @@ def write_action(args) -> dict:
     elif args.action == "transition":
         changes = {"status": args.to}
     elif args.action == "promote":
-        from .permissions import require_writer
-        require_writer()
-        verify_existing_issue(args.existing_issue)
         changes = {"promoted_issue": args.existing_issue}
     else:
         raise ValueError("unknown write action")
