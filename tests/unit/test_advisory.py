@@ -91,11 +91,12 @@ class AdvisoryTests(unittest.TestCase):
                    changes={"status": "promoted"})
         second = modify(self.root, "main", key, first, "transition", reason="reviewed",
                         changes={"status": "triaged"})
-        with mock.patch("advisory.cli_actions.verify_existing_issue"):
+        with mock.patch("advisory.operations.verify_existing_issue") as verify:
             self.assertEqual(main(["--root", str(self.root), "promote", "--base-ref",
                                    "main", "--id", key, "--expected-sha256", second,
                                    "--reason", "existing issue", "--existing-issue",
                                    "owner/repo#42"]), 0)
+            verify.assert_called_once_with("owner/repo#42")
         self.assertEqual(load_catalog(self.root)[key]["status"], "promoted")
 
     def test_manual_tamper_detected(self):
@@ -156,12 +157,30 @@ class AdvisoryTests(unittest.TestCase):
         key, first = self.create()
         second = modify(self.root, "main", key, first, "transition",
                         reason="triage", changes={"status": "triaged"})
-        third = modify(self.root, "main", key, second, "promote",
-                       reason="linked", changes={"promoted_issue": "owner/repo#1"})
+        with mock.patch("advisory.operations.verify_existing_issue") as verify:
+            third = modify(self.root, "main", key, second, "promote",
+                           reason="linked", changes={"promoted_issue": "owner/repo#1"})
+            verify.assert_called_once_with("owner/repo#1")
         modify(self.root, "main", key, third, "transition",
                reason="delivered", changes={"status": "closed"})
         self.assertEqual(check_catalog(load_catalog(self.root)), [])
         self.assertEqual(load_catalog(self.root)[key]["promoted_issue"], "owner/repo#1")
+
+    def test_direct_promote_rejects_unverified_issue_without_mutating_record(self):
+        key, first = self.create()
+        triaged = modify(self.root, "main", key, first, "transition",
+                         reason="reviewed", changes={"status": "triaged"})
+        path = record_path(self.root, key)
+        original = path.read_bytes()
+        with mock.patch("advisory.operations.verify_existing_issue",
+                        side_effect=ValueError("could not verify existing issue")) as verify:
+            with self.assertRaisesRegex(ValueError, "could not verify existing issue"):
+                modify(self.root, "main", key, triaged, "promote",
+                       reason="bad reference",
+                       changes={"promoted_issue": "owner/repo#999"})
+            verify.assert_called_once_with("owner/repo#999")
+        self.assertEqual(path.read_bytes(), original)
+        self.assertEqual(check_catalog(load_catalog(self.root)), [])
 
     def test_claude_edit_tools_deny_direct_ledger_writes(self):
         import json
