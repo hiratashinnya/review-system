@@ -1,0 +1,1791 @@
+{
+  "cases": {
+    "missing_verb": {
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": "usage: karte [-h] {ingest-review,render,append,close-attempt,check,status} ...\nkarte: error: the following arguments are required: verb\n",
+      "before": {},
+      "after": {},
+      "changed": [],
+      "directory_exists": false
+    },
+    "unknown_verb": {
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": "usage: karte [-h] {ingest-review,render,append,close-attempt,check,status} ...\nkarte: error: argument verb: invalid choice: 'missing' (choose from 'ingest-review', 'render', 'append', 'close-attempt', 'check', 'status')\n",
+      "before": {},
+      "after": {},
+      "changed": [],
+      "directory_exists": false
+    },
+    "missing_from": {
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": "usage: karte ingest-review [-h] [--issue ISSUE] [--round ROUND] --from SOURCE\nkarte ingest-review: error: the following arguments are required: --from\n",
+      "before": {},
+      "after": {},
+      "changed": [],
+      "directory_exists": false
+    },
+    "invalid_choice": {
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": "usage: karte append [-h] [--issue ISSUE] [--round ROUND] --finding-ids\n                    FINDING_IDS [FINDING_IDS ...] --root-cause ROOT_CAUSE\n                    --change-kind\n                    {logic,data-structure,interface,config,test,doc,revert}\n                    --targets TARGETS [TARGETS ...] [--diagnosis DIAGNOSIS]\nkarte append: error: argument --change-kind: invalid choice: 'invalid' (choose from 'logic', 'data-structure', 'interface', 'config', 'test', 'doc', 'revert')\n",
+      "before": {},
+      "after": {},
+      "changed": [],
+      "directory_exists": false
+    },
+    "missing_append_required": {
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": "usage: karte append [-h] [--issue ISSUE] [--round ROUND] --finding-ids\n                    FINDING_IDS [FINDING_IDS ...] --root-cause ROOT_CAUSE\n                    --change-kind\n                    {logic,data-structure,interface,config,test,doc,revert}\n                    --targets TARGETS [TARGETS ...] [--diagnosis DIAGNOSIS]\nkarte append: error: the following arguments are required: --finding-ids, --root-cause, --change-kind, --targets\n",
+      "before": {},
+      "after": {},
+      "changed": [],
+      "directory_exists": false
+    },
+    "issue_invalid_prepare": {
+      "exit_code": 4,
+      "stdout": "",
+      "stderr": "拒否（fail-close）: issue 番号は 1 以上の十進整数のみ（前置ゼロ・符号・空白を認めない）: 'bad'\n",
+      "before": {},
+      "after": {},
+      "changed": [],
+      "directory_exists": false
+    },
+    "empty_stdin_prepare": {
+      "exit_code": 4,
+      "stdout": "",
+      "stderr": "拒否（fail-close）: `--from -` の標準入力が空（レビューレポート本文が渡されていない）。空入力を『指摘なし』とは解釈しない\n",
+      "before": {},
+      "after": {},
+      "changed": [],
+      "directory_exists": false
+    },
+    "unknown_path": {
+      "exit_code": 4,
+      "stdout": "",
+      "stderr": "拒否（fail-close）: 通常ファイルではない: <ROOT>/tmp/missing\n",
+      "before": {},
+      "after": {},
+      "changed": [],
+      "directory_exists": false
+    },
+    "utf8_invalid": {
+      "exit_code": 4,
+      "stdout": "",
+      "stderr": "拒否（fail-close）: UTF-8 として読めない: <ROOT>/tmp/bad-utf8（invalid start byte）\n",
+      "before": {},
+      "after": {},
+      "changed": [],
+      "directory_exists": false
+    },
+    "validation_locked": {
+      "exit_code": 4,
+      "stdout": "",
+      "stderr": "拒否（fail-close）: レビューレポートの検証に失敗:\n  - 1 行目 'new': 必須キー 'harm_detail' が無い\n",
+      "before": {},
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "changed": [
+        ".writer.lock"
+      ],
+      "directory_exists": true
+    },
+    "not_found": {
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": "未検出: カルテが無い: <ROOT>/tmp/_karte/issue-7.md（先に `ingest-review --issue 7 --round 1` を実行する）\n",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "ingest_file": {
+      "exit_code": 0,
+      "stdout": "=== ingest-review: issue-7 round 1 ===\n  取り込み: 1 件（新規 1 / 再掲 0）\n  新規採番: F-7-01\n  未解消: F-7-01\n  実害あり・disposition 未決定（clean を妨げる。fix-here / deferred / waived を決める）: F-7-01\n  カルテ: <ROOT>/tmp/_karte/issue-7.md\n",
+      "stderr": "",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "changed": [
+        "active.json",
+        "issue-7.md"
+      ],
+      "directory_exists": true
+    },
+    "ingest_same_round": {
+      "exit_code": 4,
+      "stdout": "",
+      "stderr": "拒否（fail-close）: round は単調増加させる（取り込み済みの最新ラウンドは 1・指定は 1）。同じラウンドの再取り込みは台帳の状態遷移を壊す\n",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "ingest_missing_previous": {
+      "exit_code": 4,
+      "stdout": "",
+      "stderr": "拒否（fail-close）: 前ラウンドで未解消の finding が今回のレポートに再掲されていない: F-7-02（不在は解消ではない。解消したなら当該 ID のブロックを `status: resolved` で再掲し、未解消なら `status: open` のまま再掲する）\n",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "78ed446be87f1eb417c854c9b6c606220a743be10e32883b1d1bddef3f04fd20"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "78ed446be87f1eb417c854c9b6c606220a743be10e32883b1d1bddef3f04fd20"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "render": {
+      "exit_code": 0,
+      "stdout": "=== Karte: issue-7 / round 1 ===\nこれは Issue #7 の是正ループの診断カルテ（<ROOT>/tmp/_karte/issue-7.md）から機械生成した現在状態である。\n同じ失敗を繰り返さないために、以下の Prior attempts と同じ診断・同じ変更箇所をもう一度なぞらないこと。新しい試行は着手前に `python3 -m karte append --issue 7 --finding-ids <ID...> --root-cause <slug> --change-kind <kind> --targets <file::symbol...>` で宣言し、修正後に `python3 -m karte close-attempt --issue 7 --outcome <fixed|partial|no-change|regressed>` で実測差分を記録すること（記録しないと `check` が通らず停止できない）。\n\n## Prior attempts（DO NOT repeat these）\n  (まだ試行なし)\n\n## Open findings（未解消）\n  - F-7-01 [harm=real] [severity=major] [scope=in] [disposition=未決定] rounds=[1]\n      summary: 入力を検査しない\n      harm_detail: 検証が素通りして誤った取り込みが通る\n      locus: a.py::f\n      evidence: a/b.py:1 を読み、検査が無いのを確認\n      expected: 検査が働く\n      recheck: 該当入力で拒否されることを確認する\n",
+      "stderr": "",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "status": {
+      "exit_code": 0,
+      "stdout": "=== status: issue-7 ===\nこれは Issue #7 の是正ループの進捗判定を、診断カルテ（<ROOT>/tmp/_karte/issue-7.md）から機械生成した現在状態である（karte status）。\n  verdict: harmful-open（clean を妨げる実害ありが残存）\n  未解消: F-7-01\n  実害あり（未解消・申し送り/処置不要と決めたものを含む）: F-7-01\n  実害なし（未解消）: (なし)\n  clean を妨げる未解消: F-7-01\n  clean を妨げる実害あり（verdict harmful-open を成立させている集合）: F-7-01\n  実害あり・disposition 未決定（clean を妨げる／scope: out でも免除されない）: F-7-01\n  申し送り（disposition: deferred・status は open のまま）: (なし)\n  処置不要（disposition: waived・オーナー明示）: (なし)\n  スコープ外の申告（scope: out・未解消）: (なし)\n  無進捗（3 ラウンド連続未解消）: (なし)\n  escalate: no（無進捗・飽和したアプローチのいずれにも該当しない）\n\n## 残存 finding（未解消・harm 判定つき）\n  - F-7-01 [harm=real] [scope=in] [disposition=未決定]: 入力を検査しない\n      診断/処置: (未診断)\n",
+      "stderr": "",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "status_json": {
+      "exit_code": 0,
+      "stdout": "{\n  \"issue\": 7,\n  \"verdict\": \"harmful-open\",\n  \"open_findings\": [\n    \"F-7-01\"\n  ],\n  \"harmful_open\": [\n    \"F-7-01\"\n  ],\n  \"no_harm_open\": [],\n  \"blocking_findings\": [\n    \"F-7-01\"\n  ],\n  \"blocking_harmful\": [\n    \"F-7-01\"\n  ],\n  \"undecided_disposition\": [\n    \"F-7-01\"\n  ],\n  \"deferred_findings\": [],\n  \"waived_findings\": [],\n  \"out_of_scope_open\": [],\n  \"stalled_findings\": [],\n  \"stall_rounds\": 3,\n  \"saturated_groups\": [],\n  \"escalate\": false,\n  \"findings\": [\n    {\n      \"id\": \"F-7-01\",\n      \"status\": \"open\",\n      \"harm\": \"real\",\n      \"harm_detail\": \"検証が素通りして誤った取り込みが通る\",\n      \"severity\": \"major\",\n      \"scope\": \"in\",\n      \"disposition\": \"\",\n      \"deferred_to\": \"\",\n      \"waived_by\": \"\",\n      \"waived_reason\": \"\",\n      \"locus\": [\n        \"a.py::f\"\n      ],\n      \"summary\": \"入力を検査しない\",\n      \"evidence\": \"a/b.py:1 を読み、検査が無いのを確認\",\n      \"expected\": \"検査が働く\",\n      \"recheck\": \"該当入力で拒否されることを確認する\",\n      \"rounds\": [\n        1\n      ],\n      \"resolved_round\": null,\n      \"attempts\": []\n    }\n  ]\n}\n",
+      "stderr": "",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "check_no_attempt": {
+      "exit_code": 4,
+      "stdout": "=== check: issue-7 round 1 ===\n",
+      "stderr": "NG: round 1 の Attempt が 1 件も無い（診断が要る未解消 finding: F-7-01）\n",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "close_no_attempt": {
+      "exit_code": 4,
+      "stdout": "",
+      "stderr": "拒否（fail-close）: --attempt が未指定で、カルテに Attempt が1件も無い。先に `append` すること（Issue #378）\n",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "append_unknown": {
+      "exit_code": 4,
+      "stdout": "",
+      "stderr": "拒否（fail-close）: 未知の finding ID: F-7-99（先に `ingest-review` で台帳へ取り込むこと）\n",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "append_bad_slug": {
+      "exit_code": 4,
+      "stdout": "",
+      "stderr": "拒否（fail-close）: root_cause は slug（英小文字・数字で始まり、以降 a-z 0-9 . _ - のみ）: 'BAD SLUG'\n",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "append_round_non_numeric": {
+      "exit_code": 4,
+      "stdout": "",
+      "stderr": "拒否（fail-close）: round は 1 以上の整数: 'abc'\n",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "append_explicit_round": {
+      "exit_code": 0,
+      "stdout": "=== append: issue-7 Attempt 1（round 1）===\n  finding_ids: F-7-01\n  root_cause: cause / change_kind: logic\n  targets: a.py::f\n  カルテ: <ROOT>/tmp/_karte/issue-7.md\n",
+      "stderr": "",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a"
+      },
+      "changed": [
+        "issue-7.md"
+      ],
+      "directory_exists": true
+    },
+    "check_unclosed": {
+      "exit_code": 4,
+      "stdout": "=== check: issue-7 round 1 ===\n  Attempt: 1\n  診断が要る未解消 finding: F-7-01\n",
+      "stderr": "NG: 未クローズの Attempt が残っている: 1（実測 touched-set が供給されず、類似判定の実測信号が働かないまま同種の試行を続けられてしまう）\n  実行: python3 -m karte close-attempt --issue 7 --attempt 1 --outcome <fixed|partial|no-change|regressed>\n",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "close_invalid_base": {
+      "exit_code": 4,
+      "stdout": "",
+      "stderr": "拒否（fail-close）: ref に使えない文字列（許可: A-Z a-z 0-9 . _ / @ ~ ^ -・先頭 '-' 不可）: '-bad'\n",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "close_empty_diff": {
+      "exit_code": 4,
+      "stdout": "",
+      "stderr": "拒否（fail-close）: 実測 touched-set が空（diff が空）。--base（既定 HEAD）が対象の変更を含む範囲を正しく指しているか、または --diff-file の内容を確認して明示すること。差分なしで解消と判定する場合は --outcome no-change を指定する（Issue #355）\n",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "close_explicit": {
+      "exit_code": 0,
+      "stdout": "=== close-attempt: issue-7 Attempt 1 ===\n  outcome: fixed\n  実測 touched: a.py, a.py::f\n  カルテ: <ROOT>/tmp/_karte/issue-7.md\n",
+      "stderr": "",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "1b94f5d2502adae00c06d892870617e3577479998bad56e0762871ba09124380"
+      },
+      "changed": [
+        "issue-7.md"
+      ],
+      "directory_exists": true
+    },
+    "close_already_closed": {
+      "exit_code": 4,
+      "stdout": "",
+      "stderr": "拒否（fail-close）: Attempt 1 には既に Result がある（既存ブロックは書き換えない＝追記のみ）\n",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "1b94f5d2502adae00c06d892870617e3577479998bad56e0762871ba09124380"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "1b94f5d2502adae00c06d892870617e3577479998bad56e0762871ba09124380"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "check_ok": {
+      "exit_code": 0,
+      "stdout": "=== check: issue-7 round 1 ===\n  Attempt: 1\n  診断が要る未解消 finding: F-7-01\nOK: 当該ラウンドの Attempt が未解消 finding を網羅し、全 Attempt がクローズ済み\n",
+      "stderr": "",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "1b94f5d2502adae00c06d892870617e3577479998bad56e0762871ba09124380"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "1b94f5d2502adae00c06d892870617e3577479998bad56e0762871ba09124380"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "append_pointer_round": {
+      "exit_code": 0,
+      "stdout": "=== append: issue-7 Attempt 2（round 1）===\n  finding_ids: F-7-01\n  root_cause: cause / change_kind: logic\n  targets: a.py::f\n  注意: 過去 Attempt 1 と類似（実測信号 / 宣言信号）。次に同種を出すと拒否される\n  カルテ: <ROOT>/tmp/_karte/issue-7.md\n",
+      "stderr": "",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "1b94f5d2502adae00c06d892870617e3577479998bad56e0762871ba09124380"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "2f57783e1818fb4e411331399261a506ae86f5b9ed431ba8e3d8c289a9f6044f"
+      },
+      "changed": [
+        "issue-7.md"
+      ],
+      "directory_exists": true
+    },
+    "close_implicit": {
+      "exit_code": 0,
+      "stdout": "=== close-attempt: issue-7 Attempt 2 ===\n  outcome: fixed\n  実測 touched: a.py, a.py::f\n\n  注意: Attempt 1 と同種のアプローチは飽和した（衝突する既存 Attempt 1, 2）。同種の append は拒否される\nDIRECTIVE: アプローチ転換（類似グループ飽和のため 3 件目の同種 Attempt は書き込まない）\n  対象の未解消 finding: F-7-01\n  類似と判定した過去 Attempt: 1, 2\n  反復された root_cause: cause（宣言信号・Attempt 1, 2）\n  反復された targets: a.py::f\n  実測 touched-set が一致した Attempt: 1, 2（ラベルを変えても実際に触った場所が同じ）\n  一致した touched-set: a.py, a.py::f\n  飽和したアプローチ: root_cause=cause / change_kind=logic / targets=a.py::f\n  指令: 上記の root_cause 仮説と targets を**再び対象にしない**別アプローチを立てること。\n  転換軸の候補:\n    - change_kind を変える（logic で駄目なら data-structure / interface / config を疑う）\n    - レイヤを変える（呼び出し元・入力データ・境界の契約・テスト側の前提を疑う）\n    - 最小再現に切り分ける（revert して失敗する最小ケースを作り、仮説を1つずつ潰す）\n    - 指摘の読み直し（finding の harm_detail を再読し、症状ではなく被害から逆算する）\n  カルテ: <ROOT>/tmp/_karte/issue-7.md\n",
+      "stderr": "",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "2f57783e1818fb4e411331399261a506ae86f5b9ed431ba8e3d8c289a9f6044f"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "a0b609a55bf873d9f2f1876f431ecc13b254915fba2fa5b11dc8cce974ed9d07"
+      },
+      "changed": [
+        "issue-7.md"
+      ],
+      "directory_exists": true
+    },
+    "append_saturated": {
+      "exit_code": 3,
+      "stdout": "DIRECTIVE: アプローチ転換（類似グループ飽和のため 3 件目の同種 Attempt は書き込まない）\n  対象の未解消 finding: F-7-01\n  類似と判定した過去 Attempt: 1, 2\n  反復された root_cause: cause（宣言信号・Attempt 1, 2）\n  反復された targets: a.py::f\n  実測 touched-set が一致した Attempt: 1, 2（ラベルを変えても実際に触った場所が同じ）\n  一致した touched-set: a.py, a.py::f\n  今回の宣言: root_cause=cause / change_kind=logic / targets=a.py::f\n  指令: 上記の root_cause 仮説と targets を**再び対象にしない**別アプローチを立てること。\n  転換軸の候補:\n    - change_kind を変える（logic で駄目なら data-structure / interface / config を疑う）\n    - レイヤを変える（呼び出し元・入力データ・境界の契約・テスト側の前提を疑う）\n    - 最小再現に切り分ける（revert して失敗する最小ケースを作り、仮説を1つずつ潰す）\n    - 指摘の読み直し（finding の harm_detail を再読し、症状ではなく被害から逆算する）\n（Attempt は書き込んでいない。転換したアプローチで `append` をやり直すこと）\n",
+      "stderr": "",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "a0b609a55bf873d9f2f1876f431ecc13b254915fba2fa5b11dc8cce974ed9d07"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "a0b609a55bf873d9f2f1876f431ecc13b254915fba2fa5b11dc8cce974ed9d07"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "decide": {
+      "exit_code": 0,
+      "stdout": "=== decide: F-7-01 ===\n  disposition: deferred\n",
+      "stderr": "",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "a0b609a55bf873d9f2f1876f431ecc13b254915fba2fa5b11dc8cce974ed9d07"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f"
+      },
+      "changed": [
+        "issue-7.md"
+      ],
+      "directory_exists": true
+    },
+    "check_disposition": {
+      "exit_code": 0,
+      "stdout": "=== check: issue-7 round 1 ===\n  Attempt: 1, 2\n  診断が要る未解消 finding: (なし)\n  診断不要（disposition で当該 PR では処置しないと決定済み・status は open のまま）: F-7-01（deferred）\nOK: 当該ラウンドの Attempt が未解消 finding を網羅し、全 Attempt がクローズ済み\n",
+      "stderr": "",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "activate": {
+      "exit_code": 0,
+      "stdout": "=== activate: issue-7 round 1（次の ingest-reviewer は round 2）===\n",
+      "stderr": "",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "ingest_reviewer": {
+      "exit_code": 4,
+      "stdout": "",
+      "stderr": "拒否（fail-close）: 進行ポインタに review envelope の期待値が無い。主文脈が `karte activate --issue <N> --run-id .. --target-key .. --snapshot-oid .. --input-digest .. --phase ..` を実行する（取り込み済みの handoff の再利用も同じ理由で拒否される）\n",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "append_implicit_without_pointer": {
+      "exit_code": 0,
+      "stdout": "=== append: issue-7 Attempt 1（round 1）===\n  finding_ids: F-7-01\n  root_cause: cause / change_kind: logic\n  targets: a.py::f\n  カルテ: <ROOT>/tmp/_karte/issue-7.md\n",
+      "stderr": "",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "issue-7.md": "78ed446be87f1eb417c854c9b6c606220a743be10e32883b1d1bddef3f04fd20"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "issue-7.md": "bfd783f65e0bf212c0cbc709e527b5e37441b44cacc5d4a17c459721013e457a"
+      },
+      "changed": [
+        "issue-7.md"
+      ],
+      "directory_exists": true
+    },
+    "check_undiagnosed": {
+      "exit_code": 4,
+      "stdout": "=== check: issue-7 round 1 ===\n  Attempt: 1\n  診断が要る未解消 finding: F-7-01, F-7-02\n",
+      "stderr": "NG: 診断されていない未解消 finding: F-7-02\n",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "issue-7.md": "bfd783f65e0bf212c0cbc709e527b5e37441b44cacc5d4a17c459721013e457a"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "issue-7.md": "bfd783f65e0bf212c0cbc709e527b5e37441b44cacc5d4a17c459721013e457a"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "append_second_open": {
+      "exit_code": 0,
+      "stdout": "=== append: issue-7 Attempt 2（round 1）===\n  finding_ids: F-7-01\n  root_cause: other-cause / change_kind: logic\n  targets: a.py::f\n  カルテ: <ROOT>/tmp/_karte/issue-7.md\n",
+      "stderr": "",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "issue-7.md": "bfd783f65e0bf212c0cbc709e527b5e37441b44cacc5d4a17c459721013e457a"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "issue-7.md": "8117cda35ea88e9f7b8b2b910af681ccbae581ab6b1a661ebbc2e1d2b212fa76"
+      },
+      "changed": [
+        "issue-7.md"
+      ],
+      "directory_exists": true
+    },
+    "close_multiple_open": {
+      "exit_code": 4,
+      "stdout": "",
+      "stderr": "拒否（fail-close）: --attempt が未指定で、未クローズの Attempt が複数ある（Attempt 1, Attempt 2）。どの Attempt に記録するか --attempt で明示すること（Issue #378）\n",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "issue-7.md": "8117cda35ea88e9f7b8b2b910af681ccbae581ab6b1a661ebbc2e1d2b212fa76"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "issue-7.md": "8117cda35ea88e9f7b8b2b910af681ccbae581ab6b1a661ebbc2e1d2b212fa76"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "close_target_mismatch": {
+      "exit_code": 0,
+      "stdout": "=== close-attempt: issue-7 Attempt 1 ===\n  outcome: fixed\n  実測 touched: other.py, other.py::f\n  注意: 宣言 targets（a.py::f）と実測 touched（other.py, other.py::f）が重ならない。誤った Attempt に記録した可能性がある（Issue #378 C）\n  カルテ: <ROOT>/tmp/_karte/issue-7.md\n",
+      "stderr": "",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "issue-7.md": "8117cda35ea88e9f7b8b2b910af681ccbae581ab6b1a661ebbc2e1d2b212fa76"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "issue-7.md": "9916a5e88873381b07b42559951c74ae7d74dcc6a15c13e42e0183e44d1eb4e6"
+      },
+      "changed": [
+        "issue-7.md"
+      ],
+      "directory_exists": true
+    },
+    "ingest_stdin": {
+      "exit_code": 0,
+      "stdout": "=== ingest-review: issue-7 round 1 ===\n  取り込み: 1 件（新規 1 / 再掲 0）\n  新規採番: F-7-01\n  未解消: F-7-01\n  実害あり・disposition 未決定（clean を妨げる。fix-here / deferred / waived を決める）: F-7-01\n  カルテ: <ROOT>/tmp/_karte/issue-7.md\n",
+      "stderr": "",
+      "before": {},
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "changed": [
+        ".writer.lock",
+        "active.json",
+        "issue-7.md"
+      ],
+      "directory_exists": true
+    },
+    "format_error": {
+      "exit_code": 4,
+      "stdout": "",
+      "stderr": "拒否（fail-close）: 先頭行が '# Karte: issue-<N>' でない（カルテ書式ではない）\n",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "11d6b9397ce9b2c7fb826b35ff71aecad8b4d937d70216a4c4b24d3b77b478c5"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "11d6b9397ce9b2c7fb826b35ff71aecad8b4d937d70216a4c4b24d3b77b478c5"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "render_json_unsupported": {
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": "usage: karte [-h] {ingest-review,render,append,close-attempt,check,status} ...\nkarte: error: unrecognized arguments: --json\n",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+      },
+      "changed": [],
+      "directory_exists": true
+    },
+    "os_error": {
+      "exit_code": 4,
+      "stdout": "",
+      "stderr": "拒否（fail-close）: storage failure\n",
+      "before": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "11d6b9397ce9b2c7fb826b35ff71aecad8b4d937d70216a4c4b24d3b77b478c5"
+      },
+      "after": {
+        ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
+        "issue-7.md": "11d6b9397ce9b2c7fb826b35ff71aecad8b4d937d70216a4c4b24d3b77b478c5"
+      },
+      "changed": [],
+      "directory_exists": true
+    }
+  },
+  "parser_basic": {
+    "order": [
+      "ingest-review",
+      "render",
+      "append",
+      "close-attempt",
+      "check",
+      "status"
+    ],
+    "parsers": {
+      "<top>": {
+        "help_sha256": "bbd32071edcc55ff96ab696aebd9c223a2a383594c2dba0e0a3b142063634a6e",
+        "actions": [
+          {
+            "dest": "help",
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": "==SUPPRESS=="
+          },
+          {
+            "dest": "verb",
+            "options": [],
+            "required": true,
+            "choices": [
+              "ingest-review",
+              "render",
+              "append",
+              "close-attempt",
+              "check",
+              "status"
+            ],
+            "nargs": "A...",
+            "default": null
+          }
+        ]
+      },
+      "ingest-review": {
+        "help_sha256": "1bba623f2ae1860d868cbdc76f60aacb5e2f56df19dd78b91a5d301121d046ea",
+        "actions": [
+          {
+            "dest": "help",
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": "==SUPPRESS=="
+          },
+          {
+            "dest": "issue",
+            "options": [
+              "--issue"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "round",
+            "options": [
+              "--round"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "source",
+            "options": [
+              "--from"
+            ],
+            "required": true,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          }
+        ]
+      },
+      "render": {
+        "help_sha256": "ddead30eca025e8a3f65e63da2e77ebf6f572027cfe378575c10150ee4ee4f81",
+        "actions": [
+          {
+            "dest": "help",
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": "==SUPPRESS=="
+          },
+          {
+            "dest": "issue",
+            "options": [
+              "--issue"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          }
+        ]
+      },
+      "append": {
+        "help_sha256": "9170014a91a0b2af2bd8e29b0a0d9051a784abea8150f503a54eb174fc134798",
+        "actions": [
+          {
+            "dest": "help",
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": "==SUPPRESS=="
+          },
+          {
+            "dest": "issue",
+            "options": [
+              "--issue"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "round",
+            "options": [
+              "--round"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "finding_ids",
+            "options": [
+              "--finding-ids"
+            ],
+            "required": true,
+            "choices": null,
+            "nargs": "+",
+            "default": null
+          },
+          {
+            "dest": "root_cause",
+            "options": [
+              "--root-cause"
+            ],
+            "required": true,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "change_kind",
+            "options": [
+              "--change-kind"
+            ],
+            "required": true,
+            "choices": [
+              "logic",
+              "data-structure",
+              "interface",
+              "config",
+              "test",
+              "doc",
+              "revert"
+            ],
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "targets",
+            "options": [
+              "--targets"
+            ],
+            "required": true,
+            "choices": null,
+            "nargs": "+",
+            "default": null
+          },
+          {
+            "dest": "diagnosis",
+            "options": [
+              "--diagnosis"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": ""
+          }
+        ]
+      },
+      "close-attempt": {
+        "help_sha256": "3fc33d4a61fb8581b21d4511b3d7bddb51fe2ddabb245021db4d27e64389447a",
+        "actions": [
+          {
+            "dest": "help",
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": "==SUPPRESS=="
+          },
+          {
+            "dest": "issue",
+            "options": [
+              "--issue"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "attempt",
+            "options": [
+              "--attempt"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "outcome",
+            "options": [
+              "--outcome"
+            ],
+            "required": true,
+            "choices": [
+              "fixed",
+              "partial",
+              "no-change",
+              "regressed"
+            ],
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "finding_ids",
+            "options": [
+              "--finding-ids"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": "+",
+            "default": null
+          },
+          {
+            "dest": "base",
+            "options": [
+              "--base"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": "HEAD"
+          },
+          {
+            "dest": "diff_file",
+            "options": [
+              "--diff-file"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "note",
+            "options": [
+              "--note"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": ""
+          }
+        ]
+      },
+      "check": {
+        "help_sha256": "bfc16b40537d34ddabf05a5ae9438d7b79285e20a03d8a26249d110889bc3a97",
+        "actions": [
+          {
+            "dest": "help",
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": "==SUPPRESS=="
+          },
+          {
+            "dest": "issue",
+            "options": [
+              "--issue"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "round",
+            "options": [
+              "--round"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          }
+        ]
+      },
+      "status": {
+        "help_sha256": "9624f15651652963499feca284690755553c926e748e2b1d6fcc193ff81124a7",
+        "actions": [
+          {
+            "dest": "help",
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": "==SUPPRESS=="
+          },
+          {
+            "dest": "issue",
+            "options": [
+              "--issue"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "json",
+            "options": [
+              "--json"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": false
+          }
+        ]
+      }
+    }
+  },
+  "parser_extended": {
+    "order": [
+      "ingest-review",
+      "render",
+      "append",
+      "close-attempt",
+      "check",
+      "status",
+      "ingest-reviewer",
+      "activate",
+      "decide"
+    ],
+    "parsers": {
+      "<top>": {
+        "help_sha256": "9b8b522e4892e4a708b3b779ae94f63dc6031fb83b01e13f330e245e0c9ed859",
+        "actions": [
+          {
+            "dest": "help",
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": "==SUPPRESS=="
+          },
+          {
+            "dest": "verb",
+            "options": [],
+            "required": true,
+            "choices": [
+              "ingest-review",
+              "render",
+              "append",
+              "close-attempt",
+              "check",
+              "status",
+              "ingest-reviewer",
+              "activate",
+              "decide"
+            ],
+            "nargs": "A...",
+            "default": null
+          }
+        ]
+      },
+      "ingest-review": {
+        "help_sha256": "1bba623f2ae1860d868cbdc76f60aacb5e2f56df19dd78b91a5d301121d046ea",
+        "actions": [
+          {
+            "dest": "help",
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": "==SUPPRESS=="
+          },
+          {
+            "dest": "issue",
+            "options": [
+              "--issue"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "round",
+            "options": [
+              "--round"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "source",
+            "options": [
+              "--from"
+            ],
+            "required": true,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          }
+        ]
+      },
+      "render": {
+        "help_sha256": "ddead30eca025e8a3f65e63da2e77ebf6f572027cfe378575c10150ee4ee4f81",
+        "actions": [
+          {
+            "dest": "help",
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": "==SUPPRESS=="
+          },
+          {
+            "dest": "issue",
+            "options": [
+              "--issue"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          }
+        ]
+      },
+      "append": {
+        "help_sha256": "9170014a91a0b2af2bd8e29b0a0d9051a784abea8150f503a54eb174fc134798",
+        "actions": [
+          {
+            "dest": "help",
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": "==SUPPRESS=="
+          },
+          {
+            "dest": "issue",
+            "options": [
+              "--issue"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "round",
+            "options": [
+              "--round"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "finding_ids",
+            "options": [
+              "--finding-ids"
+            ],
+            "required": true,
+            "choices": null,
+            "nargs": "+",
+            "default": null
+          },
+          {
+            "dest": "root_cause",
+            "options": [
+              "--root-cause"
+            ],
+            "required": true,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "change_kind",
+            "options": [
+              "--change-kind"
+            ],
+            "required": true,
+            "choices": [
+              "logic",
+              "data-structure",
+              "interface",
+              "config",
+              "test",
+              "doc",
+              "revert"
+            ],
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "targets",
+            "options": [
+              "--targets"
+            ],
+            "required": true,
+            "choices": null,
+            "nargs": "+",
+            "default": null
+          },
+          {
+            "dest": "diagnosis",
+            "options": [
+              "--diagnosis"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": ""
+          }
+        ]
+      },
+      "close-attempt": {
+        "help_sha256": "3fc33d4a61fb8581b21d4511b3d7bddb51fe2ddabb245021db4d27e64389447a",
+        "actions": [
+          {
+            "dest": "help",
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": "==SUPPRESS=="
+          },
+          {
+            "dest": "issue",
+            "options": [
+              "--issue"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "attempt",
+            "options": [
+              "--attempt"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "outcome",
+            "options": [
+              "--outcome"
+            ],
+            "required": true,
+            "choices": [
+              "fixed",
+              "partial",
+              "no-change",
+              "regressed"
+            ],
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "finding_ids",
+            "options": [
+              "--finding-ids"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": "+",
+            "default": null
+          },
+          {
+            "dest": "base",
+            "options": [
+              "--base"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": "HEAD"
+          },
+          {
+            "dest": "diff_file",
+            "options": [
+              "--diff-file"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "note",
+            "options": [
+              "--note"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": ""
+          }
+        ]
+      },
+      "check": {
+        "help_sha256": "bfc16b40537d34ddabf05a5ae9438d7b79285e20a03d8a26249d110889bc3a97",
+        "actions": [
+          {
+            "dest": "help",
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": "==SUPPRESS=="
+          },
+          {
+            "dest": "issue",
+            "options": [
+              "--issue"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "round",
+            "options": [
+              "--round"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          }
+        ]
+      },
+      "status": {
+        "help_sha256": "9624f15651652963499feca284690755553c926e748e2b1d6fcc193ff81124a7",
+        "actions": [
+          {
+            "dest": "help",
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": "==SUPPRESS=="
+          },
+          {
+            "dest": "issue",
+            "options": [
+              "--issue"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "json",
+            "options": [
+              "--json"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": false
+          }
+        ]
+      },
+      "ingest-reviewer": {
+        "help_sha256": "7c7eab9b48bf9ea6591b5e1c06c190a8223a45abd020deaddbf3b2f0a3ad13fb",
+        "actions": [
+          {
+            "dest": "help",
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": "==SUPPRESS=="
+          },
+          {
+            "dest": "source",
+            "options": [
+              "--from"
+            ],
+            "required": true,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "round",
+            "options": [
+              "--round"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          }
+        ]
+      },
+      "activate": {
+        "help_sha256": "e145b1141d798159206c82e664df183a50eabed705a16418ee8d7ede2cdb727c",
+        "actions": [
+          {
+            "dest": "help",
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": "==SUPPRESS=="
+          },
+          {
+            "dest": "issue",
+            "options": [
+              "--issue"
+            ],
+            "required": true,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "repair_declared_scope",
+            "options": [
+              "--repair-declared-scope"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": false
+          },
+          {
+            "dest": "run_id",
+            "options": [
+              "--run-id"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "target_key",
+            "options": [
+              "--target-key"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "snapshot_oid",
+            "options": [
+              "--snapshot-oid"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "input_digest",
+            "options": [
+              "--input-digest"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "phase",
+            "options": [
+              "--phase"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          }
+        ]
+      },
+      "decide": {
+        "help_sha256": "4d559175fdcaa41edb8bb8139ef841c3791434ff0c1a8dffd2814926a718c12c",
+        "actions": [
+          {
+            "dest": "help",
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": "==SUPPRESS=="
+          },
+          {
+            "dest": "issue",
+            "options": [
+              "--issue"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "finding",
+            "options": [
+              "--finding"
+            ],
+            "required": true,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "disposition",
+            "options": [
+              "--disposition"
+            ],
+            "required": false,
+            "choices": [
+              "fix-here",
+              "deferred",
+              "waived"
+            ],
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "deferred_to",
+            "options": [
+              "--deferred-to"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "waived_by",
+            "options": [
+              "--waived-by"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "waived_reason",
+            "options": [
+              "--waived-reason"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "scope",
+            "options": [
+              "--scope"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          }
+        ]
+      }
+    }
+  },
+  "names": {
+    "annotations": {
+      "kind": "feature"
+    },
+    "argparse": {
+      "kind": "module"
+    },
+    "json": {
+      "kind": "module"
+    },
+    "sys": {
+      "kind": "module"
+    },
+    "active_pointer": {
+      "kind": "module"
+    },
+    "ingest_review": {
+      "kind": "module"
+    },
+    "int_args": {
+      "kind": "module"
+    },
+    "karte_loader": {
+      "kind": "module"
+    },
+    "model": {
+      "kind": "module"
+    },
+    "paths": {
+      "kind": "module"
+    },
+    "pointer_completion": {
+      "kind": "module"
+    },
+    "repo_roots": {
+      "kind": "module"
+    },
+    "similarity": {
+      "kind": "module"
+    },
+    "touched_mod": {
+      "kind": "module"
+    },
+    "KarteUsageError": {
+      "kind": "type"
+    },
+    "EXIT_ERROR": {
+      "kind": "constant",
+      "value": 4
+    },
+    "EXIT_OK": {
+      "kind": "constant",
+      "value": 0
+    },
+    "EXIT_SATURATED": {
+      "kind": "constant",
+      "value": 3
+    },
+    "render_lines": {
+      "kind": "function"
+    },
+    "_group_directive": {
+      "kind": "function"
+    },
+    "_priors_for": {
+      "kind": "function"
+    },
+    "_saturated_groups": {
+      "kind": "function"
+    },
+    "STALL_ROUNDS": {
+      "kind": "constant",
+      "value": 3
+    },
+    "_stalled_ids": {
+      "kind": "function"
+    },
+    "_status_payload": {
+      "kind": "function"
+    },
+    "status_lines": {
+      "kind": "function"
+    },
+    "read_stream_text": {
+      "kind": "function"
+    },
+    "fail_close": {
+      "kind": "function"
+    },
+    "require_declared": {
+      "kind": "function"
+    },
+    "STDIN_SOURCE": {
+      "kind": "constant",
+      "value": "-"
+    },
+    "_read_report": {
+      "kind": "function"
+    },
+    "_resolve_close_attempt_number": {
+      "kind": "function"
+    },
+    "_prepare_ingest": {
+      "kind": "function"
+    },
+    "cmd_ingest_review": {
+      "kind": "function"
+    },
+    "cmd_render": {
+      "kind": "function"
+    },
+    "cmd_append": {
+      "kind": "function"
+    },
+    "cmd_close_attempt": {
+      "kind": "function"
+    },
+    "_validate_outcome": {
+      "kind": "function"
+    },
+    "cmd_check": {
+      "kind": "function"
+    },
+    "cmd_status": {
+      "kind": "function"
+    },
+    "build_parser": {
+      "kind": "function"
+    },
+    "main": {
+      "kind": "function"
+    }
+  }
+}
