@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .attempt_record import Attempt, Result
+from .finding_handoff_ledger import emit_lines
 from .finding_record import Finding
 from .karte_record import Karte
 from .value_codec import format_value
@@ -31,6 +32,8 @@ def render_finding(finding: Finding) -> str:
     _emit(lines, "recheck", finding.recheck)
     _emit(lines, "rounds", finding.rounds)
     _emit(lines, "resolved_round", "" if finding.resolved_round is None else finding.resolved_round)
+    if finding.handoff is not None:
+        lines.extend(emit_lines(finding.handoff))
     return "\n".join(lines) + "\n"
 
 

@@ -59,18 +59,31 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
   （fail-close 側）。主文脈がオーナーの決定をレポートへ転記する。保護モードでは台帳の値を保持し、
   主文脈が `decide` で決定を記録する（下記「`ingest-reviewer` / `decide` / `activate`」）。
 
-### `clean` の解除力は `harm: real` にだけ与える（オーナー確定・2026-09-07）
+### `clean` の解除力と検証済み申し送り
 
-`harm: none` の finding に `disposition: deferred` / `waived` を書いても **verdict は動かない**
-（記録としては残る）。`harm: none` の未解消がある間は verdict が `no-harm-only` のままになり、
-「未解消がすべて実害なしになったらオーナーへ打ち上げる」STOP
-（`.ai/skills/issue-pipeline/SKILL.md`「実害の定義とエスカレーション」）が生きる。
+`clean` の解除力は `harm: real` の `deferred` / `waived` に与える。`harm: none` の
+verdict は動かず、未解消が実害なしだけなら `no-harm-only` としてオーナーへ打ち上げる。
+無進捗の計数だけは、`harm: none`・`deferred` の finding に検証済み handoff がある場合に外す。
+`harm: none` の `waived` や未検証・無効の `deferred` は従来どおり数える。
 
-理由：`disposition` はそもそも「`harm: real` に対するオーナー判断の記録」として導入した
-（Issue #495 の提案挙動 3〜5 はいずれも `harm: real` が主語）。解除力を `harm` の値によらず
-与えると、実害なしの指摘に `deferred` と適当な Issue 番号を 2 行書くだけで verdict が
-`clean` へ変わり、**AI が単独で既存のオーナー STOP を消せる**。それは本 Issue が塞いだ
-「ラベルを書くだけで clean を通す」経路と同型のものを `harm: none` 側へ新設することになる。
+2026-09-07 の確定（`harm: none` に解除力を与えない）は、機械検証済みの転記を条件とする無進捗の計数除外に限って #683 で置き換えた。`clean` の解除力は不変。自己申告を検証済み転記に替えた根拠と経緯は `.ai/rationale/karte-handoff-verification.md` を参照。
+
+除外条件は自己申告ではなく、申し送り先が open で、転記が実在し、内容が現在の finding と
+一致することを機械検証する。保証は記録が申し送り先に実在し続けることまでであり、
+申し送りの適否はオーナーが判断する。確認トークンはプレビューと投稿内容の同一性を担保するが、
+オーナーの承認は担保しない。
+
+主文脈は `handoff-preview` で本文・宛先・警告を提示して明示承認を得てから `handoff-post` を
+実行し、合流前に `handoff-recheck` で再検証する。台帳には `handoff_issue`、
+`handoff_comment_url`、`handoff_content_hash`、`handoff_verified_at`、`handoff_state` を記録する。
+
+| 状況 | 計数への復帰・復旧 |
+|---|---|
+| finding の内容、`deferred_to`、`disposition` が変わる | 記録との不一致をローカルで検出し計数に戻す |
+| 宛先が closed、削除、移転または改名 | 再検証で `invalid` にする |
+| コメントの削除・編集または投稿者の不一致 | 再検証で `invalid` にする |
+| `gh`・ネットワーク不可 | 再検証で `invalid` にする |
+| 宛先やコメントが復旧 | 再検証で条件を満たせば `verified` に戻す |
 
 ### 既知の限界（多層防御の一枚であって sandbox ではない）
 
@@ -83,10 +96,12 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
   機械側は区別しない**。`ingest-review` を実行するのは主文脈（AI）であり、
   `.claude/hooks/agent-command-gate.sh` と `.codex/hooks/agent-command-gate.sh` の
   ロール別許可表が `ingest-review` を当事者ロールから締め出す。
-- `deferred_to` は形式（`#123` / `123` / URL）だけを検査し、**指す Issue が実在するかは
-  検証しない**。
-- **したがってこの 2 つについて強制しているのは記録であって、オーナー判断ではない。**
-  この結び（「強制しているのは記録」）は `disposition` 系にだけ掛かる。
+- `deferred_to` 自体は形式を検査する。`harm: none` の `deferred` では `handoff-post` が
+  宛先 Issue の実在・状態と転記の内容を検査する。
+- 無関係な open Issue に投稿して検証を通す余地は残る。宛先は `deferred_to` に結び付く。
+- 旧版が `handoff_*` を無視して台帳を書き直すと記録を失う前方非互換がある。キーの綴り違いも
+  無視され、いずれも除外が効かず計数に戻る。
+- **これらが保証するのは記録と検証であって、オーナー判断ではない。**
 
 #### 非保護モードの `scope` の覆し——記録の強制すら無い
 
@@ -236,6 +251,23 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
   （`agent-command-gate.sh` の `KARTE_SUBCOMMANDS_BY_ROLE`）。`issue-fixer` の許可 verb は従来どおり
   `render`/`append`/`close-attempt`/`check`/`status`。
 
+`handoff-preview`・`handoff-post`・`handoff-recheck` も主文脈専用で、両 gate のロール許可表に追加しない。
+Codex では現時点の構成に context-mode の `ctx_execute`・`ctx_execute_file`・`ctx_batch_execute` が提供されていない（F-809-21）。
+Claude 側 gate だけがこれらを検査し（`.claude/hooks/agent-command-gate.sh:40,1422`、`.claude/settings.json:14`）、
+Codex 側 gate はシェル系ツールだけを見て非シェルツールは対象外とする（`.codex/hooks/agent-command-gate.sh:105,996`、`.codex/hooks.json:19`）。
+根拠: `.codex/config.toml`（1〜161 行）に `mcp_servers` 登録がなく、工程ロール（issue-fixer・issue-implementer・pr-reviewer 等）の
+Codex custom agent も無い（`python3 -m asset_parity check` の `.codex/agents` 列が `exempt`、
+`docs/methods/codex-workspace-binding.md:18-19,275-281`）。`codex_worktree_exec` は同書の起動形（:89-94）で role profile を選び、
+profile は filesystem・network の規則だけを定める。MCP サーバの有無は repo 外・非版管理の利用者 `~/.codex/config.toml` に依り、
+2026-11-11 のオーナー環境の観測（同ファイル :181-198）では `serena`（`--context=codex`）・`agy`・無効な `claude_review` で context-mode は無い。
+`serena` の codex 文脈は `execute_shell_command` を除外する（`serena/resources/config/contexts/codex.yml:12-18`）。
+Codex が実行するコマンドは `agent_type` を持たず、Codex 版 gate のロール専用層（karte verb の許可表を含む）の対象外で、
+Codex 経路で効くのは gate ではなく permission profile である（`docs/methods/codex-workspace-binding.md:160-163`）。
+これは「現時点の構成の確認」であって機械的保証ではない。将来 repository または利用者設定に context-mode 等の MCP サーバが
+追加されると、Codex gate は検査せず verb のロール拒否は成り立たない。残る限界として、`agy` は別の agent CLI を起動する橋渡しで
+Codex gate は MCP ツール一般を検査しない。`agy` 経由で karte verb が実行できるかは未確認である。
+この回帰を検出する試験・gate は今回追加していない（オーナー決定）。根拠の詳細は `.ai/rationale/karte-handoff-verification.md` §4。
+
 カルテの改ざん防止（`karte/model.py` の「改ざん防止の機械的裏付けと既知の限界」）と同じく、
 静的検査で閉じきれない面はプロンプト規律・レビュー分離・GitHub 側の保護と併用して塞ぐ
 （Issue #129）。
@@ -287,37 +319,21 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
 `status: resolved` は「当該 PR で実際に直った」だけに限定する。`deferred` を `resolved` に
 倒すと「**別 Issue へ移したと書くだけで指摘が台帳から消える**」経路ができ、本 Issue が塞ごうと
 している穴が形を変えて再発する。よって `deferred`/`waived` は `status: open` のまま台帳に残し、
-**「是正を要する finding」の集合からだけ外す**（`Finding.needs_remediation` が偽になる）。
-この除外は verdict だけの話ではない——verdict・`check` の診断網羅要求・無進捗検知（`escalate`）の
-3 経路が同じ 1 つの述語を共有する（次節）。
+`harm: real` の場合は **「是正を要する finding」の集合からだけ外す**（`Finding.needs_remediation` が偽になる）。
+verdict と `check` はこの集合を共有する。無進捗はさらに検証済み handoff を除外する。
 
-### `deferred`/`waived` の除外は 1 箇所に置く（Issue #503）
+### verdict・check と無進捗の除外規則（Issue #503・#683）
 
-**「当該 PR では処置しない」と決まった finding を判定から外す規則は、
-`karte/model.py` の `Finding.needs_remediation`（＝`Finding.cleared_by_disposition` を
-経由する述語）1 箇所にだけ実装する。** 次の 3 経路はこの単一の述語を共有する。
+無進捗の追加除外は 1 箇所に置く（`finding_handoff_exemption.is_stall_exempt`）。
+新しい判定は `karte/finding_record.py` の `Finding.needs_remediation` を経由し、無進捗の追加除外は `is_stall_exempt` に置く。
 
-| 判定経路 | 何に使うか | 集合の入口 |
-|---|---|---|
-| `status` の verdict | `clean` を妨げる未解消 finding | `Karte.remediation_findings()`（`--json` の `blocking_findings`） |
-| `check` の診断網羅要求 | 当該ラウンドで Attempt（診断）が要る finding | 同上を当該ラウンドで絞る |
-| 無進捗検知（`escalate`） | 「3 ラウンド連続未解消」を数える対象 | 同上（`karte/cli.py` の `_stalled_ids`） |
+| 判定経路 | 集合の入口 |
+|---|---|
+| `status` の verdict | `Karte.remediation_findings()`（`blocking_findings`） |
+| `check` の診断網羅要求 | 同集合を当該ラウンドで絞る |
+| 無進捗検知（`escalate`） | 同集合から `finding_handoff_exemption.is_stall_exempt` を追加で除く `karte/stall_detection.py::stalled_ids` |
 
-`render` の `★無進捗` の印も `_stalled_ids` から引く（`status` は無進捗と言わないのに
-`render` だけが是正担当へ印を見せる、という食い違いを作らないため）。
-
-**なぜ集約するか。** Issue #495 の実装は除外を verdict 算出にだけ入れ、他の経路へ反映しなかった。
-その結果、同じ取りこぼしが**経路の数だけ別々に**開いた——
-
-- `check` が `deferred` の finding にも診断を要求し、是正担当が指示どおりそれを触らずに他を
-  完璧に是正しても必ず `EXIT_ERROR` を返した（Issue #503 観測1）。停止ゲートが**毎ラウンド
-  1 回 block する**ようになると、本物の未診断（是正担当が診断を怠ったケース）を検出できなくなる。
-- 無進捗検知が「誰も直さないと決めた finding」を拾い、`escalate: yes` を偽陽性で出した（同 観測3）。
-  `deferred` を 1 件でも抱えたまま 3 ラウンド以上回る PR は毎回これを出すため、本物の無進捗が
-  偽陽性に紛れて見落とされる。
-
-いずれも「常に鳴るゲートは本物を検出できなくなる」という同じ形の形骸化である。今後
-`deferred`/`waived` を参照する判定を足すときは、この述語を経由させれば自動的に同じ規則が効く。
+`render` の `★無進捗` も `stalled_ids` から引く。
 
 ### `check` の判定規則（Issue #503）
 
@@ -331,7 +347,7 @@ python3 -m karte check [--issue <N>] [--round <R>]
 1. **当該ラウンドの Attempt が、診断が要る未解消 finding を網羅している。**
    - 対象は「当該ラウンドで挙げられた（`rounds` に `R` を含む）」かつ
      「`Finding.needs_remediation` が真」の finding。
-   - **`disposition` が `deferred` / `waived` の finding は対象から外れる**（上表の集約）。
+   - **`harm: real` で `disposition` が `deferred` / `waived` の finding は対象から外れる**（上表の集約）。
      診断を求めるべきなのは「これから直す finding」であって「直さないと決まった finding」
      ではない。後者に診断を書かせることは、`.claude/rules/03-operational.md`
      「スコープ拡大禁止」に反する記録を台帳へ入れさせることでもある。
@@ -509,6 +525,8 @@ touched-set 自体が空（`--base` を誤って空 diff になったケース�
 `4` 前提違反・検証失敗（fail-close）。加えて `5`（`EXIT_INCOMPLETE`・定義は `karte/exit_codes.py`）は
 `ingest-review`（保護モード）／`ingest-reviewer` が台帳へ**取り込み済み**だがレビューアの再掲漏れがあり
 完了扱いにしない印（失敗ではない。台帳は書き込み済みで期待値も消費済み・Issue #375）。
+`handoff-preview` / `handoff-post` は、転記ブロックを `parse_block` で読み戻して元の内容と一致しない場合
+（マーカー文字列を含む等）、`gh` を呼ぶ前に使用エラーとして `4` で拒否する（F-809-20）。
 
 次の入力は例外（traceback の終了コード 1）ではなく `4` で拒否する（上の 4 種に収まる）：
 
