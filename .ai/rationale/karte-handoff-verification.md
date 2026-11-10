@@ -157,6 +157,12 @@ Claude Code (AI) による転記（karte handoff）
 | `handoff-post --finding <ID> --to <Issue> --agent <名> --confirm <確認トークン>` | 前提条件・確認トークンの一致を検査 → 既存ブロックの採用または投稿 → 読み戻し → ハッシュ照合 → 記録 | 観測（`gh`）は**ロックの外**、書込だけ**ロックの内** | コメント投稿・読取り | 照合成功時だけ `handoff_*` を書く |
 | `handoff-recheck [--finding <ID>...]` | 記録を持つ finding の再検証（最終検証の入口） | 同上（観測はロックの外、書込だけロックの内） | 読取りのみ | 観測結果に従い `handoff_state` を `verified`/`invalid` へ |
 
+`handoff-preview`・`handoff-post` 共通の `preview` は生成ブロックを `parse_block` で解析し、
+解析結果のハッシュとブロック内・元 finding のハッシュを照合する。マーカーを含む等で往復できない本文は
+`gh` を呼ぶ前に使用エラー（`KarteUsageError`・fail-close 境界で終了コード 4）として拒否し、
+読み戻し不能による重複投稿を防ぐ（F-809-20）。`handoff-post` は確認トークンの照合より前にこの検査を通るので、
+有効なトークンを手で組み立てても投稿に進まない。
+
 ### 前提条件（F-809-01：記録を行き先 `deferred_to` に結び付ける）
 `handoff-preview`・`handoff-post` は、次をすべて満たす finding にだけ進む。満たさなければ**使用エラー（`KarteUsageError`）で何も投稿・書込しない**。
 - finding が `status: open`、かつ `disposition: deferred` として**すでに決定済み**（`decide` または保護モード外の取り込みで `deferred_to` が記録されている）。`disposition` が未決定・`fix-here`・`waived` の finding は拒否する（申し送りの適否の判断はオーナーで、verb は決定済みの申し送りを検証するだけ）。
@@ -214,7 +220,12 @@ Claude Code (AI) による転記（karte handoff）
 - **fail-close**：`gh` 不在・ネットワーク不可・非 0 終了・JSON 不正・タイムアウトは検証失敗として扱い、検証済みを書かない（上の失敗種別表）。
 - **GitHub 呼び出しの境界**：`finding_handoff_github.py` が API を定義し、`finding_handoff_gh_run.py` が `subprocess` で `gh api` を実行する（標準ライブラリのみ）。実行関数を差し替えてオフラインで試験する。**`status`・`render`・`check` はネットワークを呼ばない**（設計論点 d。決定論を保つ）。
 - **実行主体（設計論点 f）**：主文脈専用。`.claude/hooks/agent-command-gate.sh` と `.codex/hooks/agent-command-gate.sh` の `KARTE_SUBCOMMANDS_BY_ROLE` は許可リスト方式で、`issue-fixer` は `render/append/close-attempt/check/status`、`pr-reviewer` は `ingest-reviewer` のままとする（新 verb は**どのロールにも追加しない**＝既定で deny）。変更は不要で、**新 verb が両 gate で deny されることを試験で固定する**（Codex 側は `pr-reviewer` に karte verb を許可しない）。ゲートは sandbox ではない（既存の限界と同じ）。
-- Codex 側 gate は `ctx_execute` / `ctx_batch_execute` をシェルツールとして検査しないため、これらの入力経路の deny はこの gate 単独では保証されない。
+- **Codex の ctx 実行経路の観測と限界（F-809-21）**：Claude Code の context-mode プラグインの MCP ツール `mcp__plugin_context-mode_context-mode__*` にある `ctx_execute`・`ctx_execute_file`・`ctx_batch_execute` は Claude 側 gate が `CTX_EXEC_TOOL_SUFFIXES` として検査する（`.claude/hooks/agent-command-gate.sh:40,1422`、`.claude/settings.json:14`）。Codex 側 gate はこれを持たずシェル系の `SHELL_TOOL_NAMES` だけを見る（`.codex/hooks/agent-command-gate.sh:105,996`）。`.codex/hooks.json:17`〜`:19` の `PreToolUse` matcher も `Bash` のみ。
+- `.codex/config.toml:1`〜`:161` の設定は `default_permissions`・`apps.*.tools.*`・`permissions.*` であり `mcp_servers` 登録はない。`python3 -m asset_parity check` の `.codex/agents` 列で issue-fixer・issue-implementer・pr-reviewer・ac-designer・change-planner・test-writer・plan-reviewer・issue-investigator・adviser は `exempt` で、工程ロールの custom agent はない（`docs/methods/codex-workspace-binding.md:7,275`）。既存 `.codex/agents/*.toml` は `name`・`description`・`developer_instructions` のみでツール一覧を持たず、是正当事者・審査ロールではない（例 `.codex/agents/dsv2-lookup.toml:2`〜`:4`）。
+- 工程ロールの唯一の Codex 経路 `codex_worktree_exec` は `codex exec -C <worktree> -c default_permissions="<role>"` で起動し（`docs/methods/codex-workspace-binding.md:89`〜`:94`）、profile の filesystem・network 規則は ctx ツールを付与も禁止もしない。MCP サーバの有無は repo 外で非版管理の利用者 `~/.codex/config.toml` に依る。2026-11-11 のオーナー環境の同ファイル観測では `mcp_servers` は `serena`・`agy`・`claude_review`（`enabled = false`）で、context-mode はない。
+- `serena` は `--context=codex` で起動され、その文脈定義は `execute_shell_command` を除外する（`/home/hiras/.local/share/uv/tools/serena-agent/lib/python3.13/site-packages/serena/resources/config/contexts/codex.yml:12`〜`:18`。設定の所在は同 `~/.codex/config.toml:181`〜`:183`）。`agy` は別の agent CLI（antigravity・codex・copilot・cursor）を起動する橋渡しの MCP で、Codex 内でそのツールが使えるか、使えた場合に karte verb を実行できるかは**未確認**である（機械ローカルの利用者設定・Claude セッションで見えた `agy` の説明に基づく推測であり、Codex 子プロセスでは確かめていない）。
+- **Codex 経路で verb を止めているのは gate ではなく permission profile である**。Codex が実行するコマンドは `agent_type` を持たず、Codex 版 gate のロール専用層（karte verb の許可表を含む）の対象外で、全ロール共通の merge／network・exec の deny だけが掛かる（`docs/methods/codex-workspace-binding.md:160`〜`:163`、`.codex/hooks/agent-command-gate.sh:992`〜`:996`）。F-809-21 の前提（Codex gate がロール拒否を成り立たせる）と食い違うため、Codex 側の karte verb 拒否は「許可表の試験で固定した範囲」と「profile の network 無効・認証情報 deny」の併用であって、gate 単独の保証ではない。
+- これは現時点の構成に ctx 実行ツールが提供されていないという確認であり、版管理された機械的保証ではない（利用者設定の観測は機械ローカル・2026-11-11 時点）。将来 repository の `.codex/config.toml` または利用者の `~/.codex/config.toml` に context-mode 等の MCP サーバを追加すると Codex gate は検査せず、verb のロール拒否は成り立たなくなる。Codex の matcher は `Bash` のみで非シェルツールは対象外のため、MCP ツール一般（`serena`・`agy` を含む）も検査しない。オーナー決定（2026-11-11・F-809-21）により、この回帰を検出する試験・gate は今回追加せず、確認と限界の記録に留める。
 - 遡及（設計論点 g）：導入前に手書きで申し送り済みの Issue のコメントにはブロックが無いので、`handoff-preview`→`handoff-post` でブロックを投稿し直す運用。読み戻しモードは設けない（手書き本文の転記一致は機械照合できないため）。
 
 ## 5. `ingest-review` と レポート入力
@@ -295,7 +306,10 @@ Claude Code (AI) による転記（karte handoff）
 5. Q1〜Q3 のオーナー決定と理由は本ファイル §1 と、#683 本体にも残す。
 
 ## 10. 試験（`gh` はモック・オフライン）
+
 追加するテストと fixture は、`tests/unit/test_karte_finding_handoff_*.py` と `tests/fixtures/karte/` 配下。`gh` は `finding_handoff_github` の実行関数を差し替える。
+- **往復検査（F-809-20）**：通常の finding は通り、マーカーやカンマを含み往復できない本文は `handoff-preview`・`handoff-post` が `gh` を呼ぶ前に終了コード 4 で拒否すること。試験側で独立に組み立てた有効な確認トークンでも投稿・`gh` 呼出しが無いこと（往復検査を外す変異で投稿が 1 回走り失敗する）。
+- **変異ガード（F-809-19）**：一致する再計算ハッシュを持つ `harm: real` の finding を `is_stall_exempt` が除外しないこと、記録の repository が origin と異なる `handoff-recheck` が `gh` を呼ばず `invalid`・終了コード 4 になること、転記ブロックの agent 行が不正・空・別名・欠落のとき `parse_block` が拒否すること。3 条件を単独で外す変異と往復検査の削除（計 4 変異）は、一時コピーで `test_karte_finding_handoff_*.py` が失敗して検出された。
 - 転記ブロックの生成→解析→ハッシュの往復、対象フィールド以外の変更でハッシュが変わらないこと、対象フィールドの変更で変わること。
 - `handoff-preview` が投稿も書込もしないこと、`handoff-post` が確認トークン無し・不一致で使用エラーになり**投稿しない**こと（確認なしの自動投稿をしない）。
 - 投稿→読み戻し→照合→記録の一気通貫。照合失敗（本文改変・ブロック欠落・複数ブロック）で**検証済みを書かない**こと。投稿後の失敗でコメントを削除しないこと。
@@ -327,7 +341,7 @@ Claude Code (AI) による転記（karte handoff）
 | 最終検証時に再検証でき、不一致や closed を出力で指摘 | §4（`handoff-recheck`）・§7・§9 |
 | 試験は `gh` をモックしてオフライン。`status` はネットワークを呼ばない | §4（`finding_handoff_github` の境界）・§10 |
 | README・docstring の 2026-09-07 記述の書換え・経緯の移設・覆す根拠と既知の限界 | §2・§9 |
-| SKILL ②-c の更新。是正当事者ロールが verb を実行できないことの機械確認 | §4（両 gate の deny を試験で固定）・§9 |
+| SKILL ②-c の更新。是正当事者ロールが verb を実行できないことの機械確認 | §4（両 gate の対象入力の deny を試験で固定。Claude 側は ctx 経路も固定。Codex 側の ctx・MCP 経路は gate が検査せず、現構成で提供されていないことの確認と限界を同節に記録＝機械的担保ではない）・§9 |
 | Q1〜Q3 のオーナー決定と理由の記録 | §1 |
 | PR #627 の F-606-29・F-606-30 相当で `escalate` の偽陽性が出ない | §10 |
 | `unittest discover` が green・`maintainability_lint check` が通る | §8（baseline 変更なし） |

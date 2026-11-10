@@ -66,6 +66,8 @@ verdict は動かず、未解消が実害なしだけなら `no-harm-only` と�
 無進捗の計数だけは、`harm: none`・`deferred` の finding に検証済み handoff がある場合に外す。
 `harm: none` の `waived` や未検証・無効の `deferred` は従来どおり数える。
 
+2026-09-07 の確定（`harm: none` に解除力を与えない）は、機械検証済みの転記を条件とする無進捗の計数除外に限って #683 で置き換えた。`clean` の解除力は不変。自己申告を検証済み転記に替えた根拠と経緯は `.ai/rationale/karte-handoff-verification.md` を参照。
+
 除外条件は自己申告ではなく、申し送り先が open で、転記が実在し、内容が現在の finding と
 一致することを機械検証する。保証は記録が申し送り先に実在し続けることまでであり、
 申し送りの適否はオーナーが判断する。確認トークンはプレビューと投稿内容の同一性を担保するが、
@@ -249,6 +251,23 @@ verdict は動かず、未解消が実害なしだけなら `no-harm-only` と�
   （`agent-command-gate.sh` の `KARTE_SUBCOMMANDS_BY_ROLE`）。`issue-fixer` の許可 verb は従来どおり
   `render`/`append`/`close-attempt`/`check`/`status`。
 
+`handoff-preview`・`handoff-post`・`handoff-recheck` も主文脈専用で、両 gate のロール許可表に追加しない。
+Codex では現時点の構成に context-mode の `ctx_execute`・`ctx_execute_file`・`ctx_batch_execute` が提供されていない（F-809-21）。
+Claude 側 gate だけがこれらを検査し（`.claude/hooks/agent-command-gate.sh:40,1422`、`.claude/settings.json:14`）、
+Codex 側 gate はシェル系ツールだけを見て非シェルツールは対象外とする（`.codex/hooks/agent-command-gate.sh:105,996`、`.codex/hooks.json:19`）。
+根拠: `.codex/config.toml`（1〜161 行）に `mcp_servers` 登録がなく、工程ロール（issue-fixer・issue-implementer・pr-reviewer 等）の
+Codex custom agent も無い（`python3 -m asset_parity check` の `.codex/agents` 列が `exempt`、
+`docs/methods/codex-workspace-binding.md:18-19,275-281`）。`codex_worktree_exec` は同書の起動形（:89-94）で role profile を選び、
+profile は filesystem・network の規則だけを定める。MCP サーバの有無は repo 外・非版管理の利用者 `~/.codex/config.toml` に依り、
+2026-11-11 のオーナー環境の観測（同ファイル :181-198）では `serena`（`--context=codex`）・`agy`・無効な `claude_review` で context-mode は無い。
+`serena` の codex 文脈は `execute_shell_command` を除外する（`serena/resources/config/contexts/codex.yml:12-18`）。
+Codex が実行するコマンドは `agent_type` を持たず、Codex 版 gate のロール専用層（karte verb の許可表を含む）の対象外で、
+Codex 経路で効くのは gate ではなく permission profile である（`docs/methods/codex-workspace-binding.md:160-163`）。
+これは「現時点の構成の確認」であって機械的保証ではない。将来 repository または利用者設定に context-mode 等の MCP サーバが
+追加されると、Codex gate は検査せず verb のロール拒否は成り立たない。残る限界として、`agy` は別の agent CLI を起動する橋渡しで
+Codex gate は MCP ツール一般を検査しない。`agy` 経由で karte verb が実行できるかは未確認である。
+この回帰を検出する試験・gate は今回追加していない（オーナー決定）。根拠の詳細は `.ai/rationale/karte-handoff-verification.md` §4。
+
 カルテの改ざん防止（`karte/model.py` の「改ざん防止の機械的裏付けと既知の限界」）と同じく、
 静的検査で閉じきれない面はプロンプト規律・レビュー分離・GitHub 側の保護と併用して塞ぐ
 （Issue #129）。
@@ -306,6 +325,7 @@ verdict と `check` はこの集合を共有する。無進捗はさらに検証
 ### verdict・check と無進捗の除外規則（Issue #503・#683）
 
 無進捗の追加除外は 1 箇所に置く（`finding_handoff_exemption.is_stall_exempt`）。
+新しい判定は `karte/finding_record.py` の `Finding.needs_remediation` を経由し、無進捗の追加除外は `is_stall_exempt` に置く。
 
 | 判定経路 | 集合の入口 |
 |---|---|
@@ -505,6 +525,8 @@ touched-set 自体が空（`--base` を誤って空 diff になったケース�
 `4` 前提違反・検証失敗（fail-close）。加えて `5`（`EXIT_INCOMPLETE`・定義は `karte/exit_codes.py`）は
 `ingest-review`（保護モード）／`ingest-reviewer` が台帳へ**取り込み済み**だがレビューアの再掲漏れがあり
 完了扱いにしない印（失敗ではない。台帳は書き込み済みで期待値も消費済み・Issue #375）。
+`handoff-preview` / `handoff-post` は、転記ブロックを `parse_block` で読み戻して元の内容と一致しない場合
+（マーカー文字列を含む等）、`gh` を呼ぶ前に使用エラーとして `4` で拒否する（F-809-20）。
 
 次の入力は例外（traceback の終了コード 1）ではなく `4` で拒否する（上の 4 種に収まる）：
 

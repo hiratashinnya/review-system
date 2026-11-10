@@ -58,11 +58,16 @@
   **「是正を要する finding」の集合からだけ外す**二層とする。verdict と ``check`` は
   ``Finding.needs_remediation`` を共有し、無進捗はさらに検証済み handoff を除く。
   ``clean`` の解除力は ``harm: real`` にだけ与え、``harm: none`` の verdict は変わらない。
+  2026-09-07 の確定は機械検証済み転記による無進捗計数除外に限り #683 で置き換えた。
+  ``clean`` の解除力は不変。自己申告を検証済み転記に替えた根拠と経緯は
+  ``.ai/rationale/karte-handoff-verification.md`` を参照。
   書式と移行措置の詳細は ``karte/README.md``。
 
 除外規則（Issue #503・#683）:
   verdict と ``check`` は :attr:`karte.model.Finding.needs_remediation` を共有する。
   無進捗検知はこの集合から ``finding_handoff_exemption.is_stall_exempt`` も除く。
+  新しい判定は ``Finding.needs_remediation`` を経由し、無進捗の追加除外は
+  ``karte.finding_handoff_exemption.is_stall_exempt`` に置く。
   ``change_kind`` は文書のみの是正を表す ``doc`` を含む。
 
 依存仕様:
