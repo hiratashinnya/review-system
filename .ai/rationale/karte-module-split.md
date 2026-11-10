@@ -864,3 +864,59 @@ Issue #503「提案挙動」（``deferred``/``waived`` の除外を単一の述�
 # --- 同一指摘の再発番検出 -----------------------------------------------------
 # --- シリアライズ -------------------------------------------------------------
 ```
+
+## K-03 分割計画（#748）
+
+Issue #748（親 #745・K-03・下段 #799＝K-02）の設計。**この節は実装前の設計であり、実装は後続の是正ラウンドで行う**。設計者＝Claude Code (AI)。K-01・K-02 の節は変更しない。
+
+### 着手時点の実測（L2 head a5cb5d2d 上）
+- `python3 -m maintainability_lint check`: `violations=0 accepted_debt=61`（全体）。
+- `karte/cli.py` の登録は3件: `module-over-100-lines`（1101行）、`comment-over-3-lines`が2件（892行目から6行・924行目から5行。どちらも `cmd_status` 内）。Issue #748 本文の「初期5件・現main 1,519行」は #696/#697 統合前の値で、現在値と食い違う。
+- `cli.py` の構成（行数）: モジュール docstring 約90、import・定数 約25、`_read_report` 26、`_resolve_close_attempt_number` 43、`_view_of`/`_priors_for`/`_stalled_ids`/`_saturated_groups`/`_group_directive` 計約100、`cmd_ingest_review` 15、**`cmd_render` 129**、`cmd_append` 61、`cmd_close_attempt` 77、`cmd_check` 96、**`_status_payload` 115**、**`cmd_status` 149**、`build_parser` 91、`main` 5。
+
+### 方針
+- 移す対象は「render/status の表示整形・状態集計」のみ（#748 のスコープ）。`cmd_append`・`cmd_close_attempt`・`cmd_check`・`build_parser` は K-04（#749）の対象なので動かさない。
+- **`cmd_render` と `cmd_status` は `cli.py` に薄い入口として残す**（`@fail_close` の宣言・`pointer_completion.resolve_issue`・`karte_loader.load_karte` の呼び出し・`print`・戻り値 `EXIT_OK`）。`build_parser` の `set_defaults(func=cmd_render/cmd_status)` と `require_declared` の検査を変えない。#721（usage error の終了コード）・#728 が後続で触るため、終了コードの経路は動かさない。
+- 本文の組み立て（文字列の行リスト生成）は純関数に分け、**1行ごとの文言・順序・空行を1文字も変えない**。長い docstring・コメントは本節の下へ逐語移設し、新モジュールには3行以内の要約だけを残す（K-01・K-02 と同じ運用）。
+
+### 新規モジュール（各100行以内・依存は上から下の一方向）
+| 順 | モジュール | 移す内容（移設元 `karte/cli.py`） |
+|---|---|---|
+| 1 | `stall_detection.py` | `STALL_ROUNDS`、`_stalled_ids`（→`stalled_ids`） |
+| 1 | `saturation_groups.py` | `_view_of`、`_priors_for`、`_saturated_groups`、`_group_directive`（公開名で移設。`_saturated_groups` の約35行 docstring は逐語で本節へ） |
+| 2 | `status_verdict.py` | `_status_payload` の前半（open/harmful/blocking/undecided の集合と verdict の算出） |
+| 2 | `status_findings.py` | `_status_payload` の `findings` 配列の整形 |
+| 3 | `status_payload.py` | `status_payload(karte)`（上の2つと `stall_detection`/`saturation_groups` から `--json` の dict を組み立てる。キー順を変えない） |
+| 4 | `status_text.py` | `cmd_status` の非 `--json` 本文（verdict ラベル表・要約行群・escalate 行）。`status_finding_lines.py` に「残存 finding」節を分けてよい（100行に収めるため） |
+| 2 | `render_attempt_lines.py` | `cmd_render` の「Prior attempts」節 |
+| 2 | `render_finding_lines.py` | `cmd_render` の「Open findings」節 |
+| 3 | `render_saturation_lines.py` | `cmd_render` の「飽和したアプローチ」節 |
+| 4 | `render_text.py` | `cmd_render` の本文全体の組み立て（見出し・導入文・各節の連結） |
+
+- `status_text.py` と `render_text.py` は `cli` を import しない。どのモジュールも `karte.cli` を import しない（循環を作らない）。`karte.model`・`karte.similarity`・既存の K-01/K-02 モジュールにだけ依存する。
+- 各モジュールが100行に収まらない場合は、**関数の責務で分け、行数のために任意の位置で切らない**。`dataclass` は作らない（作る場合はロジック class と別 file）。
+
+### `cli.py` に残す公開名と互換
+- 残す: `main`、`build_parser`、`cmd_*`（`cmd_render`・`cmd_status` は薄い入口）、`STALL_ROUNDS`、`EXIT_*`、`STDIN_SOURCE`。
+- 既存テストが `cli._saturated_groups`・`cli._priors_for`・`cli._stalled_ids`・`cli._status_payload` を直接呼ぶ（`tests/unit/test_karte_cli.py` 1357・1360・1421・1436・3541・3543 行付近）。いずれも **patch ではなく呼び出し**なので、`cli.py` で `from .saturation_groups import saturated_groups as _saturated_groups` のように別名で再エクスポートすれば import 先を変えずに通る。`mock.patch` で `karte.cli.<name>` を差し替えているテストは無い（`repo_roots._PACKAGE_ROOT` 等の他モジュールのみ）。実装時に grep で再確認する。
+- `cmd_check`・`cmd_append` が `_stalled_ids`・`_saturated_groups`・`_priors_for` を使うので、その参照が再エクスポート経由で引き続き解決することを確認する。
+- `karte_notify/*` の docstring が `karte/cli.py::_status_payload` を依存仕様として名指しする。再エクスポートで名前は残るが、実体は `status_payload.py` に移る。これらの参照の更新は K-03 のスコープ外とし、必要なら別 Issue で申し送る（本 PR では `karte_notify` を編集しない）。
+
+### 同値性の検証（足りない回帰検出力）
+既存の `tests/unit/test_karte_cli.py`（verdict 行を厳密に検査する `clean`/`harmful-open` 系、#720 で強化）は**一切書き換えない**。足りないのは「分割前と出力が1文字も変わらない」ことの直接固定なので、次を**分割前のコードで先に記録**してから分割する（K-01・K-02 の golden と同じ手順）。
+1. `tests/unit/test_karte_cli_split_compat.py` と `tests/fixtures/karte/cli_render_status_golden.json` を追加。分割前（本 PR の最初の実装 commit より前）の `render`・`status`・`status --json` の stdout 全文の sha256 と終了コードを記録する。
+2. 入力は決定論的な karte 文書の変異: verdict の3値（clean・harmful-open・no-harm-only）、`deferred`/`waived`/`fix-here`/未決定の disposition、`scope: out`、`harm: none` への disposition、無進捗（3 ラウンド連続）、飽和（pairwise の組と推移律で広がらない組）、Attempt なし・未クローズあり・Result 複数、locus 複数・空、進行ポインタ補完あり/なし。
+3. 異常系: カルテ未作成（`EXIT_NOT_FOUND`）、`--issue` 不正・補完不能、壊れた karte（`KarteFormatError` 経路）。stderr 全文と終了コードを固定する。現状の終了コードを変えない（#721 の挙動変更を入れない）。
+4. `status --json` は `json.loads` した dict の**キー順込み**の比較（`status_payload` のキー順が消費者 `karte_notify` に影響しうるため）。
+5. 変異検出の確認: verdict 判定の1条件削除、`STALL_ROUNDS` の変更、`render` の節見出しの1文字変更が、いずれもこのテストで検出されることを実装 PR で実測して記す。
+
+### baseline の手順と残存違反（K-03 完了時点）
+- baseline は手で編集しない。`python3 -m maintainability_lint baseline` の出力で `maintainability_lint/baseline.json` を更新する。fixer は契約上更新できないため、主文脈が機械的に実行する（K-02 と同じ）。
+- 予定差分: `karte/cli.py` の `comment-over-3-lines` 2件の削除と、`module-over-100-lines` の行数・fingerprint の更新。**`accepted_debt` は 61→59 の見込み**（`cli.py` の `module-over-100-lines` は残る）。新規免除・対象除外は追加しない。
+- K-03 完了時点で `karte/cli.py` に残る違反: `module-over-100-lines` 1件（目標は概ね600行以下。見込みは約630行）、コメント違反 0。K-04（#749）で `cli.py` を100行以内にし、登録を 0 にする。
+- 新しい `#` コメントの連続4行以上は作らない。移設する長いコメント（`cmd_status` 内の 892・924 行目の塊）は3行以内に縮め、全文は下の「移設元コメント」へ。
+
+### 未確認事項（実装時に確認）
+- 各新規モジュールが100行に収まるか（`status_text.py`・`render_text.py` が最有力の超過候補。超えたら責務で更に分ける）。
+- `cmd_status` の `verdict_label` 表（3値の文言）は `status_text.py` に置く。文言は `karte_notify` や README が引用していないか grep する。
+- 移設元コメント・docstring の逐語保全は、実装者が移設前に本節へ追記する（本節は設計であり、逐語の移設は実装 PR で行う）。
