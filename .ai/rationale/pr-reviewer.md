@@ -423,7 +423,11 @@ Codex の `gitgate show-pr-diff` は大きな差分を `tmp/pr-diffs/` に保存
 入力先を誤らせるパス・ヘッダや解釈不能な書式は引き続き拒否する。
 
 経路ごとの更新権限は異なる。レビューア本人の `ingest-reviewer` は既存 finding を再掲して
-`scope` / `status` を更新できる。ポインタ遅延により同じ round へ追記する場合は `--round` を明示する。
+`scope` / `status` を更新できる。`--round` に台帳の最新 round を明示すると同じ round の取り込みを許可するが、
+`### new` で台帳の未解消 finding と同一の指摘を再発番すると拒否され、既存 ID の再掲だけなら成功しうる。
+同じ round の再取り込みは台帳の状態遷移を壊しうるため、ポインタ書込み失敗の回復には使わない。
+主文脈が `karte render --issue <N>` で当該 round の記録を確認し、`activate` でポインタを向け直す
+（`karte/README.md`「進行ポインタの書込みが台帳より後に失敗した窓」）。
 主文脈の保護 `ingest-review` は実装・是正担当からの範囲外指摘など新規 finding の追記専用とし、
 既存 ID の再掲が1件でもあれば全件拒否して何も書かない。既存指摘の変更は `decide` または
 レビューア本人の取り込み経路に委ねる。未再掲の open finding は従来どおり引き継ぐ。

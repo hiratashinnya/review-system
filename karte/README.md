@@ -119,10 +119,10 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
   出力ファイルを変更せず handoff へ保存して実行する。ID 重複・未知 ID・harm/scope 必須・distinct_from を検証し、
   保護モードの共通規則と次の制約を適用する。
   - `--issue` は受けない。Issue は進行ポインタで決まる。round は省略時に「ポインタの round ＋ 1」だが、
-    通常は `--round` を省略し、ポインタの次 round を使う。ポインタ遅延から回復するときだけ明示でき、
-    明示値は台帳の最新 round と同じ場合に限り受け付ける。後退・飛び越しは拒否し、別 Issue の台帳へ
-    書く経路は作らない。ただし台帳に当該 round が既に入った後で、`### new` を含む handoff を同じ round で
-    再取り込みしても、再発番として拒否される（回復は下記「進行ポインタの書込みが台帳より後に失敗した窓」）。
+    通常は `--round` を省略し、ポインタの次 round を使う。明示値は台帳の最新 round と同じ場合に限り
+    受け付ける。後退・飛び越しは拒否し、別 Issue の台帳へ書く経路は作らない。台帳に当該 round が既に
+    入った後の再実行の可否は `--round` の指定と handoff の内容による（条件と回復は下記
+    「進行ポインタの書込みが台帳より後に失敗した窓」）。
   - `--from` は `<repo-root>/tmp/_handoff/pr-reviewer--<英数._->.md` の通常ファイルだけ
     （`..`・symlink 構成要素・別ディレクトリ・別名を拒否。規則は `karte/handoff_path.py` に 1 箇所で、
     Write フックと共有）。
@@ -144,12 +144,17 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
     round 1 でこの窓に入った場合は台帳自体が無いので失敗する。回復の代わりには使えない。
   - **進行ポインタの書込みが台帳より後に失敗した窓**：`ingest_locked` は台帳を書いた後でポインタを進める。
     ポインタの書込みだけが失敗すると、台帳には当該 round の finding が入ったまま、ポインタは前の round に残り、
-    期待値も消費されない（取り込みはエラーで終わる）。この状態の再試行は拒否される。`--round` を省略すると
-    ポインタの次 round が台帳の最新と同じになり「round は単調増加」で、台帳の最新 round を `--round` で明示すると、
-    `### new` を含む handoff は台帳に入った finding と同一の指摘を再発番するものとして「ID 再発番を検出」で拒否される
-    （`ingest_accept.collect_accepted`）。再実行は選ばない。主文脈が `python3 -m karte render --issue <N>` で台帳に
-    当該 round が入っていることを確かめ、`activate --issue <N>`（次のレビューなら期待値の 5 引数つき）でポインタを
-    台帳の最新 round へ向け直す。この回復はポインタと期待値だけを直し、台帳の finding は変えない。
+    期待値も消費されない（取り込みはエラーで終わる）。再実行の可否は `--round` の指定と handoff の内容で変わる。
+    - `--round` を省略すると、ポインタの次 round が台帳の最新と同じになり、handoff の内容によらず
+      「round は単調増加」で拒否される。
+    - 台帳の最新 round を `--round` で明示すると、`### new`（または次に採番できる明示 ID）で
+      台帳に入った未解消 finding と同一の指摘（locus が交差し summary が一致）を再発番する handoff は、
+      「ID 再発番を検出」で拒否される（`ingest_accept.collect_accepted`）。**既存 ID の再掲だけの handoff は
+      同一 round 許可（`allow_same_round`）を通って成功しうる**が、同じ round の再取り込みは台帳の状態遷移を
+      壊しうるので回復手段として選ばない。
+    - **回復はいずれの場合も再実行を使わない。** 主文脈が `python3 -m karte render --issue <N>` で
+      当該 round が台帳に入っていることを確かめ、`activate --issue <N>`（次のレビューなら期待値の 5 引数つき）で
+      ポインタを台帳の最新 round へ向け直す。この回復はポインタと期待値だけを直し、台帳の finding は変えない。
 - **`activate --issue <N> [--run-id R --target-key K --snapshot-oid OID --input-digest D --phase P]`**
   （主文脈専用）：進行ポインタを対象 Issue へ向ける（round は取り込み済みの最新、台帳が無ければ 0）。
   初回の `ingest-reviewer` の前に実行する。5 つの envelope 引数は**全部同時に**与え、review handoff の期待値として
@@ -248,7 +253,8 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
   による隔離の代替ではない。
   `pr-reviewer` はこの verb も原本も触れない。
 - round は進行ポインタの `round`（0＝未取込。欠落・非 ASCII 数字・負数・Issue 不一致は拒否）＋1 で、ロックの内側で決める。
-  `activate` は round 0 を書くため、その直後に主文脈の `ingest-review` で `--round` を省略すると拒否される。
+  台帳が無い Issue の `activate` は round 0 を書くため、その直後に主文脈の `ingest-review` で
+  `--round` を省略すると拒否される。
   初回は `--round 1` を明示する。`ingest-reviewer` は round 0 を自動導出に使う。
   保護モードの `ingest-review` は最新 round の明示で同じ round に追記できる。
   ポインタが遅れて省略値が台帳の最新 round と一致した場合も同じ round への追記になる。小さい round は
@@ -530,8 +536,9 @@ touched-set 自体が空（`--base` を誤って空 diff になったケース�
 
 `dsv2` に合わせる：`0` OK ／ `2` 未検出 ／ `3` 類似飽和（`append` 拒否）／
 `4` 前提違反・検証失敗（fail-close）。加えて `5`（`EXIT_INCOMPLETE`・定義は `karte/exit_codes.py`）は
-`ingest-review`（保護モード）／`ingest-reviewer` が台帳へ**取り込み済み**だがレビューアの再掲漏れがあり
+`ingest-reviewer` が台帳へ**取り込み済み**だが、過去に申告した是正対象の未解消 finding の再掲漏れがあり
 完了扱いにしない印（失敗ではない。台帳は書き込み済みで期待値も消費済み・Issue #375）。
+主文脈専用の保護モードの `ingest-review` は再掲漏れを警告するだけで、終了コード 5 の対象外である。
 
 次の入力は例外（traceback の終了コード 1）ではなく `4` で拒否する（上の 4 種に収まる）：
 
