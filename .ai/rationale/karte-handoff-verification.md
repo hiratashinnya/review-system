@@ -165,10 +165,15 @@ Claude Code (AI) による転記（karte handoff）
 - 宛先が自リポジトリの **Issue**（プルリクエスト・別 repository は拒否）。
 
 ### 行き先の正規化（F-809-08）
-`DEFERRED_TO_RE` は任意のホスト・repository の `https://…/issues/N` を受け入れるので、**番号だけに正規化して比べない**。`karte/finding_handoff_target.py`（純関数）が、次の規則で `deferred_to` と `--to` を `OWNER/REPO#N` へ正規化する。
-- `#N`・`N`：origin の repository（`git remote get-url origin` から導出）とみなす。
-- `https://github.com/OWNER/REPO/issues/N`：ホストが `github.com` で、`OWNER/REPO` が origin と一致する場合だけ有効。**ホストが違う・repository が違う URL は正規化できず**、`handoff-preview`・`handoff-post` は使用エラー、`is_stall_exempt` は不一致（計数に戻る）として扱う。
-- 比較は正規形どうしで行い、`handoff_issue` も同じ正規形で記録する。別 repository の URL の行き先 `deferred_to` と、自リポジトリの同番号への `--to` は一致しない。
+`DEFERRED_TO_RE` は任意のホスト・repository の `https://…/issues/N` を受け入れるので、**番号だけに正規化して比べない**。`karte/finding_handoff_target.py` は、**基準となる repository（`OWNER/REPO`）を引数で受け取る純関数**（git・gh・環境を一切読まない）で、次の規則で行き先を `OWNER/REPO#N` へ正規化する（F-809-11）。
+- **基準 repository の取り方（判定を origin に依存させない）**：
+  - **`is_stall_exempt`（status・render・check の経路）**：基準は、**投稿時に記録した `handoff_issue` の repository 部分**。現在の行き先 `deferred_to` を、この repository を基準に正規化して `handoff_issue` と比べる。したがって述語は **finding だけから決まる純関数**で、`git`・`gh`・origin を呼ばず、origin を持たない一時ディレクトリ・linked worktree でも従来と同じ出力になる（既存の `tests/unit/test_karte_*` への影響なし）。`stalled_ids(karte)` の引数は変えない。
+  - **`handoff-preview`・`handoff-post`・`handoff-recheck`（verb 側）**：基準は **origin の repository**。**origin の導出はこれらの verb だけの責務**で、`finding_handoff_target` には持たせない。導出規則：`git remote get-url origin` を解析する（`https://github.com/OWNER/REPO(.git)`・`git@github.com:OWNER/REPO(.git)`・`ssh://git@github.com/OWNER/REPO(.git)` の各形式、末尾の `.git` は除去、owner・repo の大文字小文字は比較時に無視）。**origin が無い・host が github.com でない・解析できない場合は使用エラー**（何も投稿・書込しない）。実行する worktree は、台帳の所在（`main_worktree_root()`）ではなく**呼び出し元 worktree**（`repo_roots.invoking_worktree`。`close-attempt` が diff を測るのと同じ）とし、その `origin` を読む。
+- 規則（基準 repository を `B` とする）：
+  - `#N`・`N`：`B#N`。
+  - `https://github.com/OWNER/REPO/issues/N`：ホストが `github.com` で、`OWNER/REPO` が `B` と一致する（大文字小文字を無視）場合だけ有効（正規形は `B#N`）。**ホストが違う・repository が違う URL は正規化できず**、`handoff-preview`・`handoff-post` は使用エラー、`is_stall_exempt` は不一致（計数に戻る）として扱う。
+- 比較は正規形どうしで行い、`handoff_issue` も `OWNER/REPO#N` で記録する（投稿時に verb が origin から導出）。別 repository の URL の行き先 `deferred_to` と、自リポジトリの同番号への `--to` は一致しない。
+- **`handoff_issue` の repository を verb が検証する**：`handoff-post` は `handoff_issue` の repository が origin と一致する場合にだけ記録し、`handoff-recheck` も観測前に `handoff_issue` の repository が origin と一致することを検査する（一致しなければ `invalid`）。status 側が記録の repository を信頼できるのは、記録を書くのが verb だけで（§5）、書込前にこの検査を通っているため。
 
 検証後に `deferred_to` が書き換わったとき（保護モード外の `ingest-review` が毎ラウンド `deferred_to` を上書きする）は、**検証済み記録は残したまま、除外だけが外れる**（§6 の `handoff_issue == deferred_to` 条件）。ハッシュ不一致と同じ扱い。
 
@@ -192,12 +197,12 @@ Claude Code (AI) による転記（karte handoff）
 |---|---|---|
 | 認証（401・`gh` 未ログイン）・権限不足（403 でレート制限でないもの） | 検証失敗。`gh auth status` と権限の確認を促す | 書かない（recheck は `invalid`） |
 | **レート制限（403・429。二次制限を含む）** | **権限不足と区別する**。応答ヘッダ（`x-ratelimit-remaining: 0`・`retry-after`）または本文の `rate limit` の文言で判別し、「待って再実行」と案内する（認証エラーと誤案内しない）。再実行は冪等 | 書かない（recheck は `invalid`） |
-| 宛先 Issue 自体が 404・移転・削除 | 使用エラー相当の失敗（宛先が存在しない・移転した旨）。`gh` のリダイレクトは追従せず、移転先の Issue へ黙って切り替えない | 書かない（recheck は `invalid`） |
+| 宛先 Issue 自体が 404・削除、または移転・repository 改名 | 失敗（宛先が存在しない・移転した旨）。**`gh api` は GET のリダイレクトを既定で追従し、止める指定が無い**ので、リダイレクトは追従されるものとして扱い、**レスポンスの `html_url`・`repository_url`・`number` が、要求した `repos/OWNER/REPO/issues/N`（`OWNER/REPO#N`）と一致するか**を検査する。一致しなければ移転・改名として失敗とし、移転先へ黙って切り替えない。コメントの読取りも、レスポンスの `issue_url` が要求した Issue と一致するかで同様に検査する。リダイレクトを避けるために `gh` 以外の HTTP 手段を使わない（標準ライブラリ・`gh` のみの方針を保つ） | 書かない（recheck は `invalid`） |
 | コメント一覧のページ取得の失敗 | 走査失敗＝検証失敗（走査できていない状態で投稿しない） | 書かない（recheck は `invalid`） |
 | 他者が投稿したブロック | 採用・検証の根拠にしない（認証中の `gh` ユーザーの投稿のみ） | 採用しない |
 | 宛先 Issue が locked | 検証失敗。投稿できない旨を出す。既存ブロックの読取りで採用できる場合は採用可 | 採用時のみ書く |
 | 宛先がプルリクエスト／別 repository | 使用エラー（前提条件）。投稿しない | 書かない |
-| レート制限・5xx・タイムアウト・ネットワーク不可 | 検証失敗。再実行を促す（再実行は冪等） | 書かない（recheck は `invalid`） |
+| 5xx・タイムアウト・ネットワーク不可 | 検証失敗。再実行を促す（再実行は冪等。レート制限は上の専用行で扱う） | 書かない（recheck は `invalid`） |
 | 本文の長さ上限（65536 文字）超過 | 投稿前に長さを検査して使用エラー（summary・expected が長すぎる finding は申し送りを分けるようオーナーへ） | 書かない |
 | CRLF・末尾空白への正規化 | §3 の正規化規則を解析・ハッシュ前に適用。差は失敗にしない | — |
 | 本文に `@name`（メンション）を含む | `handoff-preview` の出力に**警告**を出す（意図しない通知の可能性。オーナーが確認してから投稿する） | — |
@@ -205,7 +210,7 @@ Claude Code (AI) による転記（karte handoff）
 ### その他の運用
 - **確認トークン**：投稿予定の本文・宛先・agent 名・finding の content_hash の sha256。オーナーがプレビューを確認した後に主文脈が `--confirm` へ渡す。プレビュー後に finding や本文が変わるとトークンが一致せず**投稿しない**。`handoff-post` は `--confirm` が無ければ使用エラー。**トークンは内容の同一性の担保であって、オーナーの承認の担保ではない**（§2）。
 
-- **対象は自リポジトリの既存 Issue のみ**：宛先の repository は `origin` から導出して固定し、別 repository・新規 Issue 作成は対象外（新規 Issue は `/gh-create-issue` で作った後、その番号を `--to` に渡す）。
+- **対象は自リポジトリの既存 Issue のみ**：宛先の repository は、verb が呼び出し元 worktree の `origin` から導出して固定し（導出規則は「行き先の正規化」。status・render・check は origin を読まない）、別 repository・新規 Issue 作成は対象外（新規 Issue は `/gh-create-issue` で作った後、その番号を `--to` に渡す）。
 - **fail-close**：`gh` 不在・ネットワーク不可・非 0 終了・JSON 不正・タイムアウトは検証失敗として扱い、検証済みを書かない（上の失敗種別表）。
 - **GitHub 呼び出しの境界**：`gh` を呼ぶのは `finding_handoff_github.py` だけ（`subprocess` で `gh api` を実行し、標準ライブラリのみ）。他モジュールは関数引数で実行関数を受け取る（試験は `gh` を差し替えてオフラインで通す）。**`status`・`render`・`check` はネットワークを呼ばない**（設計論点 d。決定論を保つ）。
 - **実行主体（設計論点 f）**：主文脈専用。`.claude/hooks/agent-command-gate.sh` と `.codex/hooks/agent-command-gate.sh` の `KARTE_SUBCOMMANDS_BY_ROLE` は許可リスト方式で、`issue-fixer` は `render/append/close-attempt/check/status`、`pr-reviewer` は `ingest-reviewer` のままとする（新 verb は**どのロールにも追加しない**＝既定で deny）。変更は不要で、**新 verb が両 gate で deny されることを試験で固定する**（Codex 側は `pr-reviewer` に karte verb を許可しない）。ゲートは sandbox ではない（既存の限界と同じ）。
@@ -218,7 +223,7 @@ Claude Code (AI) による転記（karte handoff）
 
 ## 6. 述語と計数（設計論点 a・Q2＝A）
 - `Finding.needs_remediation`・`Karte.remediation_findings`・verdict・`check`・`#614` の領域は**変更しない**。
-- 新しい純関数 `finding_handoff_exemption.is_stall_exempt(finding)` を追加する。真の条件は**すべて**：`status == "open"`、`harm == "none"`、`disposition == "deferred"`、`handoff_state == "verified"`、`handoff_content_hash` が現在の finding から再計算したハッシュと一致、**`handoff_issue` が現在の `deferred_to`（`OWNER/REPO#N` へ正規化後。URL の行き先は origin の repository と一致するときだけ有効）と一致**（F-809-01・F-809-08）。食い違い（`deferred_to` の書き換え・ハッシュ不一致）は、検証済み記録を残したまま除外だけを外す。`decide` や保護モード外の `ingest-review` が `deferred_to` を書き換えても、新しい行き先への `handoff-post` で再検証するまで計数される。
+- 新しい純関数 `finding_handoff_exemption.is_stall_exempt(finding)` を追加する。真の条件は**すべて**：`status == "open"`、`harm == "none"`、`disposition == "deferred"`、`handoff_state == "verified"`、`handoff_content_hash` が現在の finding から再計算したハッシュと一致、**`handoff_issue` が現在の `deferred_to`（現在の行き先を、**`handoff_issue` の repository 部分を基準に** `OWNER/REPO#N` へ正規化した後の値。`#N`・`N` は記録の repository とみなし、URL は host が github.com で repository が記録と一致するときだけ有効）と一致**（F-809-01・F-809-08・F-809-11）。述語は finding だけから決まる純関数で、origin・`git`・`gh` を呼ばない（origin の導出は verb だけの責務。§4「行き先の正規化」）。食い違い（`deferred_to` の書き換え・ハッシュ不一致）は、検証済み記録を残したまま除外だけを外す。`decide` や保護モード外の `ingest-review` が `deferred_to` を書き換えても、新しい行き先への `handoff-post` で再検証するまで計数される。
 - `stall_detection.stalled_ids` は `remediation_findings()` から `is_stall_exempt` を除いて数える。`render` の `★無進捗` は `stalled_ids` を引くので**同じ判定に従う**（経路別の再実装をしない）。`status` の `stalled_findings`・`escalate` も同じ。
 - **`#614` との整合**：`check` 側の決定（診断網羅要求の除外規則）はこの PR で変えない。`handoff_exemption` を単一点にしてあるので、#614 が検証付き除外を採る場合は同じ述語を `check` から呼べる。経路ごとに別規則を作らない。
 - `status --json` には、除外された finding がある場合に限り `handoff_exempt_findings`（ID の配列）を追加する（無い場合はキーを出さず、既存の golden・消費者 `karte_notify` に影響しない）。本文出力にも同じ条件で1行を追加する。
@@ -230,7 +235,7 @@ Claude Code (AI) による転記（karte handoff）
 | `deferred_to` の書き換え（`handoff_issue` と不一致）・`disposition` が `deferred` でなくなった | `status` 時に判定して不一致 → 除外されない（ネットワーク不要・記録は残す） |
 | 申し送り先が closed（completed・not planned とも。Q3＝A） | `handoff-recheck` が `closed` を観測 → `handoff_state: invalid` |
 | コメントの削除・編集 | `handoff-recheck` が 404 または本文のハッシュ不一致を観測 → `invalid` |
-| 宛先 Issue の 404・移転・削除 | `handoff-recheck` が Issue の 404 または移転（リダイレクト）を観測 → `invalid` |
+| 宛先 Issue の 404・削除、または移転・repository 改名 | `handoff-recheck` が 404、または追従後のレスポンスの `html_url`・`repository_url`・`number` が要求した `OWNER/REPO#N` と一致しないことを観測 → `invalid` |
 | コメントの投稿者が認証中の `gh` ユーザーと一致しない | `handoff-recheck` が不一致を観測 → `invalid` |
 | `gh`・ネットワーク不可 | `handoff-recheck` が観測できない → `invalid`（保守側。再実行で観測できれば `verified` へ戻せる）。`status` は記録だけを読むのでネットワークは呼ばない |
 | 申し送り先が open へ戻った・コメントが復旧した | 再実行した `handoff-recheck` が全条件を満たせば `verified` へ戻す |
@@ -254,7 +259,8 @@ Claude Code (AI) による転記（karte handoff）
 | `finding_handoff_result.py` | `VerifyResult`（frozen dataclass のみ） |
 | `finding_handoff_store.py` | **ロック内の短い区間だけ**で、台帳を再読込し観測時の `content_hash`・`deferred_to` 等との一致を再確認してから記録の書込・`handoff_state` の更新を行う（台帳 I/O は `karte_loader`・`paths`・`writer_lock` 経由。ここでは `gh` を呼ばない） |
 | `finding_handoff_errors.py` | `FindingHandoffError(KarteUsageError)`（`kind` 属性。`gh` 由来の全失敗を包む型。F-809-07） |
-| `finding_handoff_target.py` | 行き先の正規化（`#N`・`N`・URL → `OWNER/REPO#N`。origin と異なるホスト・repository は無効。F-809-08） |
+| `finding_handoff_target.py` | 行き先の正規化（`#N`・`N`・URL → `OWNER/REPO#N`。**基準 repository を引数で受ける純関数**で git・gh・環境を読まない。基準と異なるホスト・repository は無効。F-809-08・11） |
+| `finding_handoff_origin.py` | `git remote get-url origin` の解析（https・ssh 形式・`.git`・大文字小文字無視。origin 無し・github.com 以外は使用エラー）。**verb（preview・post・recheck）だけが呼ぶ**。status・render・check は呼ばない |
 | `finding_handoff_scan.py` | 宛先 Issue の既存コメントから同じ finding ID・content_hash のブロックを探す（冪等採用用の純関数） |
 | `verb_handoff_preview.py` / `verb_handoff_post.py` / `verb_handoff_recheck.py` | 各 verb（`@fail_close` を宣言） |
 | `handoff_cli.py` | 引数定義と `register(subparsers, add_issue)`（`parser_*` と同じ流儀で1ファイルに収める。100行を超えるなら `parser_handoff_args.py` に分ける） |
@@ -296,7 +302,8 @@ Claude Code (AI) による転記（karte handoff）
 - **冪等性（F-809-03）**：投稿後に読み戻しを失敗させる `gh` モックで再実行しても、`gh` の投稿呼び出しが**1回に留まる**こと（既存ブロックの採用）。サーバ側作成後のタイムアウト→再実行で重複しないこと。台帳書込だけが失敗した後の再実行で採用されること。CRLF・末尾空白付きの本文でも照合できること。長さ上限超過・locked・認証失敗・レート制限が表のとおり扱われること。`@name` を含むプレビューに警告が出ること。
 - **終了コード（F-809-07）**：`gh` 差替え関数に `CalledProcessError`・`TimeoutExpired`・不正 JSON・想定外のレスポンス形・`gh` 不在をそれぞれ起こさせ、`handoff-post`・`handoff-recheck` の終了コードが 4 で、標準エラーに traceback が無く、検証済みを書かないこと（recheck は `invalid`）。「観測後に finding が変わった」も終了コード 4。
 - **行き先の正規化（F-809-08）**：別 repository の URL の行き先 `deferred_to` に対して自リポジトリの同番号へ `handoff-post` すると拒否されること。検証済みの finding の行き先を別 repository の URL へ書き換えると計数へ戻ること。`#N`・`N`・自リポジトリの URL が同じ正規形になること。
-- **走査・投稿者・Issue 状態（F-809-09）**：2ページ目にだけ既存ブロックがある宛先で重複投稿しないこと（全ページ取得）。ページ取得失敗時に新規投稿しないこと。403 のレート制限（ヘッダ・本文）と権限不足を区別して案内すること。他者投稿のブロックを採用せず、recheck で `invalid` にすること。宛先 Issue の 404・移転で recheck が `invalid` にすること。
+- **走査・投稿者・Issue 状態（F-809-09）**：2ページ目にだけ既存ブロックがある宛先で重複投稿しないこと（全ページ取得）。ページ取得失敗時に新規投稿しないこと。403 のレート制限（ヘッダ・本文）と権限不足を区別して案内すること。他者投稿のブロックを採用せず、recheck で `invalid` にすること。宛先 Issue の 404 で recheck が `invalid` にすること。**移転・改名（F-809-12）**：`gh` 差替え関数が、要求した対象と異なる repository の `html_url`・`repository_url`（または異なる `number`）を返すと recheck が `invalid` にすること（コメントの `issue_url` が異なる場合も同様）。
+- **origin 非依存（F-809-11）**：origin を持たない一時ディレクトリで、検証済み記録つきの finding を含む karte の `status`・`render` が従来どおり実行でき、`git`・`gh` の差替え関数が**呼ばれない**こと。記録の repository と異なる URL の行き先で除外が外れること。origin が無い・github.com 以外・解析できない場合に `handoff-preview`・`handoff-post`・`handoff-recheck` が使用エラーになること（ssh 形式・`.git`・大文字小文字の解析を含む）。
 - **前方非互換の記述（F-809-04）**：旧版相当の読み書き（`handoff_*` を知らない `parse`→`dumps`）で `handoff_*` が失われ、計数に戻ること（記述または試験で確認）。`handoff_*` キーの綴り違いが無視されて除外が効かないこと。
 - 検証済み handoff を持つ `harm: none`・`deferred`・open の finding が、無進捗の計数と `render` の `★無進捗` から外れ、**verdict が `no-harm-only` のまま**であること。`harm: real` の `deferred`・`waived`・未検証・`invalid` の finding の計数が従来どおりであること（回帰）。
 - §7 の復帰条件の各行（ハッシュ不一致・closed completed・closed not planned・コメント削除・コメント編集・`gh` 不可・復旧）。
