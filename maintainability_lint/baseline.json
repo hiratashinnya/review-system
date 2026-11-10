@@ -25,8 +25,6 @@
     "issue_start/subagent_hooks.py|8cc5d6fa2cc924b4": 1,
     "issue_start/subagent_hooks.py|af8a35a9aabb2dd3": 1,
     "issue_start/worktree_ledger.py|09c0c483bbb9b752": 1,
-    "karte/cli.py|57b1a37f983c7336": 1,
-    "karte/cli.py|d87fcc8e5318e874": 1,
     "project_status_sync/model.py|43d8fd6ab29f2cf1": 1
   },
   "mixed_class_files": {
@@ -122,8 +120,8 @@
       "sha256": "5c5b459cdfaf32aa4c1b8f6a2dc5d2ca60bb3ddaa760bf1c7da5f77af1ec252b"
     },
     "karte/cli.py": {
-      "line_count": 1101,
-      "sha256": "568cc00e8a17cd7c21e34e85a094b8cc311e561504edde82832719999b0a9715"
+      "line_count": 621,
+      "sha256": "50b18104fdd76b0dab3bedfa84fc5ff7d85a22fedbfa6af66bdf4692b337c6c0"
     },
     "karte/similarity.py": {
       "line_count": 241,
