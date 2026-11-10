@@ -124,6 +124,42 @@ class AdvisoryTests(unittest.TestCase):
         record_path(self.root, key).write_text("schema_version = 'wrong'\n")
         self.assertEqual(main(["--root", str(self.root), "check"]), 4)
 
+    def test_existing_base_change_is_bound_to_audit(self):
+        key, _ = self.create()
+        self.git("add", ".ai")
+        self.git("commit", "-m", "registered")
+        old = sha(record_path(self.root, key).read_bytes())
+        modify(self.root, "main", key, old, "amend", reason="recheck",
+               changes={"evidence": "new evidence"})
+        self.assertEqual(check_catalog(load_catalog(self.root)), [])
+        self.assertEqual(main(["--root", str(self.root), "check",
+                               "--against-ref", "main", "--require-base"]), 0)
+
+    def test_related_sources_are_append_only(self):
+        key, previous = self.create()
+        modify(self.root, "main", key, previous, "amend", reason="additional finding",
+               changes={"sources": ["finding:F-782-2"]})
+        self.assertEqual(load_catalog(self.root)[key]["sources"],
+                         ["issue:782", "finding:F-782-1", "finding:F-782-2"])
+
+    def test_closing_promoted_keeps_issue_reference(self):
+        key, first = self.create()
+        second = modify(self.root, "main", key, first, "transition",
+                        reason="triage", changes={"status": "triaged"})
+        third = modify(self.root, "main", key, second, "promote",
+                       reason="linked", changes={"promoted_issue": "owner/repo#1"})
+        modify(self.root, "main", key, third, "transition",
+               reason="delivered", changes={"status": "closed"})
+        self.assertEqual(check_catalog(load_catalog(self.root)), [])
+        self.assertEqual(load_catalog(self.root)[key]["promoted_issue"], "owner/repo#1")
+
+    def test_claude_edit_tools_deny_direct_ledger_writes(self):
+        import json
+        settings = Path(__file__).resolve().parents[2] / ".claude/settings.json"
+        deny = json.loads(settings.read_text(encoding="utf-8"))["permissions"]["deny"]
+        self.assertIn("Write(/.ai/advisory/ledger/**)", deny)
+        self.assertIn("Edit(/.ai/advisory/ledger/**)", deny)
+
     def test_role_is_not_a_cli_flag(self):
         with self.assertRaises(SystemExit):
             main(["--root", str(self.root), "new", "--role", "main-thread"])

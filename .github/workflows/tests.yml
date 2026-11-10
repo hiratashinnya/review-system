@@ -164,4 +164,6 @@ jobs:
         with:
           python-version: "3.x"
       - name: Validate Advisory ledger against target branch
-        run: python3 -m advisory check --against-ref "origin/${{ github.base_ref }}" --require-base
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: python3 -m advisory check --against-ref "origin/$BASE_REF" --require-base

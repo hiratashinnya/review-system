@@ -7,7 +7,7 @@ FIELDS = (
     "history",
 )
 EVENT_FIELDS = (
-    "action", "from_status", "to_status", "actor", "at", "reason",
+    "action", "from_status", "to_status", "actor", "at", "reason", "policy_version",
     "previous", "payload_digest", "digest",
 )
 STATES = ("open", "triaged", "promoted", "closed")

@@ -21,7 +21,8 @@ def append_event(record: dict, action: str, previous_status: str,
     event = {
         "action": action, "from_status": previous_status,
         "to_status": record["status"], "actor": actor, "at": at,
-        "reason": reason, "previous": events[-1]["digest"] if events else "",
+        "reason": reason, "policy_version": record["policy_version"],
+        "previous": events[-1]["digest"] if events else "",
         "payload_digest": digest(payload(record)),
     }
     event["digest"] = digest(event)
@@ -60,7 +61,10 @@ def validate_events(record: dict) -> list[str]:
                     or action == "transition" and target not in MOVES.get(state, set())
                     or action == "promote" and (state != "triaged" or target != "promoted")):
                 errors.append(f"invalid state transition at {index}")
-        if event["actor"] != "main-thread" or not event["reason"].strip():
+        if (event["actor"] != "main-thread"
+                or not isinstance(event["reason"], str) or not event["reason"].strip()
+                or not isinstance(event["policy_version"], str)
+                or not event["policy_version"].strip()):
             errors.append(f"invalid actor or reason at {index}")
         previous, state = event["digest"], target
     if state != record.get("status"):

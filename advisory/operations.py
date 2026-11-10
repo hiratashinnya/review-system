@@ -53,6 +53,11 @@ def modify(root: Path, base_ref: str, key: str, expected_sha256: str,
                    "policy_version", "sources", "related_ids", "duplicate_reason"}
         if not changes or not set(changes) <= allowed:
             raise ValueError("invalid mutable field selection")
+        for name in ("sources", "related_ids"):
+            if name in changes:
+                if not isinstance(changes[name], list):
+                    raise ValueError("references must be lists")
+                changes[name] = list(dict.fromkeys(record[name] + changes[name]))
         record.update(changes)
     elif action == "transition":
         if set(changes or {}) != {"status"}:

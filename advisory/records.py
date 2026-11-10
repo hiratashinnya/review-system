@@ -51,8 +51,13 @@ def validate_record(record: object) -> list[str]:
     if not isinstance(record["promoted_issue"], str) or (
             record["promoted_issue"] and not ISSUE.fullmatch(record["promoted_issue"])):
         errors.append("invalid promoted_issue")
-    if (record["status"] == "promoted") != bool(record["promoted_issue"]):
-        errors.append("promoted issue must match promoted state")
+    if record["status"] == "promoted" and not record["promoted_issue"]:
+        errors.append("promoted status must have an existing issue")
+    if record["promoted_issue"] and not any(
+        isinstance(event, dict) and event.get("action") == "promote"
+        for event in record["history"] if isinstance(record["history"], list)
+    ):
+        errors.append("promoted issue must have an audit promotion event")
     if isinstance(record["related_ids"], list) and record["id"] in record["related_ids"]:
         errors.append("self-referential related_ids")
     errors.extend(validate_events(record))

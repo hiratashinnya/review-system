@@ -26,6 +26,13 @@ def load_catalog(root: Path) -> dict[str, dict]:
     return result
 
 
+def _valid(document: dict) -> bool:
+    try:
+        return not validate_record(document)
+    except (TypeError, ValueError, AttributeError, KeyError, IndexError):
+        return False
+
+
 def check_catalog(catalog: dict[str, dict], *, canonical: bool = False,
                   raw_files: dict[str, str] | None = None) -> list[str]:
     errors = []
@@ -47,7 +54,7 @@ def check_catalog(catalog: dict[str, dict], *, canonical: bool = False,
             if ref not in catalog:
                 errors.append(key + ": missing related advisory: " + str(ref))
         valid_peers = {name: item for name, item in catalog.items() if name != key
-                       and not validate_record(item)}
+                       and _valid(item)}
         errors.extend(key + ": " + error for error in duplicate_errors(doc, valid_peers))
     return sorted(set(errors))
 
