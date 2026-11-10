@@ -69,6 +69,8 @@ def status_lines(issue, path, payload: dict) -> list[str]:
         f"  無進捗（{STALL_ROUNDS} ラウンド連続未解消）: "
         f"{', '.join(payload['stalled_findings']) or '(なし)'}"
     )
+    if payload.get("handoff_exempt_findings"):
+        lines.append("  検証済み申し送り（無進捗から除外）: " + ", ".join(payload["handoff_exempt_findings"]))
     if payload["saturated_groups"]:
         groups = "; ".join(
             "Attempt " + ", ".join(str(number) for number in members)

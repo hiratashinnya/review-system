@@ -4,6 +4,7 @@ from .block_fields import require_enum, require_nonempty
 from .block_parser import Block
 from .disposition import parse_disposition
 from .finding_id import parse_finding_id
+from .finding_handoff_keys import is_handoff_key
 from .format_error import KarteFormatError
 from .harm_detail_lint import check_harm_detail
 from .review_finding import ReviewFinding
@@ -57,6 +58,8 @@ def review_finding_id(block: Block, issue: int):
 
 
 def review_finding_from_block(block: Block, issue: int, finding_id) -> ReviewFinding:
+    if any(is_handoff_key(key) for key in block.fields):
+        raise KarteFormatError(f"{block.lineno} 行目: handoff_ キーはレポートに書けません")
     disposition = parse_disposition(block)
     harm = require_enum(block, "harm", HARM_LEVELS)
     harm_detail = check_harm_detail(
