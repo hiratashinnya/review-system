@@ -163,6 +163,10 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.x"
+      - name: Run dedicated Advisory unit tests
+        run: python3 -m unittest tests.unit.test_advisory
+      - name: Maintainability baseline check
+        run: python3 -m maintainability_lint check
       - name: Validate Advisory ledger against target branch
         env:
           BASE_REF: ${{ github.base_ref }}

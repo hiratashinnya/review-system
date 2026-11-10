@@ -160,6 +160,21 @@ class AdvisoryTests(unittest.TestCase):
         self.assertIn("Write(/.ai/advisory/ledger/**)", deny)
         self.assertIn("Edit(/.ai/advisory/ledger/**)", deny)
 
+    def test_schema_reference_matches_python_contract(self):
+        import json
+        from advisory.record_fields import EVENT_FIELDS, FIELDS
+        schema = Path(__file__).resolve().parents[2] / ".ai/schema/advisory-ledger-v1.json"
+        declared = json.loads(schema.read_text(encoding="utf-8"))
+        self.assertEqual(set(declared["required"]), set(FIELDS))
+        self.assertEqual(set(declared["$defs"]["event"]["required"]), set(EVENT_FIELDS))
+        self.assertIs(declared["additionalProperties"], False)
+        self.assertIs(declared["$defs"]["event"]["additionalProperties"], False)
+
+    def test_nfkc_id_collision(self):
+        self.create(topic="A")
+        with self.assertRaisesRegex(ValueError, "collision|duplicate topic"):
+            self.create(topic="Ａ")
+
     def test_role_is_not_a_cli_flag(self):
         with self.assertRaises(SystemExit):
             main(["--root", str(self.root), "new", "--role", "main-thread"])
