@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .audit import append_event
 from .catalog import load_catalog
+from .github_issue import verify_existing_issue
 from .identity import identifier
 from .permissions import require_writer
 from .storage import save
@@ -66,6 +67,7 @@ def modify(root: Path, base_ref: str, key: str, expected_sha256: str,
     elif action == "promote":
         if set(changes or {}) != {"promoted_issue"} or previous != "triaged":
             raise ValueError("promote requires triaged advisory and existing issue")
+        verify_existing_issue(changes["promoted_issue"])
         record.update(changes)
         record["status"] = "promoted"
     else:
