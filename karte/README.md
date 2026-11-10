@@ -148,7 +148,8 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
     - `--round` を省略すると、ポインタの次 round が台帳の最新と同じになり、handoff の内容によらず
       「round は単調増加」で拒否される。
     - 台帳の最新 round を `--round` で明示すると、`### new`（または次に採番できる明示 ID）で
-      台帳に入った未解消 finding と同一の指摘（locus が交差し summary が一致）を再発番する handoff は、
+      台帳に入った未解消 finding と同一の指摘（summary の正規化文字列が完全一致すれば locus を問わず、
+      それ以外は locus が交差し summary の類似度が閾値以上）を再発番する handoff は、
       「ID 再発番を検出」で拒否される（`ingest_accept.collect_accepted`）。**既存 ID の再掲だけの handoff は
       同一 round 許可（`allow_same_round`）を通って成功しうる**が、同じ round の再取り込みは台帳の状態遷移を
       壊しうるので回復手段として選ばない。
@@ -215,7 +216,8 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
   Codex の agent-command gate は `pr-reviewer` に karte verb を許可しない。Codex 経路では
   `codex_worktree_exec` の外側が同じ検証・取り込みを実行する。
 - **handoff ヘッダ**：レポートの先頭（最初の `### ` より前）に `<!-- handoff issue=<N> round=<R> -->` の
-  1 行が必須。進行ポインタから決まる取り込み先の Issue と次のラウンドに一致しないもの（ヘッダ無し・別 Issue・
+  1 行が必須。進行ポインタから決まる取り込み先の Issue と取り込み先の round（`--round` 省略時はポインタの次の round、
+  明示時はその値。`check_header` は解決後の round と照合する）に一致しないもの（ヘッダ無し・別 Issue・
   古い／再利用した handoff）は取り込まない（`### new` だけのレポートで別 Issue へ書く取り違えを防ぐ）。
 - **Codex 起動手順**：既存の承認済み工程レビューは、trusted caller が primary checkout から
   `python3 -m issue_start.readonly_workspace --source <primary> --approval-file tmp/<approval>.json --role pr-reviewer -C <登録済みlinked worktree> --prompt-file tmp/<prompt>.md --output-file tmp/<未作成output>.md --binding-file tmp/<承認済みbinding>.json --model <model> --reasoning-effort <effort>` を実行する。
@@ -252,7 +254,7 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
   バックアップ自体が symlink となり元データが保存されないことがある。これは sandbox やアクセス権
   による隔離の代替ではない。
   `pr-reviewer` はこの verb も原本も触れない。
-- round は進行ポインタの `round`（0＝未取込。欠落・非 ASCII 数字・負数・Issue 不一致は拒否）＋1 で、ロックの内側で決める。
+- `--round` 省略時の round は進行ポインタの `round`（0＝未取込。欠落・非 ASCII 数字・負数・Issue 不一致は拒否）＋1 で、ロックの内側で決める。
   台帳が無い Issue の `activate` は round 0 を書くため、その直後に主文脈の `ingest-review` で
   `--round` を省略すると拒否される。
   初回は `--round 1` を明示する。`ingest-reviewer` は round 0 を自動導出に使う。
@@ -555,5 +557,6 @@ touched-set 自体が空（`--base` を誤って空 diff になったケース�
   （検査は `fullmatch`・正規表現の末尾は `\Z`）。`render` の見出しに出す `round` も、`append` の補完と同じ
   読み方（`pointer_completion.recorded_round`）で検証し、整数でない値は `4`（subagent の文脈へ注入される本文に
   検証前の値を出さない）。ポインタが別 Issue を指す・`round` が 0/欠落のときは見出しに出さない。
-- **ロック内で拒否された `ingest-review`** は `4` を返し台帳・ポインタは書かないが、新規 repo でも
-  `tmp/_karte/` と `.writer.lock` は残る（何も作らずに拒否できるのはロック前の引数・ポインタ・本文の検証だけ）。
+- **ロック内で拒否された `ingest-review`／`ingest-reviewer`** は共通経路 `ingest_locked` で、どちらも
+  `4` を返し台帳・ポインタは書かないが、新規 repo でも `tmp/_karte/` と `.writer.lock` は残る。
+  何も作らずに拒否できるのは、ロック前に行う引数・ポインタ・本文の検証だけである。

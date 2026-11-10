@@ -191,7 +191,7 @@ class TestIngestReviewer(ReviewerIngestCase):
         self.assertEqual("1", parsed.round)
         reviewer_help = parser._subparsers._group_actions[0].choices["ingest-reviewer"].format_help()
         self.assertIn("通常は省略", reviewer_help)
-        self.assertIn("台帳最新 round と同じ値", reviewer_help)
+        self.assertIn("と同じ値に限る", reviewer_help)
 
     def test_reviewer_same_round_retry_requires_explicit_round(self):
         self._activate()
