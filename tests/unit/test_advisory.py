@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 import subprocess
 import tempfile
@@ -13,6 +14,15 @@ from advisory.cli import main
 from advisory.operations import modify, new
 from advisory.paths import record_path
 from advisory.storage import sha
+
+
+def attempt_parallel_update(data):
+    root, key, expected, value = data
+    try:
+        return modify(Path(root), "main", key, expected, "amend",
+                      reason="parallel CAS", changes={"evidence": value})
+    except ValueError:
+        return "conflict"
 
 
 class AdvisoryTests(unittest.TestCase):
@@ -174,6 +184,29 @@ class AdvisoryTests(unittest.TestCase):
         self.create(topic="A")
         with self.assertRaisesRegex(ValueError, "collision|duplicate topic"):
             self.create(topic="Ａ")
+
+    def test_real_parallel_processes_have_exactly_one_winner(self):
+        key, expected = self.create()
+        tasks = [(str(self.root), key, expected, value) for value in ("A", "B")]
+        with ProcessPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(attempt_parallel_update, tasks))
+        self.assertEqual(results.count("conflict"), 1)
+        self.assertEqual(check_catalog(load_catalog(self.root)), [])
+        self.assertIn(load_catalog(self.root)[key]["evidence"], ("A", "B"))
+
+    def test_audit_timestamp_tamper_fails_even_if_digest_rebuilt(self):
+        import tomllib
+        from advisory.audit import digest
+        from advisory.serialization import render
+        key, _ = self.create()
+        path = record_path(self.root, key)
+        record = tomllib.loads(path.read_text(encoding="utf-8"))
+        record["history"][0]["at"] = "not-an-iso-date"
+        event = record["history"][0]
+        event["digest"] = digest({k: value for k, value in event.items()
+                                  if k != "digest"})
+        path.write_text(render(record), encoding="utf-8")
+        self.assertEqual(main(["--root", str(self.root), "check"]), 4)
 
     def test_role_is_not_a_cli_flag(self):
         with self.assertRaises(SystemExit):

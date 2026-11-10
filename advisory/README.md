@@ -41,6 +41,7 @@ Exit codes: 0 success, 2 missing entry, 4 refused or invalid.
   process lock, compare the caller-supplied current SHA-256, validate the entire
   corpus, and replace one file atomically. They reject unsafe references.
 - Every mutation is evidenced by a hash-linked, payload-bound history entry;
+  UTC timestamps, actor attribution, and policy versions are schema checked;
   schema/version/state/ID and normalized ID/topic collisions are checked.
   A similar but genuinely distinct topic needs a recorded distinction reason.
   Meaning cannot be proven nonduplicative by string similarity alone.

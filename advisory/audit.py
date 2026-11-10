@@ -2,6 +2,8 @@
 
 import hashlib
 import json
+import re
+from datetime import datetime
 
 from .record_fields import CHANGERS, EVENT_FIELDS, MOVES
 
@@ -36,6 +38,16 @@ def seal_last_event(record: dict) -> None:
     event["digest"] = digest({k: v for k, v in event.items() if k != "digest"})
 
 
+def _utc_stamp(value: object) -> bool:
+    if not isinstance(value, str) or not value.endswith("Z"):
+        return False
+    try:
+        moment = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return moment.utcoffset().total_seconds() == 0
+    except (TypeError, ValueError, AttributeError):
+        return False
+
+
 def validate_events(record: dict) -> list[str]:
     events, errors = record.get("history"), []
     if not isinstance(events, list) or not events:
@@ -61,12 +73,18 @@ def validate_events(record: dict) -> list[str]:
                     or action == "transition" and target not in MOVES.get(state, set())
                     or action == "promote" and (state != "triaged" or target != "promoted")):
                 errors.append(f"invalid state transition at {index}")
+        if (not _utc_stamp(event["at"])
+                or not isinstance(event["policy_version"], str)
+                or not re.fullmatch(r"[0-9]+\.[0-9]+", event["policy_version"])):
+            errors.append(f"invalid audit timestamp or policy at {index}")
         if (event["actor"] != "main-thread"
                 or not isinstance(event["reason"], str) or not event["reason"].strip()
                 or not isinstance(event["policy_version"], str)
                 or not event["policy_version"].strip()):
             errors.append(f"invalid actor or reason at {index}")
         previous, state = event["digest"], target
+    if events[-1].get("policy_version") != record.get("policy_version"):
+        errors.append("audit policy version differs from record")
     if state != record.get("status"):
         errors.append("history final state does not match record")
     if events[-1].get("payload_digest") != digest(payload(record)):
