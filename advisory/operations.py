@@ -17,7 +17,7 @@ def timestamp(value: str | None) -> str:
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if parsed.tzinfo is None or parsed.utcoffset().total_seconds() != 0:
         raise ValueError("event timestamp must be UTC ISO8601")
-    return value
+    return parsed.isoformat().replace("+00:00", "Z")
 
 
 def new(root: Path, base_ref: str, *, topic: str, created_on: str,

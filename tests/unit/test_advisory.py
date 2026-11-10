@@ -208,6 +208,12 @@ class AdvisoryTests(unittest.TestCase):
         path.write_text(render(record), encoding="utf-8")
         self.assertEqual(main(["--root", str(self.root), "check"]), 4)
 
+    def test_explicit_zero_offset_is_canonical_utc(self):
+        key, _ = self.create(at="2026-11-10T12:00:00+00:00")
+        entry = load_catalog(self.root)[key]
+        self.assertEqual(entry["history"][0]["at"], "2026-11-10T12:00:00Z")
+        self.assertEqual(check_catalog(load_catalog(self.root)), [])
+
     def test_role_is_not_a_cli_flag(self):
         with self.assertRaises(SystemExit):
             main(["--root", str(self.root), "new", "--role", "main-thread"])
