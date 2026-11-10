@@ -45,6 +45,8 @@ def get_issue(target, run=None):
     _, value = run_json(["gh", "api", "-i", f"repos/{repo}/issues/{number}"], run)
     _object(value, {"state": str, "state_reason": (str, type(None)), "html_url": str,
                     "repository_url": str, "number": int, "locked": bool})
+    if "pull_request" in value:
+        raise FindingHandoffError("pull_request", "プルリクエスト宛には投稿できません")
     _same(value["html_url"], f"https://github.com/{repo}/issues/{number}")
     _same(value["repository_url"], f"https://api.github.com/repos/{repo}")
     if type(value["number"]) is not int or value["number"] != number:

@@ -19,7 +19,6 @@ def issue():
     return {"state": "open", "state_reason": None, "html_url": "https://github.com/o/r/issues/9",
             "repository_url": "https://api.github.com/repos/o/r", "number": 9, "locked": False}
 
-
 class GhTest(unittest.TestCase):
     def setUp(self):
         guard = patch("subprocess.run", side_effect=AssertionError("実コマンド禁止"))
@@ -78,8 +77,12 @@ class GhTest(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(FindingHandoffError) as error:
                 gh.get_issue("o/r#9", lambda *args, **kwargs: reply(data))
             self.assertEqual("moved", error.exception.kind)
-        data = issue() | {"locked": True, "pull_request": {"url": "x"}}
-        self.assertEqual(data, gh.get_issue("O/R#9", lambda *args, **kwargs: reply(data)))
+        data = issue() | {"locked": True, "pull_request": {"url": "x"},
+                          "html_url": "https://github.com/o/r/pull/9"}
+        with self.assertRaises(FindingHandoffError) as error:
+            gh.get_issue("O/R#9", lambda *args, **kwargs: reply(data))
+        self.assertEqual("pull_request", error.exception.kind)
+        self.assertEqual(issue(), gh.get_issue("O/R#9", lambda *args, **kwargs: reply(issue())))
 
     def test_comment_and_login_calls(self):
         seen = []
