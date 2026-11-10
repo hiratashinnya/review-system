@@ -8,7 +8,9 @@ from .record_fields import EVENT_FIELDS, FIELDS
 
 def encode(value: object) -> str:
     if type(value) is str:
-        return json.dumps(value, ensure_ascii=True)
+        if any(0xD800 <= ord(char) <= 0xDFFF for char in value):
+            raise ValueError("TOML strings require Unicode scalar values")
+        return json.dumps(value, ensure_ascii=False).replace("\x7f", "\\u007f")
     if type(value) is int and value >= 0:
         return str(value)
     if isinstance(value, list) and all(isinstance(item, str) for item in value):
