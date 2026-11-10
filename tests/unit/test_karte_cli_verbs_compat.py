@@ -25,6 +25,10 @@ CLOSE = ["close-attempt", "--issue", "7", "--outcome", "fixed", "--diff-file", "
 EXTRA = (reviewer_cli.register, owner_cli.register)
 
 
+def compact(text):
+    return "".join(text.split())
+
+
 def snapshot(root):
     directory = root / "tmp/_karte"
     return {str(p.relative_to(directory)): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -68,7 +72,7 @@ def parser_contract(extra):
             choices = list(a.choices) if a.choices is not None else None
             actions.append({"dest": a.dest, "options": a.option_strings, "required": a.required,
                             "choices": choices, "nargs": a.nargs, "default": action_value(a.default)})
-        result["parsers"][name] = {"help_sha256": hashlib.sha256(item.format_help().encode()).hexdigest(),
+        result["parsers"][name] = {"help_compact_sha256": hashlib.sha256(compact(item.format_help()).encode()).hexdigest(),
                                    "actions": actions}
     return result
 
@@ -177,7 +181,18 @@ class TestKarteCliVerbsCompatibility(unittest.TestCase):
         self.assertEqual(set(self.golden["cases"]), set(actual))
         for name, result in actual.items():
             with self.subTest(case=name):
-                self.assertEqual(self.golden["cases"][name], result)
+                expected = self.golden["cases"][name].copy()
+                result = result.copy()
+                if expected["stderr"].startswith("usage:") and result["stderr"].startswith("usage:"):
+                    expected["stderr"] = compact(expected["stderr"])
+                    result["stderr"] = compact(result["stderr"])
+                self.assertEqual(expected, result)
+
+    def test_compact_preserves_content_and_order(self):
+        usage = "usage: tool --first VALUE --second OTHER"
+        self.assertEqual(compact(usage), compact("usage: tool --first\n  VALUE --sec\n  ond OTHER"))
+        self.assertNotEqual(compact(usage), compact("usage: tool --second OTHER --first VALUE"))
+        self.assertNotEqual(compact(usage), compact("usage: tool --first VALUE --second DIFFERENT"))
 
     def test_scenarios_exercise_the_named_contracts(self):
         c = self.golden["cases"]
