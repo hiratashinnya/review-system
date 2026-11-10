@@ -38,7 +38,7 @@
 `karte/__init__.py` のモジュール docstring の該当箇所：
 
 ```text
-  **この解除力は ``harm: real`` にだけ与える**（オーナー確定・2026-09-07）
+  無進捗検知にも同じく効く（下記「除外規則は 1 箇所に置く」）。**この解除力は ``harm: real`` にだけ与える**（オーナー確定・2026-09-07）
   ——``harm: none`` にも与えると、実害なしの指摘に ``deferred`` と書くだけで
   「未解消がすべて実害なしになったら打ち上げる」既存の STOP を消せてしまう。
   書式と移行措置の詳細は ``karte/README.md``。
@@ -181,7 +181,7 @@ Claude Code (AI) による転記（karte handoff）
 `writer_lock` の `flock(LOCK_EX)` にはタイムアウトが無く、`fail_close(locked=True)` は verb 全体をロック内で実行する。`gh` が応答しないままロックを握ると、全 karte verb（`status`・`check` を含む停止要件の判定）が待たされる。したがって次に固定する。
 - **`gh` の呼び出しはすべてロックの外**で行う。`handoff-post`・`handoff-recheck` は `locked=False` の verb として宣言し、書込の短い区間だけ内部でロックを取る（`finding_handoff_store` が `writer_lock` を取り、その内側では `gh` を呼ばない）。
 - 流れ：①ロック外で台帳を読み、前提条件を検査し、対象 finding の `content_hash` と `deferred_to` を控える → ②ロック外で `gh` を呼び観測する → ③ロックを取り、**台帳を再読込して**対象 finding の `content_hash`・`deferred_to`・`status`・`disposition` が①の値と一致することを再確認し、一致するときだけ `handoff_*` を書く → ④不一致なら**何も書かず**「観測後に finding が変わった。再実行すること」と `EXIT_ERROR`。`handoff-recheck` が `invalid` を書く場合も同じ流れ。
-- **各 `gh` 呼び出しにタイムアウト**（`finding_handoff_github` の定数。既定 30 秒、`subprocess` の `timeout`）を設け、超過は検証失敗として扱う（検証済みを書かない。recheck は `invalid` 側）。
+- **各 `gh` 呼び出しにタイムアウト**（`finding_handoff_gh_run` の定数。既定 30 秒、`subprocess` の `timeout`）を設け、超過は検証失敗として扱う（検証済みを書かない。recheck は `invalid` 側）。
 - `verb_boundary` の `locked` 宣言と `require_declared` の整合：この2 verb は `locked=False` で宣言する。台帳への書込が `writer_lock` の内側に限られることは、`finding_handoff_store` の単体試験で固定する。
 
 ### 冪等性と部分失敗後の回復（F-809-03）
@@ -212,8 +212,9 @@ Claude Code (AI) による転記（karte handoff）
 
 - **対象は自リポジトリの既存 Issue のみ**：宛先の repository は、verb が呼び出し元 worktree の `origin` から導出して固定し（導出規則は「行き先の正規化」。status・render・check は origin を読まない）、別 repository・新規 Issue 作成は対象外（新規 Issue は `/gh-create-issue` で作った後、その番号を `--to` に渡す）。
 - **fail-close**：`gh` 不在・ネットワーク不可・非 0 終了・JSON 不正・タイムアウトは検証失敗として扱い、検証済みを書かない（上の失敗種別表）。
-- **GitHub 呼び出しの境界**：`gh` を呼ぶのは `finding_handoff_github.py` だけ（`subprocess` で `gh api` を実行し、標準ライブラリのみ）。他モジュールは関数引数で実行関数を受け取る（試験は `gh` を差し替えてオフラインで通す）。**`status`・`render`・`check` はネットワークを呼ばない**（設計論点 d。決定論を保つ）。
+- **GitHub 呼び出しの境界**：`finding_handoff_github.py` が API を定義し、`finding_handoff_gh_run.py` が `subprocess` で `gh api` を実行する（標準ライブラリのみ）。実行関数を差し替えてオフラインで試験する。**`status`・`render`・`check` はネットワークを呼ばない**（設計論点 d。決定論を保つ）。
 - **実行主体（設計論点 f）**：主文脈専用。`.claude/hooks/agent-command-gate.sh` と `.codex/hooks/agent-command-gate.sh` の `KARTE_SUBCOMMANDS_BY_ROLE` は許可リスト方式で、`issue-fixer` は `render/append/close-attempt/check/status`、`pr-reviewer` は `ingest-reviewer` のままとする（新 verb は**どのロールにも追加しない**＝既定で deny）。変更は不要で、**新 verb が両 gate で deny されることを試験で固定する**（Codex 側は `pr-reviewer` に karte verb を許可しない）。ゲートは sandbox ではない（既存の限界と同じ）。
+- Codex 側 gate は `ctx_execute` / `ctx_batch_execute` をシェルツールとして検査しないため、これらの入力経路の deny はこの gate 単独では保証されない。
 - 遡及（設計論点 g）：導入前に手書きで申し送り済みの Issue のコメントにはブロックが無いので、`handoff-preview`→`handoff-post` でブロックを投稿し直す運用。読み戻しモードは設けない（手書き本文の転記一致は機械照合できないため）。
 
 ## 5. `ingest-review` と レポート入力
@@ -254,7 +255,10 @@ Claude Code (AI) による転記（karte handoff）
 | `finding_handoff_ledger.py` | ブロック（台帳の finding ブロック）との相互変換（`record_from_block`・`emit_lines`） |
 | `finding_handoff_exemption.py` | `is_stall_exempt(finding)` |
 | `finding_handoff_preview.py` | プレビュー本文・確認トークンの生成 |
-| `finding_handoff_github.py` | `gh api` 呼び出しの唯一の場所（投稿・コメント読取・Issue 状態読取。実行関数を引数で差し替え可能） |
+| `finding_handoff_github.py` | `gh api` の対象・応答の検証と投稿・コメント読取・Issue 状態読取。実行関数を引数で差し替え可能 |
+| `finding_handoff_gh_run.py` | `gh api` の実行・JSON 読取・失敗分類 |
+| `finding_handoff_context.py` | verb 共通の台帳・origin・宛先・Issue 状態の前提検査 |
+| `finding_handoff_observe.py` | コメント識別・照合・時刻・失敗メッセージの共通処理 |
 | `finding_handoff_verify.py` | 読み戻し本文と現在の finding の照合（`VerifyResult` を返す） |
 | `finding_handoff_result.py` | `VerifyResult`（frozen dataclass のみ） |
 | `finding_handoff_store.py` | **ロック内の短い区間だけ**で、台帳を再読込し観測時の `content_hash`・`deferred_to` 等との一致を再確認してから記録の書込・`handoff_state` の更新を行う（台帳 I/O は `karte_loader`・`paths`・`writer_lock` 経由。ここでは `gh` を呼ばない） |

@@ -15,7 +15,7 @@ class MoreTest(VerbCase):
         self.assertIn("locked", output)
         self.assertEqual(0, self.call("handoff-post", *self.flags(), "--confirm", token)[0])
         self.assertEqual(1, self.posts)
-        self.assertEqual(4, self.call("handoff-recheck")[0])
+        self.assertEqual(0, self.call("handoff-recheck")[0])
 
     def test_recheck_invalid_json_and_shape(self):
         self.assertEqual(0, self.post()[0])

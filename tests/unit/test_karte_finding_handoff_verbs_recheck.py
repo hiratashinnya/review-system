@@ -13,7 +13,6 @@ class HandoffRecheckTest(VerbCase):
                     lambda: self.comments[0].update(body="変更"),
                     lambda: self.comments[0].update(user={"login": "other"}),
                     lambda: self.issue.update(html_url="https://github.com/x/r/issues/9"),
-                    lambda: self.issue.update(locked=True),
                     lambda: self.comments.clear()]
         for fail in failures:
             with self.subTest(fail=fail):
@@ -26,6 +25,14 @@ class HandoffRecheckTest(VerbCase):
                 self.comments[:] = [original.copy()]
                 self.assertEqual(0, self.call("handoff-recheck")[0])
                 self.assertEqual("verified", self.ledger().findings[0].handoff.handoff_state)
+
+    def test_locked_issue_remains_verifiable(self):
+        self.assertEqual(0, self.post()[0])
+        self.issue.update(locked=True)
+        code, out, err = self.call("handoff-recheck")
+        self.assertEqual(0, code, err)
+        self.assertIn("verified", out)
+        self.assertEqual("verified", self.ledger().findings[0].handoff.handoff_state)
 
     def test_unavailable_and_changed(self):
         self.assertEqual(0, self.post()[0])

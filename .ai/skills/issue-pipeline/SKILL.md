@@ -157,15 +157,17 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
   4. Codex が正常終了すると executor wrapper が出力ファイルをそのまま読み、primary checkout の進行ポインタから Issue と次 round を決めて handoff を作り、既存 `ingest-reviewer` CLI で検証・取り込みする。Codex 本文から Issue/round を決めず、本文を解析・書換えず、別の LLM にも渡さない。全文は主文脈へ返さず、呼び出し側には `取り込み済み: <path> (issue-N round R)` の1行と警告行だけを返す（判定の要約は含めない）。承認済み binding の `expected.issue` は起動時の進行ポインタと照合し、取り込み直前にも Issue と round を再確認する。Codex 非ゼロ、空出力、ポインタ不在/不一致、ヘッダ不一致、取り込み失敗はすべて run 失敗とする。read-only profile、network 無効、Codex 側の karte 拒否は維持する。一般 PR レビューで承認済み artifact binding を用意する方法は確認できていないため、その場合は起動せず STOP する。
   5. `harm: real` の finding についてオーナーの処置方針（`fix-here` / `deferred` / `waived`）を仰ぐ。`deferred` なら行き先 Issue、`waived` なら許可者と理由もオーナーから得る。レビュー担当の `scope` 申告に疑義があるときも、覆すかどうかは同じ場でオーナーに仰ぐ。
   6. 主文脈がその決定を `python3 -m karte decide --finding <ID> --disposition <値> [--deferred-to <Issue> | --waived-by <許可者> --waived-reason <理由>] [--scope in|out]` で記録する。
-  7. 記録した決定は台帳に残り、次ラウンドの取り込みは `disposition` 系を上書きしない。オーナーが覆した `scope` も保持され、申告の原本は `tmp/_karte/issue-<N>.declared-scope.jsonl`（追記専用）に残る。レポートの専権キーは finding ブロック内なら空値も無視して警告する。前書きの専権キー行は拒否する。
+  7. `harm: none` を `deferred` で申し送るときは、先に `decide` で `deferred_to` を記録し、`handoff-preview` を実行してプレビュー全文（本文・宛先・警告）をチャットでオーナーへ提示し、明示承認を得てから `handoff-post` を実行する。確認トークンは内容の同一性の担保であり、承認の担保ではない。
+  8. 記録した決定は台帳に残り、次ラウンドの取り込みは `disposition` 系を上書きしない。オーナーが覆した `scope` も保持され、申告の原本は `tmp/_karte/issue-<N>.declared-scope.jsonl`（追記専用）に残る。レポートの専権キーは finding ブロック内なら空値も無視して警告する。前書きの専権キー行は拒否する。
   - 実装・是正担当の `out_of_scope_findings` は主文脈が finding レポートに写し、`python3 -m karte ingest-review --issue <N> --round <最新R> --from <path>` で追記する。申告原本がある Issue では保護モードとなり、主文脈 `ingest-review` は新規 finding の追記専用である。既存 ID の再掲は全件拒否し、未再掲の open finding は引き継いで警告する。専権キーは無視して警告する。主文脈による追加は申告原本に記録しない。最新 round の明示でレビュー round を進めず、次の `ingest-reviewer` は進行ポインタの次 round を使う。ポインタが遅れて省略 round が台帳最新値と一致した場合、主文脈経路は同じ round へ追記する。
-  - `decide` / `activate` / `ingest-review` は主文脈専用で、Codex 側 gate は `pr-reviewer` に karte verb を許可しない。Codex の取り込みは外側 wrapper が行う。
+  - `decide` / `activate` / `ingest-review` / `handoff-preview` / `handoff-post` / `handoff-recheck` は主文脈専用で、是正当事者ロールは実行できない。Codex 側 gate は `pr-reviewer` に karte verb を許可しない。Codex の取り込みは外側 wrapper が行う。
 - **是正担当が `integrate-base-abort` の後に STOP したら**、主文脈は報告をオーナーへ打ち上げたうえで、返された退避 tar から必要な内容を取り出し、是正担当を再 dispatch するときに渡す。主文脈は衝突解消の適用・確定を行わない。詳細の正本は `docs/tools/gitgate-base-integration.md`「中止と回復」で、ここへ複製しない。
 - 再レビューは既定のレビュー設定で行う。ラウンド上限で打ち切らず、実害と無進捗を基準に続行・停止を判定する。
 - **clean の条件は「未解消 finding が0件」ではなく「clean を妨げる未解消 finding が0件」**である（次節）。clean ならマージ経路へ進む。残る finding が実害なしだけでも握りつぶさず、起票案＋理由付き推奨を添えてオーナー判断を仰ぐ。
 
 ### ②-d オーナーによるマージ → クローズ
 
+- 合流前に主文脈が `python3 -m karte handoff-recheck` を実行し、`invalid` や不一致があれば出力で指摘する。
 - review が clean になったら、主文脈は `rtk python3 -m pr_merge_gate report <PR番号> --repository <OWNER/REPO> --merge-method <merge|rebase|squash>` を実行し、fresh blocker report を確認する。report は同一snapshotを再読して安定性を確認するが、merge permit を発行せず、merge API を呼ばない。
 - 主文脈は review 判定と report をオーナーへ提示して STOP する。merge はオーナーが GitHub UI 等から手動で行う。AI ロール・主文脈は merge／auto-merge を実行しない。
 - report は取得時点の blocker evidence であり、オーナーの手動操作との間の状態変化を防がない。オーナーは結果を確認してから手動 merge を判断する。
@@ -190,13 +192,13 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 
 **実害ありで処置方針が未決定の finding が1件でも残る間は clean にしない。** 判定は記録台帳の verdict に従う。`deferred` と `waived` は clean を妨げなくなるが、**`status` は `open` のまま残す**。
 
-**この解除力は `harm: real` の finding にだけ与える。** `harm: none` の finding に `disposition` を書いても記録が残るだけで verdict は動かない。
+**clean の解除力は `harm: real` の finding にだけ与える。** `harm: none` の verdict は動かず、検証済み handoff を持つ `deferred` だけが無進捗の計数から外れる。
 
 次の場合は主文脈が STOP してオーナーへ打ち上げる。
 
 - clean を妨げる未解消 finding が残り、それがすべて `harm: none` になった（記録台帳の verdict が `no-harm-only`）。`deferred` / `waived` と決めた `harm: real` の finding はこの判定対象から除外し、打ち上げるときはその finding と処置方針も併せて示す。
 - `harm: real` の finding に処置方針（`fix-here` / `deferred` / `waived`）が未決定のまま残っている。処置方針の決定はオーナー判断であり、AI が単独で `waived` を選ばない。
-- 記録台帳が無進捗と判定した（clean を妨げる同一 finding が3ラウンド連続で未解消）。**申し送り（`deferred`）／処置不要（`waived`）と決めた finding はこの計数から外れる**。判定は台帳側に置き、条文からこの条件を再実装しない。
+- 記録台帳が無進捗と判定した（clean を妨げる同一 finding が3ラウンド連続で未解消）。`harm: real` の `deferred` / `waived` に加え、`harm: none` の `deferred` は検証済み handoff を持つ場合だけ計数から外れる。`harm: none` の `waived`・未検証・無効の `deferred` は計数する。判定は台帳側に置き、条文からこの条件を再実装しない。
 - 診断・記録の類似飽和から転換しても解消できない。
 - 是正担当が `status: stop`（矛盾・情報不足）を返した。
 

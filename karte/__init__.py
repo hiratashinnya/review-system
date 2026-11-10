@@ -54,25 +54,16 @@
   **スコープの内外を問わない単一の列**とし、``scope``（``in``/``out``・必須・免除力なし）と
   ``disposition``（``fix-here``/``deferred``/``waived``＝オーナー判断の記録）を持たせ、
   **``harm: real`` かつ ``disposition`` 未決定の finding が残る間は verdict を ``clean`` に
-  しない**。``deferred``/``waived`` は ``status: open`` のまま台帳に残し、**「是正を要する
-  finding」の集合からだけ外す**二層（``resolved`` に倒すと「別 Issue へ移したと書くだけで
-  指摘が消える」経路が生まれる）。この除外は verdict だけでなく ``check`` の診断網羅要求・
-  無進捗検知にも同じく効く（下記「除外規則は 1 箇所に置く」）。**この解除力は ``harm: real`` にだけ与える**（オーナー確定・2026-09-07）
-  ——``harm: none`` にも与えると、実害なしの指摘に ``deferred`` と書くだけで
-  「未解消がすべて実害なしになったら打ち上げる」既存の STOP を消せてしまう。
+  しない**。``deferred``/``waived`` は ``status: open`` のまま台帳に残し、``harm: real`` は
+  **「是正を要する finding」の集合からだけ外す**二層とする。verdict と ``check`` は
+  ``Finding.needs_remediation`` を共有し、無進捗はさらに検証済み handoff を除く。
+  ``clean`` の解除力は ``harm: real`` にだけ与え、``harm: none`` の verdict は変わらない。
   書式と移行措置の詳細は ``karte/README.md``。
 
-除外規則は 1 箇所に置く（Issue #503）:
-  ``deferred``/``waived``＝「当該 PR では処置しない」と決まった finding を判定から外す規則は、
-  :attr:`karte.model.Finding.needs_remediation` **だけ**に実装する。``status`` の verdict・
-  ``check`` の診断網羅要求・無進捗検知（``escalate``）はこの 1 つの述語を共有する。
-  Issue #495 の実装が除外を verdict 算出にしか入れなかったため、``check`` は
-  ``deferred`` にも診断を要求して**毎ラウンド必ず 1 回 block**し（観測1）、無進捗検知は
-  誰も直さないと決めた finding を拾って ``escalate: yes`` を偽陽性で出していた（観測3）
-  ——同じ取りこぼしが経路の数だけ別々に開いた。以後 ``deferred`` を参照する判定を足すときは、
-  この述語を経由させれば自動的に同じ規則が効く。
-  併せて ``change_kind`` に ``doc``（文書のみの是正）を追加した（観測2。既存カルテの
-  ``config`` 記録は遡って読み替えない＝``karte.model`` の :data:`~karte.model.CHANGE_KINDS`）。
+除外規則（Issue #503・#683）:
+  verdict と ``check`` は :attr:`karte.model.Finding.needs_remediation` を共有する。
+  無進捗検知はこの集合から ``finding_handoff_exemption.is_stall_exempt`` も除く。
+  ``change_kind`` は文書のみの是正を表す ``doc`` を含む。
 
 依存仕様:
   * Issue #307「是正ループの診断カルテ CLI を追加し『類似アプローチの反復』を機械判定する」

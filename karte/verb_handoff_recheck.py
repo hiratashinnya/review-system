@@ -15,9 +15,7 @@ def observe(finding, repository):
     match = re.fullmatch(rf"({REPO})#([1-9][0-9]*)", record.handoff_issue, re.ASCII)
     if not match or match.group(1).lower() != repository.lower():
         raise FindingHandoffError("repository", "記録の repository が origin と一致しません")
-    issue = context.issue_status(record.handoff_issue)
-    if issue["locked"]:
-        raise FindingHandoffError("locked", "宛先 Issue は locked です")
+    context.issue_status(record.handoff_issue)
     verify(record.handoff_issue, record.handoff_comment_url, finding,
            github.current_login(), record.handoff_content_hash)
 
