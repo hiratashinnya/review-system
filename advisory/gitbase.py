@@ -19,10 +19,11 @@ def git(root: Path, *args: str) -> bytes:
 
 def base_files(root: Path, ref: str) -> dict[str, bytes]:
     git(root, "rev-parse", "--verify", ref + "^{commit}")
-    names = git(root, "ls-tree", "-r", "--name-only", ref, "--",
-                LEDGER.as_posix()).decode("utf-8").splitlines()
+    names = git(root, "ls-tree", "-r", "-z", "--name-only", ref, "--",
+                LEDGER.as_posix()).split(b"\0")
+    decoded = [name.decode("utf-8") for name in names if name]
     return {Path(name).stem: git(root, "show", ref + ":" + name)
-            for name in names if name.endswith(".toml")}
+            for name in decoded if name.endswith(".toml")}
 
 
 def compare_to_base(root: Path, catalog: dict[str, dict],
