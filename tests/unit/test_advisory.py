@@ -1,0 +1,133 @@
+"""Issue #782: positive, invalid, concurrent, and actor-role checks."""
+
+import hashlib
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import unittest
+from unittest import mock
+
+from advisory.catalog import check_catalog, load_catalog
+from advisory.cli import main
+from advisory.operations import modify, new
+from advisory.paths import record_path
+from advisory.storage import sha
+
+
+class AdvisoryTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        def git(*args):
+            return subprocess.run(["git", "-C", str(self.root), *args],
+                                  check=True, capture_output=True)
+        self.git = git
+        git("init", "-b", "main")
+        git("config", "user.email", "advisory@example.test")
+        git("config", "user.name", "Advisory test")
+        (self.root / "seed").write_text("seed")
+        git("add", "seed")
+        git("commit", "-m", "seed")
+        self.role = mock.patch.dict(os.environ, {"ADVISORY_CALLER_ROLE": "main-thread"})
+        self.role.start()
+        self.addCleanup(self.role.stop)
+
+    def create(self, topic="改善案を整理", on="2026-11-10", **kw):
+        return new(self.root, "main", topic=topic, created_on=on,
+                   sources=["issue:782", "finding:F-782-1"],
+                   evidence="observed", recommendation="consider fix",
+                   triage_rationale="harm none", policy_version="1.0", **kw)
+
+    def test_round_trip_and_derived_list(self):
+        key, checksum = self.create()
+        path = record_path(self.root, key)
+        self.assertEqual(checksum, sha(path.read_bytes()))
+        self.assertEqual(check_catalog(load_catalog(self.root)), [])
+        code = main(["--root", str(self.root), "check", "--against-ref", "main",
+                     "--require-base"])
+        self.assertEqual(code, 0)
+        self.assertEqual(main(["--root", str(self.root), "list",
+                               "--today", "2026-12-11"]), 0)
+
+    def test_forbid_non_main_writer(self):
+        with mock.patch.dict(os.environ, {"ADVISORY_CALLER_ROLE": "pr-reviewer"}):
+            with self.assertRaisesRegex(ValueError, "main-thread"):
+                self.create()
+
+    def test_duplicate_and_similarity_screen(self):
+        self.create()
+        with self.assertRaisesRegex(ValueError, "duplicate topic"):
+            self.create(on="2026-11-11")
+        with self.assertRaisesRegex(ValueError, "possible semantic duplicate"):
+            self.create(topic="改善案を整理する")
+        self.create(topic="改善案を整理する", duplicate_reason="different artifact")
+
+    def test_conflicting_update_refuses_to_overwrite(self):
+        key, old = self.create()
+        newer = modify(self.root, "main", key, old, "amend", reason="new proof",
+                       changes={"evidence": "proof 2"})
+        self.assertNotEqual(old, newer)
+        with self.assertRaisesRegex(ValueError, "lost update"):
+            modify(self.root, "main", key, old, "amend", reason="stale",
+                   changes={"evidence": "bad"})
+        self.assertEqual(load_catalog(self.root)[key]["evidence"], "proof 2")
+
+    def test_transitions_and_promotion(self):
+        key, first = self.create()
+        with self.assertRaisesRegex(ValueError, "state transition"):
+            modify(self.root, "main", key, first, "transition", reason="invalid",
+                   changes={"status": "promoted"})
+        second = modify(self.root, "main", key, first, "transition", reason="reviewed",
+                        changes={"status": "triaged"})
+        with mock.patch("advisory.cli_actions.verify_existing_issue"):
+            self.assertEqual(main(["--root", str(self.root), "promote", "--base-ref",
+                                   "main", "--id", key, "--expected-sha256", second,
+                                   "--reason", "existing issue", "--existing-issue",
+                                   "owner/repo#42"]), 0)
+        self.assertEqual(load_catalog(self.root)[key]["status"], "promoted")
+
+    def test_manual_tamper_detected(self):
+        key, _ = self.create()
+        path = record_path(self.root, key)
+        path.write_text(path.read_text().replace('evidence = "observed"',
+                                                  'evidence = "forged"'))
+        self.assertEqual(main(["--root", str(self.root), "check"]), 4)
+
+    def test_missing_advisory_reference_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "missing related advisory"):
+            self.create(related_ids=["ADV-20261110-unknown"])
+
+    def test_remote_base_advance_is_refused(self):
+        key, _ = self.create()
+        self.git("add", ".ai")
+        self.git("commit", "-m", "registered")
+        self.git("checkout", "-b", "feature")
+        old = sha(record_path(self.root, key).read_bytes())
+        modify(self.root, "main", key, old, "amend", reason="feature edit",
+               changes={"evidence": "feature"})
+        self.git("add", ".ai")
+        self.git("commit", "-m", "feature edit")
+        self.git("checkout", "main")
+        record_path(self.root, key).write_text(
+            record_path(self.root, key).read_text().replace(
+                'evidence = "observed"', 'evidence = "other"'))
+        self.git("add", ".ai")
+        self.git("commit", "-m", "other edit")
+        self.git("checkout", "feature")
+        self.assertEqual(main(["--root", str(self.root), "check",
+                               "--against-ref", "main", "--require-base"]), 4)
+
+    def test_invalid_schema_is_rejected(self):
+        key, _ = self.create()
+        record_path(self.root, key).write_text("schema_version = 'wrong'\n")
+        self.assertEqual(main(["--root", str(self.root), "check"]), 4)
+
+    def test_role_is_not_a_cli_flag(self):
+        with self.assertRaises(SystemExit):
+            main(["--root", str(self.root), "new", "--role", "main-thread"])
+
+
+if __name__ == "__main__":
+    unittest.main()
