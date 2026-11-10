@@ -214,6 +214,29 @@ class AdvisoryTests(unittest.TestCase):
         self.assertEqual(entry["history"][0]["at"], "2026-11-10T12:00:00Z")
         self.assertEqual(check_catalog(load_catalog(self.root)), [])
 
+
+    def test_non_bmp_unicode_is_persisted_and_amendable(self):
+        from advisory.serialization import encode
+        import tomllib
+        original = "根拠😀𠮷"
+        key, first = new(self.root, "main", topic="絵文字の証拠",
+                         created_on="2026-11-10", sources=["issue:782"],
+                         evidence=original, recommendation="推奨🚀",
+                         triage_rationale="理由🧪", policy_version="1.0")
+        path = record_path(self.root, key)
+        self.assertIn(original, path.read_text(encoding="utf-8"))
+        self.assertEqual(load_catalog(self.root)[key]["evidence"], original)
+        second = modify(self.root, "main", key, first, "amend",
+                        reason="再検証😀", changes={"evidence": "改訂😃"})
+        self.assertNotEqual(first, second)
+        self.assertEqual(load_catalog(self.root)[key]["evidence"], "改訂😃")
+        self.assertEqual(check_catalog(load_catalog(self.root)), [])
+        encoded = encode("DEL:\x7f 😀")
+        self.assertIn("\\u007f", encoded)
+        self.assertEqual(tomllib.loads("value = " + encoded)["value"], "DEL:\x7f 😀")
+        with self.assertRaisesRegex(ValueError, "Unicode scalar"):
+            encode("\ud800")
+
     def test_role_is_not_a_cli_flag(self):
         with self.assertRaises(SystemExit) as caught:
             main(["--root", str(self.root), "new", "--base-ref", "main",
