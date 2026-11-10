@@ -215,8 +215,44 @@ class AdvisoryTests(unittest.TestCase):
         self.assertEqual(check_catalog(load_catalog(self.root)), [])
 
     def test_role_is_not_a_cli_flag(self):
-        with self.assertRaises(SystemExit):
-            main(["--root", str(self.root), "new", "--role", "main-thread"])
+        with self.assertRaises(SystemExit) as caught:
+            main(["--root", str(self.root), "new", "--base-ref", "main",
+                  "--topic", "独立した案", "--created-on", "2026-11-10",
+                  "--source", "issue:782", "--evidence", "known evidence",
+                  "--recommendation", "follow-up",
+                  "--triage-rationale", "harm none",
+                  "--policy-version", "1.0", "--role", "main-thread"])
+        self.assertEqual(caught.exception.code, 2)
+
+    def test_promote_rejects_fake_or_pull_request_api_response(self):
+        import io
+        import json
+        from advisory.github_issue import verify_existing_issue
+        correct = {"number": 42,
+                   "repository_url": "https://api.github.com/repos/owner/repo"}
+        cases = (
+            dict(correct, pull_request={"url": "https://api.github.com/pulls/42"}),
+            dict(correct, number=99),
+            dict(correct, repository_url="https://api.github.com/repos/evil/repo"),
+        )
+        for payload in cases:
+            with self.subTest(payload=payload):
+                stream = io.BytesIO(json.dumps(payload).encode("utf-8"))
+                with mock.patch("advisory.github_issue.urllib.request.urlopen",
+                                return_value=stream):
+                    with self.assertRaisesRegex(ValueError, "does not match"):
+                        verify_existing_issue("owner/repo#42")
+
+    def test_forbid_all_mutation_verbs_without_trusted_role(self):
+        key, checksum = self.create()
+        with mock.patch.dict(os.environ, {"ADVISORY_CALLER_ROLE": "pr-reviewer"}):
+            for action, change in (("amend", {"evidence": "rewritten"}),
+                                   ("transition", {"status": "triaged"})):
+                with self.subTest(action=action):
+                    with self.assertRaisesRegex(ValueError, "main-thread"):
+                        modify(self.root, "main", key, checksum, action,
+                               reason="not trusted", changes=change)
+        self.assertEqual(check_catalog(load_catalog(self.root)), [])
 
 
 if __name__ == "__main__":
