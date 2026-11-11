@@ -42,6 +42,9 @@ def save(root: Path, entry: dict, *, expected_sha256: str | None,
             raise ValueError("cannot create duplicate advisory on base")
         seal_last_event(entry)
         catalog[entry["id"]] = entry
+        local_errors = check_catalog(catalog)
+        if local_errors:
+            raise ValueError("; ".join(local_errors))
         combined = {**remote, **catalog}
         errors = check_catalog(combined)
         if errors:
