@@ -1192,6 +1192,91 @@ class TestIngestReviewerHardening(ReviewerIngestCase):
             self.assertIn("主チェックアウトの絶対パス", (root / rel).read_text(encoding="utf-8"), rel)
 
 
+class TestPendingReviewIsolation(ReviewerIngestCase):
+    """1 枠の進行ポインタを、別 Issue の取り込みから守る（F-375-49）。"""
+
+    issue = 100
+
+    def _main_ingest(self, *, round_no=1, text=None):
+        source = self.root / "tmp/review-200.md"
+        source.write_text(text or _report(), encoding="utf-8")
+        return self._run(cli.cmd_ingest_review, issue="200", round=str(round_no), source=str(source))
+
+    def test_other_issue_main_ingest_keeps_pending_pointer_and_creates_no_ledger(self):
+        self.assertEqual(cli.EXIT_OK, self._activate()[0])
+        pointer = paths.active_path(self.root).read_bytes()
+        code, _, err = self._main_ingest()
+        self.assertEqual(cli.EXIT_ERROR, code, err)
+        self.assertIn("Issue 100", err)
+        self.assertIn("karte activate --issue 100", err)
+        self.assertIn("期待値なし", err)
+        self.assertIn("ingest-reviewer", err)
+        self.assertEqual(pointer, paths.active_path(self.root).read_bytes())
+        self.assertFalse(paths.karte_path(200, self.root).exists())
+        self.assertFalse(scope_ledger.exists(200, self.root))
+
+    def test_other_issue_main_ingest_keeps_existing_ledger_unchanged(self):
+        self.assertEqual(cli.EXIT_OK, self._main_ingest()[0])
+        ledger = paths.karte_path(200, self.root).read_bytes()
+        self.assertEqual(cli.EXIT_OK, self._activate()[0])
+        pointer = paths.active_path(self.root).read_bytes()
+        code, _, err = self._main_ingest(round_no=2, text=_report("F-200-01", status="resolved"))
+        self.assertEqual(cli.EXIT_ERROR, code, err)
+        self.assertEqual(ledger, paths.karte_path(200, self.root).read_bytes())
+        self.assertEqual(pointer, paths.active_path(self.root).read_bytes())
+
+    def test_other_issue_main_ingest_without_expectation_succeeds(self):
+        self.assertEqual(cli.EXIT_OK, self._run(owner_cli.cmd_activate, issue="100")[0])
+        code, _, err = self._main_ingest()
+        self.assertEqual(cli.EXIT_OK, code, err)
+        self.assertTrue(paths.karte_path(200, self.root).exists())
+        self.assertEqual(200, json.loads(paths.active_path(self.root).read_text())["issue"])
+
+    def test_cancelling_pending_review_allows_other_issue_main_ingest(self):
+        self.assertEqual(cli.EXIT_OK, self._activate()[0])
+        self.assertEqual(cli.EXIT_OK, self._run(owner_cli.cmd_activate, issue="100")[0])
+        code, _, err = self._main_ingest()
+        self.assertEqual(cli.EXIT_OK, code, err)
+        self.assertTrue(paths.karte_path(200, self.root).exists())
+
+    def test_other_issue_reviewer_ingest_requires_its_own_expectation(self):
+        self.assertEqual(cli.EXIT_OK, self._activate()[0])
+        pointer = paths.active_path(self.root).read_bytes()
+        header = handoff_header.render_header(1, review_envelope.expected_of(issue=200, **ENVELOPE_ARGS))
+        source = self._handoff(header + "\n\n" + _report())
+        code, _, err = self._run(reviewer_cli.cmd_ingest_reviewer, issue="200", round="1", source=source)
+        self.assertEqual(cli.EXIT_ERROR, code, err)
+        self.assertIn("期待値が無い", err)
+        self.assertEqual(pointer, paths.active_path(self.root).read_bytes())
+        self.assertFalse(paths.karte_path(200, self.root).exists())
+        self.assertFalse(scope_ledger.exists(200, self.root))
+
+    def test_main_ingest_rejects_expectation_with_unverifiable_issue(self):
+        active = paths.active_path(self.root, create_dir=True)
+        for fields in ({}, {"issue": None}, {"issue": "bad"}, {"issue": 0}, {"issue": True}):
+            with self.subTest(fields=fields):
+                paths.karte_path(200, self.root).unlink(missing_ok=True)
+                active.write_text(json.dumps({"round": 0, "review_expect": self._expectation(), **fields}))
+                before = active.read_bytes()
+                code, _, err = self._main_ingest()
+                self.assertEqual(cli.EXIT_ERROR, code, err)
+                self.assertEqual(before, active.read_bytes())
+                self.assertFalse(paths.karte_path(200, self.root).exists())
+
+    def test_main_ingest_rejects_non_dict_expectation_for_any_issue(self):
+        active = paths.active_path(self.root, create_dir=True)
+        for issue in (100, 200):
+            for value in (None, [], "bad"):
+                with self.subTest(issue=issue, value=value):
+                    paths.karte_path(200, self.root).unlink(missing_ok=True)
+                    active.write_text(json.dumps({"issue": issue, "round": 0, "review_expect": value}))
+                    before = active.read_bytes()
+                    code, _, err = self._main_ingest()
+                    self.assertEqual(cli.EXIT_ERROR, code, err)
+                    self.assertEqual(before, active.read_bytes())
+                    self.assertFalse(paths.karte_path(200, self.root).exists())
+
+
 class TestReviewEnvelope(ReviewerIngestCase):
     """handoff の共通 envelope（#371）束縛・round 1 保護・再掲漏れの可視化（Issue #375 是正ラウンド 1）。"""
 
@@ -1269,6 +1354,33 @@ class TestReviewEnvelope(ReviewerIngestCase):
         self.assertFalse(paths.karte_path(self.issue, self.root).exists())
         self._run(owner_cli.cmd_activate, issue=str(self.issue))  # 期待値なしの activate で待ちを解除できる
         self.assertEqual(cli.EXIT_OK, self._legacy_ingest(1, _report(scope="out"))[0])
+
+    def _assert_repair_rejected_without_writing(self, envelope):
+        self.assertEqual(cli.EXIT_OK, self._activate()[0])
+        scope = paths.karte_dir(self.root) / f"issue-{self.issue}.declared-scope.jsonl"
+        scope.write_text(scope.read_text() + "broken scope record\n", encoding="utf-8")
+        before = {path: path.read_bytes() for path in paths.karte_dir(self.root).iterdir() if path.is_file()}
+        with mock.patch.object(owner_cli.scope_ledger_repair, "repair",
+                               wraps=owner_cli.scope_ledger_repair.repair) as repair:
+            code, _, err = self._run(owner_cli.cmd_activate, issue=str(self.issue),
+                                     repair_declared_scope=True, **envelope)
+        self.assertEqual(cli.EXIT_ERROR, code, err)
+        self.assertIn("envelope", err)
+        repair.assert_not_called()
+        after = {path: path.read_bytes() for path in paths.karte_dir(self.root).iterdir() if path.is_file()}
+        self.assertEqual(before, after)
+
+    def test_repair_rejects_complete_review_envelope_without_writing(self):
+        self.assertEqual(cli.EXIT_OK, self._activate()[0])
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])
+        self._assert_repair_rejected_without_writing(ENVELOPE_ARGS)
+
+    def test_repair_rejects_each_partial_review_envelope_without_writing(self):
+        self.assertEqual(cli.EXIT_OK, self._activate()[0])
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])
+        for key, value in ENVELOPE_ARGS.items():
+            with self.subTest(key=key):
+                self._assert_repair_rejected_without_writing({key: value})
 
     def test_activate_without_envelope_does_not_enter_protected_mode(self):
         """期待値なしの activate は待機取消の退避経路。原本を作らず、主文脈の ingest-review は従来どおり（F-375-10）。"""

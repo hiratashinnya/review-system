@@ -84,9 +84,9 @@
 経由するため、`scope` 申告の原本が初出ラウンドから主文脈の手に触れ、改変の検出もできなかった（#523 のブロッカー）。
 また Write も改行付き `--body` も使えず PR コメントを残せない事象があった（PR #479）。
 
-**採用**：`pr-reviewer`（Claude Code）に `tmp/_handoff/pr-reviewer--*.md` への Write だけを PreToolUse フックで許し、
+**採用**：`pr-reviewer`（Claude Code）に `tmp/_handoff/pr-reviewer--*.md` の新規ファイルへの Write だけを PreToolUse フックで許し、
 `karte ingest-reviewer` で本人が取り込む。ファイルなしで取り込む案は、ゲートが標準入力経由（パイプ・heredoc・改行）を
-拒否するため成立しない。
+拒否するため成立しない。既存ファイルへの再 Write は拒否し、別のレポートは新しい key で保存する。
 
 **既存 `ingest-review` をそのまま解禁しなかった理由（却下案）**：`ingest-review` は `scope` と `disposition` 系を毎ラウンド
 レポートの値で上書きする。そのまま渡すと (1) レビューアが自分で `waived` を書ける（オーナー専権の破れ）、(2) オーナーの決定が
@@ -98,7 +98,7 @@
 「指摘した側と直す側の分離」はむしろ強まる。
 
 **Write 許可を `permissions.deny` でなくフックで行う理由**：Write 専用の deny エントリは効かない（Edit 規則が Write も
-覆う・PR #688）。フックは realpath・symlink・`..`・ファイル名を検査し、検査不能は拒否する。
+覆う・PR #688）。フックは realpath・symlink・`..`・ファイル名と新規ファイルであることを検査し、検査不能は拒否する。
 
 **残る限界**：`agent_type` の詐称と静的検査の限界は #129 と同じ。Codex 本体には Write と karte verb を許可しない。
 Codex 経由の取り込みは下記の外側 wrapper 経路を使い、既存bindingを用意できない通常レビューの起動条件は未確認として扱う。
