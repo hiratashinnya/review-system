@@ -61,6 +61,53 @@ class AdvisoryTests(unittest.TestCase):
         self.assertEqual(main(["--root", str(self.root), "list",
                                "--today", "2026-12-11"]), 0)
 
+    def test_writer_temporary_file_does_not_block_concurrent_reads(self):
+        from advisory.paths import WRITER_TEMP_PREFIX
+        key, first = self.create()
+        previous_replace = os.replace
+        observed = []
+
+        def examine_before_replace(source, destination):
+            self.assertTrue(Path(source).name.startswith(WRITER_TEMP_PREFIX))
+            self.assertTrue(Path(source).is_file())
+            observed.append(Path(source).name)
+            self.assertEqual(main(["--root", str(self.root), "show", "--id", key]), 0)
+            self.assertEqual(main(["--root", str(self.root), "list",
+                                   "--today", "2026-11-11"]), 0)
+            self.assertEqual(main(["--root", str(self.root), "check",
+                                   "--against-ref", "main", "--require-base"]), 0)
+            previous_replace(source, destination)
+
+        with mock.patch("advisory.storage.os.replace", side_effect=examine_before_replace):
+            modify(self.root, "main", key, first, "amend",
+                   reason="atomic update", changes={"evidence": "latest"})
+        self.assertEqual(len(observed), 1)
+        self.assertEqual(load_catalog(self.root)[key]["evidence"], "latest")
+
+    def test_abandoned_writer_temp_is_ignored_but_unsafe_entries_fail(self):
+        from advisory.paths import WRITER_TEMP_PREFIX
+        key, first = self.create()
+        folder = record_path(self.root, key).parent
+        leftover = folder / (WRITER_TEMP_PREFIX + "abandoned123")
+        leftover.write_text("partial, not valid TOML", encoding="utf-8")
+        self.assertEqual(main(["--root", str(self.root), "show", "--id", key]), 0)
+        self.assertEqual(main(["--root", str(self.root), "list",
+                               "--today", "2026-11-11"]), 0)
+        self.assertEqual(main(["--root", str(self.root), "check"]), 0)
+        updated = modify(self.root, "main", key, first, "amend",
+                         reason="ignore abandoned temp", changes={"evidence": "safe"})
+        self.assertNotEqual(first, updated)
+        self.assertEqual(main(["--root", str(self.root), "check"]), 0)
+        unexpected = folder / (WRITER_TEMP_PREFIX + "hidden.toml")
+        unexpected.write_text("not a regular ledger record", encoding="utf-8")
+        self.assertEqual(main(["--root", str(self.root), "check"]), 4)
+        unexpected.unlink()
+        disguised_link = folder / (WRITER_TEMP_PREFIX + "symlink")
+        disguised_link.symlink_to(self.root / "seed")
+        self.assertEqual(main(["--root", str(self.root), "check"]), 4)
+        disguised_link.unlink()
+        self.assertEqual(main(["--root", str(self.root), "check"]), 0)
+
     def test_show_checksum_matches_visible_snapshot_during_concurrent_update(self):
         from advisory.cli import execute
         from advisory.cli_parser import parser
