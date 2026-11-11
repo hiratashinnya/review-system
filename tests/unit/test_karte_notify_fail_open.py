@@ -7,6 +7,7 @@
 
 import io
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -175,6 +176,16 @@ class TestStatusOutputFailsOpen(_HookCase):
             raise OSError("no python")
 
         self.assertEqual(0, self.invoke(boom))
+        self.assertEqual("", self.stdout.getvalue())
+        self.assertEqual(["STATUS_UNAVAILABLE"], self.reasons())
+
+    def test_a_status_command_that_times_out_is_a_silent_skip(self):
+        """``STATUS_TIMEOUT_S`` 超過（``TimeoutExpired``）は OSError ではないが同じく fail-open（#728）。"""
+
+        def hang(argv, **kwargs):
+            raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+        self.assertEqual(0, self.invoke(hang))
         self.assertEqual("", self.stdout.getvalue())
         self.assertEqual(["STATUS_UNAVAILABLE"], self.reasons())
 

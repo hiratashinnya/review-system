@@ -668,7 +668,8 @@ class TestStatus(KarteTestCase):
         self.assertEqual(karte.finding("F-307-02").status, "resolved")
         code, out, _err = self._run(cli.cmd_status, json=False)
         self.assertEqual(code, exit_codes.EXIT_OK)
-        self.assertIn("clean", out)
+        self.assertIn("  verdict: clean（", out)
+        self.assertNotIn("verdict: harmful-open", out)
 
     def test_stalled_when_same_finding_open_for_three_rounds(self):
         """同一 finding_id が 3 ラウンド連続未解消なら無進捗と判定する（受入基準）。"""
@@ -713,13 +714,13 @@ class TestSeverityExpectedRecheck(KarteTestCase):
             with self.subTest(missing=missing):
                 fields = {k: v for k, v in HARMFUL.items() if k != missing}
                 code, _out, err = self._ingest(1, ("new", fields))
-                self.assertNotEqual(code, exit_codes.EXIT_OK, f"{missing} 欠落が素通りしている")
+                self.assertEqual(code, exit_codes.EXIT_ERROR, f"{missing} 欠落が素通りしている")
                 self.assertIn(missing, err)
 
     def test_unknown_severity_is_rejected(self):
         fields = {**HARMFUL, "severity": "critical"}
         code, _out, err = self._ingest(1, ("new", fields))
-        self.assertNotEqual(code, exit_codes.EXIT_OK)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("severity", err)
 
     def test_three_keys_survive_a_write_read_roundtrip(self):
@@ -793,13 +794,13 @@ class TestLocusListAndEvidence(KarteTestCase):
         # （完全一致ではなく交差で判定する理由）。
         self._ingest(1, ("new", {**HARMFUL, "locus": "[a/x.md::out, b/x.toml::out]"}))
         code, _out, err = self._ingest(2, ("new", {**HARMFUL, "locus": "b/x.toml::out"}))
-        self.assertNotEqual(code, exit_codes.EXIT_OK, "再発番が素通りしている")
+        self.assertEqual(code, exit_codes.EXIT_ERROR, "再発番が素通りしている")
         self.assertIn("再発番", err)
 
     def test_missing_evidence_is_rejected(self):
         fields = {k: v for k, v in HARMFUL.items() if k != "evidence"}
         code, _out, err = self._ingest(1, ("new", fields))
-        self.assertNotEqual(code, exit_codes.EXIT_OK, "evidence 欠落が素通りしている")
+        self.assertEqual(code, exit_codes.EXIT_ERROR, "evidence 欠落が素通りしている")
         self.assertIn("evidence", err)
 
     def test_evidence_survives_roundtrip_and_is_shown_by_render(self):
@@ -817,7 +818,7 @@ class TestLocusListAndEvidence(KarteTestCase):
         self.assertEqual(findings[0].status, "open")
         # 再掲を省くと K-06 で取り込みごと拒否される＝黙って消せない。
         code, _out, err = self._ingest(2, ("new", HARMFUL))
-        self.assertNotEqual(code, exit_codes.EXIT_OK, "harm: none の指摘が黙って消えている")
+        self.assertEqual(code, exit_codes.EXIT_ERROR, "harm: none の指摘が黙って消えている")
         self.assertIn("F-307-01", err)
 
 

@@ -330,6 +330,31 @@ class ExtractCommandsTests(unittest.TestCase):
         )
 
 
+class ExtractCommandsBatchTypeGuardTests(unittest.TestCase):
+    """Issue #720 T09 / #728: ``ctx_batch_execute`` 分岐の型検査を固定する（変異で落ちること）。"""
+
+    BATCH = "mcp__plugin_context-mode_context-mode__ctx_batch_execute"
+
+    def test_non_string_command_is_ignored(self):
+        for value in (5, None, ["x"], {"a": 1}):
+            with self.subTest(command=value):
+                self.assertEqual(
+                    trigger.extract_commands(self.BATCH, {"commands": [{"command": value}]}), []
+                )
+
+    def test_only_valid_commands_remain_among_invalid_items(self):
+        commands = trigger.extract_commands(
+            self.BATCH,
+            {"commands": [{"command": 5}, "bare", {"label": "x"}, {"command": "gh pr view 1"}]},
+        )
+        self.assertEqual(commands, ["gh pr view 1"])
+
+    def test_commands_that_are_not_a_list_are_empty_even_if_iterable(self):
+        # tuple は反復できるので、list 検査を外すと拾われてしまう（"nope" のような文字列では差が出ない）。
+        item = {"command": "python3 -m karte close-attempt --issue 1"}
+        self.assertEqual(trigger.extract_commands(self.BATCH, {"commands": (item,)}), [])
+
+
 class NotificationContentTests(unittest.TestCase):
     """Issue #512 是正（F-512-03）: escalate 根拠と verdict 内訳が本文に現れることを固定する。"""
 
