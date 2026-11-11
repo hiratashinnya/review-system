@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 LEDGER = Path(".ai/advisory/ledger")
+WRITER_TEMP_PREFIX = ".advisory-"
 
 
 def directory(root: Path, create: bool = False) -> Path:
