@@ -123,7 +123,7 @@
     },
     "karte/cli.py": {
       "line_count": 1101,
-      "sha256": "568cc00e8a17cd7c21e34e85a094b8cc311e561504edde82832719999b0a9715"
+      "sha256": "06b9eb6dd4369774ba1179904c8e3a2892cd9980555447058a05e4cc92d2ffb2"
     },
     "karte/similarity.py": {
       "line_count": 241,

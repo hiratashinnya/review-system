@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 from codex_worktree_exec.artifact_binding import verify_artifact_binding
 from codex_worktree_exec.errors import CodexExecError
+from codex_worktree_exec.initial_binding import INITIAL_FIELDS
 from issue_envelope.handoff import BINDINGS
 from issue_envelope.schema import SPECS
 from feedback_ledger.tomlwrite import dumps
@@ -98,6 +99,21 @@ class ArtifactBindingTests(unittest.TestCase):
         with patch("codex_worktree_exec.repository_artifacts.index", return_value={"nodes": []}):
             with self.assertRaisesRegex(CodexExecError, "outside verified repository collection"):
                 self.verify()
+
+    def test_pr_reviewer_rejects_initial_binding_before_execution(self):
+        self.request.role = "pr-reviewer"
+        path = self.root / "tmp/issue.txt"
+        path.parent.mkdir(exist_ok=True)
+        path.write_bytes(b"issue input")
+        self.binding = dict(
+            recipient="pr-reviewer", input_file="tmp/issue.txt",
+            input_digest=hashlib.sha256(path.read_bytes()).hexdigest(),
+            snapshot_oid=git(self.root, "rev-parse", "HEAD"), issue=371,
+            run_id="r1", target_key="pr-697", investigation_reason="承認済みの Issue 入力",
+        )
+        self.assertEqual(INITIAL_FIELDS, set(self.binding))
+        with self.assertRaisesRegex(CodexExecError, "CODEX_EXEC_BINDING_INVALID.*initial binding contract mismatch"):
+            self.verify()
 
     def test_test_writer_requires_one_existing_plan_unit(self):
         self.request.role = self.binding["recipient"] = "test-writer"
