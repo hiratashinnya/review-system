@@ -2,7 +2,7 @@
 import unittest
 from unittest import mock
 
-from karte import cli, owner_cli, paths, scope_origin, scope_origin_store
+from karte import cli, model, owner_cli, paths, scope_origin, scope_origin_store
 from tests.unit.test_karte_reviewer_ingest import ReviewerIngestCase, _report
 
 
@@ -82,6 +82,24 @@ class TestScopeOrigin(ReviewerIngestCase):
         self.assertEqual({'F-375-01': 'unknown'}, scope_origin.first_writers(self.issue, self.root))
         self.assertEqual(cli.EXIT_ERROR, self._legacy_ingest(1, _report())[0])
         self.assertEqual(0, self._run(owner_cli.cmd_activate, issue=str(self.issue))[0])
+
+    def test_commit_path_and_format_errors_report_saved_ledger(self):
+        for error in (paths.KartePathError('unsafe'), model.KarteFormatError('corrupt')):
+            with self.subTest(error=type(error).__name__):
+                self.setUp()
+                self._run(owner_cli.cmd_activate, issue=str(self.issue))
+                append = scope_origin_store.append_event
+                def fail_commit(issue, root, event):
+                    if event['phase'] == 'committed':
+                        raise error
+                    return append(issue, root, event)
+                with mock.patch.object(scope_origin_store, 'append_event', side_effect=fail_commit):
+                    code, _, err = self._legacy_ingest(1, _report())
+                self.assertEqual(cli.EXIT_ERROR, code)
+                self.assertIn('台帳は保存済み', err)
+                self.assertIn(str(error), err)
+                self.assertEqual('in', self._finding('F-375-01').scope)
+                self.assertEqual({'F-375-01': 'unknown'}, scope_origin.first_writers(self.issue, self.root))
 
 
 if __name__ == '__main__':

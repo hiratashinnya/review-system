@@ -2,7 +2,8 @@
 
 import secrets
 
-from . import scope_origin_store, scope_records
+from . import model, paths, scope_origin_store, scope_records
+from .errors import KarteUsageError
 
 
 def begin(issue, repo_root, accepted, source, round_no):
@@ -16,8 +17,8 @@ def begin(issue, repo_root, accepted, source, round_no):
 def commit(issue, repo_root, event):
     try:
         scope_origin_store.append_event(issue, repo_root, {**event, 'phase': 'committed'})
-    except OSError as exc:
-        raise OSError('台帳は保存済みだが scope 出所の確定に失敗。再取り込みせず render で確認し activate で回復する') from exc
+    except (OSError, paths.KartePathError, model.KarteFormatError) as exc:
+        raise KarteUsageError(f'台帳は保存済みだが scope 出所の確定に失敗: {exc}。原因を解消し、再取り込みせず render で確認し activate で回復する') from exc
 
 
 def first_writers(issue, repo_root):
