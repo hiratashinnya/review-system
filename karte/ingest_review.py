@@ -7,7 +7,7 @@ import sys
 
 from . import (
     ingest_accept, ingest_apply, ingest_checks, ingest_notes, ingest_report, karte_rounds, model, paths,
-    review_expectation, scope_ledger,
+    review_expectation, scope_ledger, scope_origin,
 )
 from .active_pointer import write_active
 from .errors import KarteUsageError
@@ -28,7 +28,6 @@ def ingest_locked(repo_root, issue, round_no, report_text, policy=None, *, allow
         policy = ReviewerIngestPolicy(repo_root, issue, round_no, record_declarations=False)
     path = paths.karte_path(issue, repo_root, create_dir=True)
     karte = model.parse(paths.read_text(path)) if path.is_file() else model.new_karte(issue)
-
     last_round = karte_rounds.last_round(karte)
     if policy is not None and policy.record_declarations and allow_same_round and round_no != last_round:
         raise KarteUsageError(
@@ -84,9 +83,11 @@ def ingest_locked(repo_root, issue, round_no, report_text, policy=None, *, allow
             if finding.id in policy.owner_scopes:
                 finding.scope = policy.owner_scopes[finding.id]
     karte.findings.sort(key=lambda item: item.seq)
+    origin = scope_origin.begin(issue, repo_root, collected.accepted, "reviewer" if policy and policy.record_declarations else "main")
     if policy:
-        policy.persist(round_no)  # 台帳より先に原本を残す（台帳が未更新なら同じ round で再試行できる）
+        policy.persist(round_no)  # 台帳より先に原本を残す
     paths.write_text_atomic(path, model.dumps(karte))
+    scope_origin.commit(issue, repo_root, origin)
     write_active(repo_root, issue, round_no)
     for warning in warnings:
         print(f"警告: {warning}", file=sys.stderr)
