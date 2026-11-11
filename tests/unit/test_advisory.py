@@ -110,6 +110,31 @@ class AdvisoryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "missing related advisory"):
             self.create(related_ids=["ADV-20261110-unknown"])
 
+    def test_save_rejects_base_only_related_id_and_keeps_local_views_usable(self):
+        self.git("checkout", "-b", "feature")
+        self.git("checkout", "main")
+        base_key, _ = self.create(topic="契約検査対象")
+        self.git("add", ".ai")
+        self.git("commit", "-m", "base-only advisory")
+        self.git("checkout", "feature")
+        local_key, _ = self.create(topic="独立した設計項目")
+        before = record_path(self.root, local_key).read_bytes()
+        with self.assertRaisesRegex(ValueError, "missing related advisory"):
+            self.create(topic="別の検討対象", related_ids=[base_key])
+        self.assertFalse(record_path(self.root, "ADV-20261110-別の検討対象").exists())
+        with self.assertRaisesRegex(ValueError, "missing related advisory"):
+            modify(self.root, "main", local_key, sha(before), "amend",
+                   reason="references base-only entry",
+                   changes={"related_ids": [base_key]})
+        self.assertEqual(record_path(self.root, local_key).read_bytes(), before)
+        self.assertEqual(check_catalog(load_catalog(self.root)), [])
+        self.assertEqual(main(["--root", str(self.root), "show",
+                               "--id", local_key]), 0)
+        self.assertEqual(main(["--root", str(self.root), "list",
+                               "--today", "2026-11-11"]), 0)
+        self.assertEqual(main(["--root", str(self.root), "check",
+                               "--against-ref", "main", "--require-base"]), 0)
+
     def test_remote_base_advance_is_refused(self):
         key, _ = self.create()
         self.git("add", ".ai")
