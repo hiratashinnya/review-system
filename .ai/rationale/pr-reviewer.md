@@ -172,6 +172,11 @@ Codex 本文に header がある場合は既存照合で一致を要求し、重
 別の LLM にも渡さない。呼び出し側には `取り込み済み: <path> (issue-N round R)` の1行と karte の警告行だけを返し、判定の要約は含めない。Codex 非ゼロ、空出力、pointer不在/不一致、
 header・parse・保存・ID/round検査・取り込みの失敗は非ゼロで返し、runを完了扱いにしない。他ロールは従来動作のまま。
 
+取り込み子プロセスには60秒の timeout を設け、書込みロックの保持・残留で無期限に待たないようにする。
+timeout は `CODEX_REVIEW_INGEST_FAILED`（終了コード2）とし、`CODEX_REVIEW_INGEST_INCOMPLETE`（終了コード5）は使わない。
+強制終了の時点では台帳への記録や期待値の消費が完了したか不明であり、INCOMPLETE が意味する「台帳へ記録済み・期待値は消費済み」とは断言できないためである。
+再実行前には `karte status` と `tmp/_karte/active.json` で状態を確認する。
+
 **信頼境界**：`.codex/config.toml` の read-only/network無効 profile、`agent-command-gate` の拒否表、
 `pr-reviewer`×karte拒否を変更せず、Codexには台帳もhandoffも書かせない。外側 wrapper は既存の handoff 名検査、
 pointer/header照合、`ingest-reviewer` の全検証を通すだけの受け渡し役で、owner判断を追加しない。

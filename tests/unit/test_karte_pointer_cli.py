@@ -90,19 +90,30 @@ class TestPointerValuesAreValidated(_PointerCase):
                 self._assert_refused(_ISSUE_EXPLICIT["check"], POINTER_ISSUE_REFUSAL)
 
     def test_pointer_round_that_is_not_an_ascii_positive_integer_is_refused(self):
+        refusal_by_verb = {
+            "append": POINTER_ROUND_REFUSAL,
+            "check": POINTER_ROUND_REFUSAL,
+            "ingest-review": "round は 0 以上の整数",
+            "render": POINTER_ROUND_REFUSAL,
+        }
         for value in ('"²"', '"٣"', '"' + HUGE + '"', "[1]", "true", '"1\\n"'):
             self.write_pointer(f'{{"issue": 7, "round": {value}}}')
-            for verb in ("append", "check", "ingest-review", "render"):
+            for verb, refusal in refusal_by_verb.items():
                 with self.subTest(round=value[:8], verb=verb):
-                    self._assert_refused(_ISSUE_EXPLICIT[verb], POINTER_ROUND_REFUSAL)
+                    self._assert_refused(_ISSUE_EXPLICIT[verb], refusal)
 
-    def test_pointer_round_zero_is_refused_where_it_is_used_and_degrades_where_it_is_not(self):
-        """``check`` / ``ingest-review`` は補完に使うので 0 を拒否する。``append`` は縮退、``render`` は表示しない。"""
+    def test_pointer_round_zero_is_refused_by_check_and_derives_round_one_for_ingest(self):
+        """``check`` は 0 を拒否し、``ingest-review`` は round 1 を導出。``append`` は縮退、``render`` は非表示。"""
         self.write_pointer('{"issue": 7, "round": 0}')
-        for verb in ("check", "ingest-review"):
-            with self.subTest(verb=verb):
-                self._assert_refused(_ISSUE_EXPLICIT[verb], POINTER_ROUND_REFUSAL)
-        self.assertEqual(exit_codes.EXIT_OK, self.run_verb(_ISSUE_EXPLICIT["render"])[0])
+        self._assert_refused(_ISSUE_EXPLICIT["check"], POINTER_ROUND_REFUSAL)
+        code, _out, err = self.run_verb(_ISSUE_EXPLICIT["ingest-review"], _REPORT)
+        self.assertEqual(exit_codes.EXIT_ERROR, code, err)
+        self.assertNotIn(POINTER_ROUND_REFUSAL, err)
+        self.assertNotIn("round は 0 以上の整数", err)
+        self.assertIn("単調増加", err)
+        code, out, err = self.run_verb(_ISSUE_EXPLICIT["render"])
+        self.assertEqual(exit_codes.EXIT_OK, code, err)
+        self.assertEqual("=== Karte: issue-7 ===", out.splitlines()[0])
         code, _out, err = self.run_verb(_ISSUE_EXPLICIT["append"])
         self.assertEqual(exit_codes.EXIT_OK, code, err)
 

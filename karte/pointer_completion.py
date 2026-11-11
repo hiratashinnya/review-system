@@ -60,7 +60,7 @@ def recorded_round(active: dict, issue: int) -> int | None:
     return parse_int(active["round"], "round")
 
 
-def ingest_target(args, repo_root, *, pointer_minimum=1) -> tuple:
+def ingest_target(args, repo_root) -> tuple:
     """``ingest-review`` の ``(issue, round)``。順は issue→round。``--round`` 省略時はポインタ**＋1**（K-13）。
 
     ``--round`` 省略時は、ポインタが遅れて同じ番号の再取り込みになると単調増加の検査に掛かる。
@@ -68,7 +68,7 @@ def ingest_target(args, repo_root, *, pointer_minimum=1) -> tuple:
     台帳の最新 round と同じ番号を許可する（小さい番号は常に拒否）。
     """
     issue = resolve_issue(args, repo_root)
-    resolved = resolve_round(args, repo_root, issue, MissingRoundHint.FIRST_INGEST, pointer_minimum=pointer_minimum)
+    resolved = resolve_round(args, repo_root, issue, MissingRoundHint.FIRST_INGEST, pointer_minimum=0)
     if resolved.explicit:
         return issue, resolved.number
     return issue, require_ascii_int(

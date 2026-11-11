@@ -933,7 +933,7 @@ class TestIngestReviewerHardening(ReviewerIngestCase):
     def test_u4_pointer_issue_mismatch_is_refused(self):
         self._pointer('{"issue": 1, "round": 0}\n')
         with self.assertRaises(KarteUsageError):
-            pointer_completion.ingest_target(argparse.Namespace(issue=self.issue, round=None), self.root, pointer_minimum=0)
+            pointer_completion.ingest_target(argparse.Namespace(issue=self.issue, round=None), self.root)
 
     def test_u3_retry_after_failed_sidefile_or_ledger_write(self):
         for failing in ("sidefile", "ledger"):
@@ -983,7 +983,7 @@ class TestIngestReviewerHardening(ReviewerIngestCase):
     def test_r2_non_ascii_digit_pointer_round_is_a_refusal_not_a_traceback(self):
         self._pointer('{"issue": 375, "round": "²"}\n')
         with self.assertRaises(KarteUsageError):
-            pointer_completion.ingest_target(argparse.Namespace(issue=self.issue, round=None), self.root, pointer_minimum=0)
+            pointer_completion.ingest_target(argparse.Namespace(issue=self.issue, round=None), self.root)
 
     def test_r3_append_keeps_the_file_valid_and_newline_terminated(self):
         self._activate()
@@ -1059,14 +1059,13 @@ class TestIngestReviewerHardening(ReviewerIngestCase):
         self.assertEqual(good, path.read_text(encoding="utf-8"))
         self.assertEqual(cli.EXIT_OK, self._ingest(_report(f"F-{self.issue}-01"), "pr-reviewer--r2.md")[0])
 
-    def test_r5_pointer_round_zero_is_only_derived_by_ingest_reviewer(self):
-        """round 0（未取込）は ingest-reviewer だけが自動導出に使う。ingest-review の初回は従来どおり明示する。"""
+    def test_r5_pointer_round_zero_is_derived_by_ingest_review_too(self):
+        """期待値なしの activate 後の round 0 から、ingest-review も round 省略で round 1 を導出する。"""
         self._run(owner_cli.cmd_activate, issue=str(self.issue))  # 期待値なし＝レビューア待ちではない
         path = self.root / "tmp" / "review-main.md"
         path.write_text(_report(), encoding="utf-8")
         code, _, _ = self._run(cli.cmd_ingest_review, issue=str(self.issue), round=None, source=str(path))
-        self.assertEqual(cli.EXIT_ERROR, code)
-        self.assertEqual(cli.EXIT_OK, self._main_context_ingest_round(1, _report())[0])
+        self.assertEqual(cli.EXIT_OK, code)
         self.assertEqual([1], self._finding(f"F-{self.issue}-01").rounds)
 
     def test_a1_handoff_must_declare_the_target_issue_and_it_must_match_the_pointer(self):

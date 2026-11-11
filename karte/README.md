@@ -235,7 +235,8 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
   原本として記録するだけ。保持した finding ID は取り込み出力に列挙される）。印の無い finding では、
   台帳の値が `ingest-review` 由来でもレビューアの申告が正当な訂正として反映される。
 - 申告 scope の原本（`tmp/_karte/issue-<N>.declared-scope.jsonl`）への追記は、既存の全行を検証したうえで
-  全体を一時ファイル経由で置換する（途中までの行を作らない）。壊れていれば `ingest-reviewer` は
+  全体を一時ファイル経由で置換する（途中までの行を作らない）。一時ファイルと置換後の親ディレクトリを
+  fsync して置換を永続化し、電源断による長さ0・切り詰めを防ぐ（バックアップ公開時も同様に同期する）。壊れていれば `ingest-reviewer` は
   復旧手順を示して拒否し、主文脈が `python3 -m karte activate --issue <N> --repair-declared-scope` で
   原本だけを修復する。このオプションは進行ポインタを動かさず、壊れた行だけを除く（元は `.bak`、
   `.bak.1`、`.bak.2` … と世代を分けて残し、上書きしない）。
@@ -256,8 +257,8 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
   `pr-reviewer` はこの verb も原本も触れない。
 - `--round` 省略時の round は進行ポインタの `round`（0＝未取込。欠落・非 ASCII 数字・負数・Issue 不一致は拒否）＋1 で、ロックの内側で決める。
   台帳が無い Issue の `activate` は round 0 を書くため、その直後に主文脈の `ingest-review` で
-  `--round` を省略すると拒否される。
-  初回は `--round 1` を明示する。`ingest-reviewer` は round 0 を自動導出に使う。
+  `--round` を省略すると round 1 として取り込む。`ingest-reviewer` も round 0 を自動導出に使う。
+  明示した `--round 0` は拒否する。
   保護モードの `ingest-review` は最新 round の明示で同じ round に追記できる。
   ポインタが遅れて省略値が台帳の最新 round と一致した場合も同じ round への追記になる。小さい round は
   拒否し、省略値が次 round なら次 round を使う。範囲外指摘の追記には最新 round を明示する。
