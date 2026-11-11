@@ -1,4 +1,5 @@
 import json
+import tokenize
 
 from maintainability_lint.scanner import build_baseline
 from conflict_repair.runner import evaluate
@@ -6,7 +7,7 @@ from .test_runner import API, RunnerTest, cmd, save
 
 
 class BaselineGitTest(RunnerTest):
-    def setup_baseline(self, *, guidance=False, new_debt=False, conflicting=False, payload=False):
+    def setup_baseline(self, *, guidance=False, new_debt=False, conflicting=False, payload=False, broken=False):
         cmd(self.repo, 'switch', 'main')
         for name in ('a.py', 'b.py'):
             (self.repo / name).write_text('# one\n# two\n# three\n# four\n')
@@ -23,6 +24,8 @@ class BaselineGitTest(RunnerTest):
         self.write_baseline(head_baseline)
         if payload:
             (self.repo / 'payload.py').write_text("raise RuntimeError('PR code executed')\n")
+        if broken:
+            (self.repo / 'invalid.py').write_text('def broken(:\n')
         if guidance:
             (self.repo / 'AGENTS.md').write_text('head drift\n')
         if new_debt:
@@ -90,4 +93,14 @@ class BaselineGitTest(RunnerTest):
         self.assertEqual(len(report['merge-base OID']), 1)
         self.assertIn('関連 PR', report)
         self.assertFalse(report['push'])
+        self.assertEqual(api.branch_oid('feature'), api.head)
+
+    def test_baseline_only_repair(self):
+        api = self.setup_baseline()
+        self.assertTrue(evaluate(api, self.repo, 1, 'owner/repo', 'main')['push'])
+
+    def test_source_parse_error_does_not_push(self):
+        api = self.setup_baseline(broken=True)
+        with self.assertRaises((SyntaxError, tokenize.TokenError)):
+            evaluate(api, self.repo, 1, 'owner/repo', 'main')
         self.assertEqual(api.branch_oid('feature'), api.head)
