@@ -4,9 +4,17 @@ import tomllib
 from pathlib import Path
 
 from .identity import duplicate_errors
-from .paths import directory
+from .paths import WRITER_TEMP_PREFIX, directory
 from .records import validate_record
 from .serialization import render
+
+
+def _writer_artifact(path: Path) -> bool:
+    if path.name == ".writer.lock":
+        return True
+    return (path.name.startswith(WRITER_TEMP_PREFIX)
+            and path.suffix != ".toml" and path.is_file()
+            and not path.is_symlink())
 
 
 def load_catalog(root: Path) -> dict[str, dict]:
@@ -15,7 +23,7 @@ def load_catalog(root: Path) -> dict[str, dict]:
     if not folder.exists():
         return result
     for path in sorted(folder.iterdir()):
-        if path.name == ".writer.lock":
+        if _writer_artifact(path):
             continue
         if path.is_symlink() or not path.is_file() or path.suffix != ".toml":
             raise ValueError("unexpected ledger entry: " + str(path))
@@ -65,7 +73,7 @@ def read_raw(root: Path) -> dict[str, str]:
         return {}
     result = {}
     for path in folder.iterdir():
-        if path.name == ".writer.lock":
+        if _writer_artifact(path):
             continue
         if path.is_symlink() or not path.is_file() or path.suffix != ".toml":
             raise ValueError("unexpected ledger entry: " + str(path))
