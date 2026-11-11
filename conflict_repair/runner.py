@@ -4,6 +4,7 @@ from pathlib import Path
 
 from . import git
 from .baseline_repair import read_worktree, resolve, verify
+from .baseline_schema import SECTIONS
 from .eligibility import classify
 from .governance import governance_status
 from .repair import regenerate
@@ -37,6 +38,9 @@ def evaluate(api, source, number, repository, default):
             merged = baseline.pop('merged') if baseline else None
             if baseline:
                 result.update(baseline)
+            else:
+                result['baseline 変更キー'] = {section: {'追加': [], '更新': [], '削除': []}
+                                           for section in SECTIONS}
             guidance = regenerate(repo, merge, resolved=True) if repaired_baseline else regenerate(repo, merge)
             if guidance or repaired_baseline:
                 verify(repo, merged if merged is not None else read_worktree(repo))
