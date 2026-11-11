@@ -235,3 +235,7 @@ tmp/
 doc-system-v2/meta.json
 # doc_view.html は build-view で meta.json + 本文から再生成する生成物（Sub-F #75）
 doc-system-v2/doc_view.html
+
+# Advisory writer lock is process-local, not a ledger entry.
+.ai/advisory/ledger/.writer.lock
+.ai/advisory/ledger/.advisory-*

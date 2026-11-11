@@ -67,6 +67,7 @@ python3 -m codex_worktree_exec --role <自ロール> -C <自分の worktree ル�
   `CODEX_EXEC_BINDING_INVALID` または `CODEX_REVIEW_INGEST_FAILED` で停止する。
   reviewer で Codex が異常終了した場合は、ANSI制御文字を除去した stderr の末尾を複数行（最大6行・1000文字）返す。
 - 取り込み失敗で `karte` が拒否理由を出した場合、拒否見出しそのものと、その直後に連続する箇条書きを返す（間に別の行が挟まるとそこで打ち切る）。全体が8行・1000文字以内なら省略せず、上限を超える場合は省略表示を含めて合計8行・1000文字以内にする。`N` は省略された行数とし、見出し1行または箇条書き1行が長い場合は「…」で切って返す。拒否見出しがない失敗では、空でない stderr/stdout の最後の行を返す。
+- 取り込みの timeout（60秒）は台帳・期待値の状態が不明な取り込み失敗として `CODEX_REVIEW_INGEST_FAILED`（終了コード `2`）を返すため、`karte status` と `tmp/_karte/active.json` を確認してから再実行する。成功時の karte の非警告出力は wrapper の stderr にそのまま中継し、呼び出し側への戻り値は従来どおり「取り込み済み」の1行＋警告行とする。
 - 起動後、呼び出し側は Codex の変更を `python3 -m gitgate diff` と単体テストで自分で確かめてから commit する。
   依頼範囲外の変更が混じっていたら commit せず STOP して報告する。
 

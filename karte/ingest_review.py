@@ -1,4 +1,4 @@
-"""``ingest-review`` の取り込み本体（共有 writer lock を取った呼び出し元から呼ぶ）。
+"""``ingest-review`` / ``ingest-reviewer`` 共通の取り込み本体（共有 writer lock の内側から呼ぶ）。
 
 設計理由（K-06 ほか）は [.ai/rationale/karte-module-split.md](../.ai/rationale/karte-module-split.md)。
 """
@@ -17,7 +17,7 @@ from .reviewer_policy import ReviewerIngestPolicy, ignore_owner_keys
 
 
 def ingest_locked(repo_root, issue, round_no, report_text, policy=None, *, allow_same_round=False) -> int:
-    """検証に 1 件でも掛かれば**一切書かず** ``EXIT_ERROR``。通れば台帳を置き換えて ``EXIT_OK``。
+    """検証で拒否したら台帳・ポインタを書かず ``EXIT_ERROR``（4。``tmp/_karte/`` と ``.writer.lock`` は残る）。通れば台帳を置き換えて ``EXIT_OK``。
 
     ``policy`` がある場合と申告原本がある場合はオーナー決定を保護する。レビューア本人の取り込みで
     再掲漏れがあれば台帳は書くが ``EXIT_INCOMPLETE``（:func:`ingest_notes.exit_code_for`）。
@@ -38,7 +38,9 @@ def ingest_locked(repo_root, issue, round_no, report_text, policy=None, *, allow
     if round_no < last_round or (round_no == last_round and not same_round_allowed):
         raise KarteUsageError(
             f"round は単調増加させる（取り込み済みの最新ラウンドは {last_round}・"
-            f"指定は {round_no}）。同じラウンドの再取り込みは台帳の状態遷移を壊す"
+            f"指定は {round_no}）。同じラウンドの再取り込みは、保護モードの主文脈 ingest-review と"
+            "レビューアの --round 明示（台帳の最新ラウンドと同じ値）以外では拒否する。"
+            "回復は再取り込みではなく karte/README.md「進行ポインタの書込みが台帳より後に失敗した窓」を参照"
         )
 
     warnings = []

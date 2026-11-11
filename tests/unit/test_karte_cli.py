@@ -828,7 +828,7 @@ class TestLocusScalarIsCheckedLikeAListItem(unittest.TestCase):
 
     角括弧を省いて `locus: a.md::x, b.toml::x` と書くと、以前はスカラ 1 要素として受理され、
     `format_value` が `[a.md::x, b.toml::x]` と書き出すため**台帳を読み直した時点で 2 要素へ
-    静かに割れた**。`is_same_finding` は locus の交差で再発番を判定するので、レポート側（1 要素）と
+    静かに割れた**。`is_same_finding` は正規化した要約が完全一致しない場合に locus の交差と類似度で判定するので、レポート側（1 要素）と
     台帳側（2 要素）で照合面がズレ、**同一指摘の再発番を見逃す**方向に効く＝locus を複数化した
     目的そのものを裏切る。fail-close で拒否することを固定する。
     """

@@ -65,7 +65,7 @@ verb:
   ラウンド番号の唯一の情報源が進行ポインタになる。``--issue`` は全 verb で、``--round`` は
   ``ingest-review`` / ``append`` / ``check`` で省略でき、省略時はポインタから補完する。
   補完する値は verb で違う——``ingest-review`` は「最後に取り込んだラウンド **＋1**」
-  （新しいレビューは必ず次のラウンド）、``append`` / ``check`` は「最後に取り込んだ
+  （``--round`` 省略時の補完値）、``append`` / ``check`` は「最後に取り込んだ
   ラウンド **そのまま**」（いま是正中のラウンドを対象にする）。
   **``ingest-review`` / ``check`` はポインタが無い・壊れている・必要なキーを欠く場合は
   補完せず EXIT_ERROR**（fail-close）——壊れたポインタを「無い」と同じに扱うと、
@@ -540,7 +540,7 @@ def build_parser(extra_registrars=()) -> argparse.ArgumentParser:
     add_issue(ingest)
     ingest.add_argument(
         "--round",
-        help="レビューのラウンド番号（単調増加。省略時は tmp/_karte/active.json の次のラウンド）",
+        help="レビューのラウンド番号（原則単調増加、保護モードは最新と同値も可。省略時は tmp/_karte/active.json の次）",
     )
     ingest.add_argument(
         "--from",
