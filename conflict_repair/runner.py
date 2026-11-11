@@ -34,11 +34,12 @@ def evaluate(api, source, number, repository, default):
                 raise ValueError('git merge に失敗')
             baseline = resolve(repo, base_oid, head_oid)
             repaired_baseline = bool(baseline and baseline.pop('conflicted'))
+            merged = baseline.pop('merged') if baseline else None
+            if baseline:
+                result.update(baseline)
             guidance = regenerate(repo, merge, resolved=True) if repaired_baseline else regenerate(repo, merge)
             if guidance or repaired_baseline:
-                verify(repo, baseline.pop('merged') if baseline else read_worktree(repo))
-                if baseline:
-                    result.update(baseline)
+                verify(repo, merged if merged is not None else read_worktree(repo))
             if not guidance and not repaired_baseline:
                 result['判定'] = '生成物は整合、修復不要'
                 return result

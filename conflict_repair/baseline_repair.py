@@ -38,7 +38,7 @@ def resolve(repo, base, head):
         changes[section] = {'追加': sorted(new.keys() - old.keys()),
                             '削除': sorted(old.keys() - new.keys()),
                             '更新': sorted(k for k in new.keys() & old.keys() if new[k] != old[k])}
-    return {'merge-base OID': ancestor, 'baseline 変更キー': changes, 'merged': merged, 'conflicted': conflicted}
+    return {'merge-base OID': [ancestor], 'baseline 変更キー': changes, 'merged': merged, 'conflicted': conflicted}
 
 
 def read_worktree(repo):

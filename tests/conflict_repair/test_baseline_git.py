@@ -63,6 +63,7 @@ class BaselineGitTest(RunnerTest):
         self.assertEqual((report['base OID'], report['head OID']), (api.base, api.head))
         self.assertEqual(len(report['merge-base OID']), 1)
         self.assertIn('関連 PR', report)
+        self.assertEqual(len(report['baseline 変更キー']['comment_blocks']['削除']), 1)
         self.assertFalse(report['push'])
         self.assertEqual(api.branch_oid('feature'), api.head)
 
