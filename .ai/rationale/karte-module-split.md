@@ -1092,3 +1092,323 @@ Issue #748（親 #745・K-03・下段 #799＝K-02）の設計と実装結果。�
     # （clean を妨げる未解消 ⊇ clean を妨げる実害あり ⊇ 実害あり・disposition 未決定）に並べ、
     # 3 つの集合の関係を読み手が取り違えないようにする。
 ```
+
+## K-04 分割計画（#749）
+
+Issue #749（親 #745・K-04・下段 #806＝K-03）の設計。設計は最初の commit で記録し、実装は是正ラウンド2で行った（実測は下の「実装時の互換契約と実測」）。設計者＝Claude Code (AI)。K-01〜K-03 の節は変更しない。
+
+### 着手時点の実測（L3 head 5a03714b 上）
+- `python3 -m maintainability_lint check`: `violations=0 accepted_debt=59`（全体）。
+- `karte/cli.py` の登録は `module-over-100-lines`（621行）の1件のみ（コメント違反は K-03 で 0）。Issue #749 本文の「初期基準5件」は K-03 前の値で、現在値と食い違う。
+- karte 関連で他に残る登録: `karte/similarity.py`（241行）・`karte/touched.py`（105行）・`karte_notify/hook.py`（175行）・`karte_notify/notify.py`（270行）。いずれも `module-over-100-lines` のみ。K-05（#750）・K-06（#751）の対象で、**本 stack では扱わない**。#683 の本文が変更対象に挙げているのは `karte/cli.py` と `karte/model.py` だけなので、これら4ファイルは #683 の変更対象外の見込み（#683 の実装中に触る必要が生じたら報告する）。
+- `cli.py` の構成（行数）: モジュール docstring 91、import・再エクスポート 約30、`_read_report` 26、`_resolve_close_attempt_number` 43、`_prepare_ingest`＋`cmd_ingest_review` 25、`cmd_render` 8、`cmd_append` 61、`cmd_close_attempt` 77、`_validate_outcome` 5、`cmd_check` 96、`cmd_status` 10、`build_parser` 91、`main` 5。
+- **`decide` verb は `cli.py` の外にある**（`owner_cli.py`・`reviewer_cli.py` が `extra_registrars` として `python3 -m karte` の `__main__.py` から登録される）。K-04 の対象は `cli.py` に残る verb（ingest-review・render・append・close-attempt・check・status）と引数解析で、`owner_cli`/`reviewer_cli` は動かさない。
+
+### 方針
+- 各 verb 関数は**同一の関数オブジェクトのまま**移す（`@fail_close(locked=..., prepare=...)` の宣言を verb の定義側に残す）。`cli.cmd_*` を `cli.py` で再エクスポートすれば、`tests/unit/test_karte_verb_boundary.py`（`cmd_*.__doc__` が空でないこと・`locked` 属性）・`test_karte_cli*.py`（`cli.cmd_*` の直接呼び出し）は無変更で通る。**docstring は空にしない**（`verb_boundary` のテストが `__doc__` の存在を要求する）。長い docstring は本節の下へ逐語移設し、verb 側には1〜3行の要約を残す。
+- 文言・出力順・終了コード・書込順・例外の種類とメッセージは1文字も変えない（#745 C01）。**#721（argparse の usage error の終了コード）は本 Issue で扱わない**。現行の終了コード・usage error の挙動を維持し、#728 の断定（L0・PR #795 で処置済み）がそのまま通ることを確認する。#683 の動作変更は入れない。
+- 引数定義と `cmd_*` の対応（`set_defaults(func=...)`）は動かさない。`argparse` の `help`・`required`・`choices`・`nargs`・`default` を移設時に変えない。
+
+### 新規モジュール（各100行以内・依存は上から下の一方向）
+| 順 | モジュール | 移す内容（移設元 `karte/cli.py`） |
+|---|---|---|
+| 1 | `report_source.py` | `STDIN_SOURCE`、`_read_report`（→`read_report`） |
+| 1 | `close_attempt_target.py` | `_resolve_close_attempt_number`（→`resolve_close_attempt_number`）、`_validate_outcome`（→`validate_outcome`） |
+| 2 | `verb_ingest_review.py` | `_prepare_ingest`（→`prepare_ingest`）、`cmd_ingest_review` |
+| 2 | `verb_append.py` | `cmd_append` |
+| 2 | `close_attempt_report.py` | `cmd_close_attempt` が出力する本文（`=== close-attempt` から `カルテ:` まで）と、飽和注意の出力（`print` の順序を保つ） |
+| 3 | `verb_close_attempt.py` | `cmd_close_attempt`（検証・実測 diff・追記。出力は `close_attempt_report` に委ねる） |
+| 2 | `verb_check.py` | `cmd_check`（docstring は要約のみ） |
+| 2 | `verb_show.py` | `cmd_render`、`cmd_status`（K-03 後の薄い入口） |
+| 2 | `parser_ingest_args.py` | `ingest-review` の引数定義 |
+| 2 | `parser_attempt_args.py` | `append`・`close-attempt` の引数定義 |
+| 2 | `parser_inspect_args.py` | `render`・`check`・`status` の引数定義 |
+| 4 | `parser_core.py` | `build_parser`（`add_issue`・各 `parser_*_args` の呼び出し・`extra_registrars`・`require_declared`） |
+| 5 | `cli.py`（入口） | 要約 docstring・再エクスポート・`main` |
+
+- 依存の向き: `report_source`/`close_attempt_target` → `verb_*` → `parser_*_args` → `parser_core` → `cli`。**どのモジュールも `karte.cli` を import しない**（循環を作らない）。`verb_*` は `pointer_completion`・`karte_loader`・`model`・`paths`・`similarity`・`touched`・`saturation_groups` など既存モジュールにだけ依存する。
+- 各モジュールが100行に収まらない場合は、責務で更に分ける（行数のために任意の位置で切らない）。`dataclass` は作らない。連続4行以上の行コメントは作らない。
+- `verb_close_attempt.py` と `close_attempt_report.py` の境界は、「書込（`paths.append_text`）までを `verb_close_attempt`、`print` 群を `close_attempt_report`」を基本とする。**`print` と書込の順序は変えない**（書込後に `parse` し直して飽和を判定する現行の順序を保つ）。
+
+### `cli.py` に残す公開名と再エクスポート（漏れ防止）
+着手時の `vars(karte.cli)` の実測（`_` 始まりを含む、`__` 始まりを除く）は次のとおり。実装時に**同じ手順で機械的に列挙して照合**する（K-03 では `_group_directive` の再エクスポート漏れが指摘された）。
+- 関数・型・定数: `EXIT_ERROR EXIT_OK EXIT_SATURATED KarteUsageError STALL_ROUNDS STDIN_SOURCE build_parser cmd_append cmd_check cmd_close_attempt cmd_ingest_review cmd_render cmd_status main`
+- 非公開名（互換のため維持）: `_group_directive _prepare_ingest _priors_for _read_report _resolve_close_attempt_number _saturated_groups _stalled_ids _status_payload _validate_outcome`
+- モジュール属性（`from . import x` された名）: `active_pointer argparse fail_close ingest_review int_args json karte_loader model paths pointer_completion read_stream_text render_lines repo_roots require_declared similarity status_lines sys touched_mod`
+- 既存テストが `cli.<name>` として使う名（実測）: `EXIT_OK EXIT_ERROR cmd_status cmd_ingest_review cmd_check cmd_render build_parser main model cmd_close_attempt cmd_append _saturated_groups _status_payload _stalled_ids _priors_for __file__`。`cli.__file__` は `test_karte_cli_split_exclusion.py` が `karte/` ディレクトリの特定に使うので、`cli.py` が `karte/` 直下に残ることが前提。
+- モジュール属性（`model` 以外）は、外部から `cli.<module>` で参照されないことを grep で確認できれば再エクスポートしなくてよい（現時点の実測では `cli.model` のみ）。確認できなければ維持する。フェーズ A の `tests/unit/test_karte_cli_lock_scope.py` は分割前に `cli._read_report` を patch していたため、分割後は実際の参照先 `report_source.read_report` を patch する。ロック範囲のアサーションは維持する。
+- `main(argv=None, extra_registrars=())` は `cli.py` に残す。`karte/__init__.py` と `karte/__main__.py` は `from .cli import main`。**`python3 -m karte` の入口（`__main__.py`）・`.claude/hooks`・`agent-command-gate.sh` の許可 verb 一覧は変えない**。`build_parser` を `main` 内で `cli` の名前空間から引くので、`cli.build_parser` の差し替えは従来どおり効く。
+- 外部 import 元（実測）: `karte/__init__.py`・`karte/__main__.py`、tests の `test_karte_*.py`（`from karte import cli`）、`tests/unit/karte_support.py`。`karte_notify`・`issue_start`・`.claude/hooks` は `karte.cli` を import しない（`python3 -m karte_notify.hook` は別系統）。docstring が `karte/cli.py::...` を名指しする箇所（`karte/README.md`・`karte/pointer_completion.py`・`karte_notify/*`・`karte/similarity.py`）は、移設後も名前自体は再エクスポートで残る。参照の更新は本 PR のスコープ外とし、必要なら別 Issue で申し送る（K-05（#750）が `similarity.py` を、K-06（#751）が `karte_notify` を扱うので、そこでの更新が自然）。`karte/README.md` と `karte/pointer_completion.py` は「verb の一覧・補完の規約は `karte.cli` の docstring」と指すので、**入口 docstring に verb 一覧と補完規約の要約と、全文の所在（本ファイル）を残す**。
+
+### 同値性・安全性の検証（足りない回帰検出力）
+既存 `tests/unit/test_karte_cli.py` 等（#720・#728 で強化済み）は**一切書き換えない**。K-03 の `cli_render_status_golden.json` は render/status しか固定しない。足りない部分を、**分割前のコードで先に記録**してから分割する（K-01〜K-03 と同じ手順）。
+1. `tests/unit/test_karte_cli_verbs_compat.py` と `tests/fixtures/karte/cli_verbs_golden.json` を追加。全 verb（ingest-review・append・close-attempt・check と、`python3 -m karte` 経由の `decide` 等の登録 verb）について、同一入力の stdout/stderr 全文・終了コードを記録する。
+2. **書込副作用**: 各ケースの前後で `tmp/_karte/` 配下（台帳・`active.json`・`.writer.lock`）のファイル一覧と内容の sha256 を比較する。拒否ケース（検証失敗・飽和・未知 ID・空 diff・空の stdin）は**台帳とポインタが1バイトも変わらない**こと（拒否時無副作用）。ロック内で拒否する ingest は `tmp/_karte/` と `.writer.lock` を残す（台帳・ポインタは書かない）という現行契約も固定する。
+3. **引数・利用エラー**: `argparse` の拒否（必須欠落・不正な choices・未知の verb・`--from` 欠落）の stderr 全文と終了コードを記録する。**現状の終了コードをそのまま固定**し、#721 の挙動変更を取り込まない。`build_parser()` の全 verb の `format_help()` 全文の sha256 も固定する（`help`・`choices`・`nargs`・`required`・`default` の変更検出）。
+4. **未検出の終了コード**: カルテ未作成（`EXIT_NOT_FOUND` 相当）・ガード違反（`EXIT_ERROR`）・`fail_close` が変換する例外種別ごとの終了コード。
+5. **ロック契約**: `karte/path_storage.py::writer_lock` の `fcntl.flock(LOCK_EX)` は競合時に拒否せず、待機によって直列化する。`@fail_close` は `prepare` をロック外で1回呼び、`locked=True` の verb（ingest-review・append・close-attempt）は `paths.writer_lock` の内側で実行して書き込み、`locked=False` の verb（render・check・status）はロックを取らない。`tests/unit/test_karte_cli_lock_scope.py` が宣言・範囲・競合時の待機を固定し、`tests/unit/test_karte_cli_verbs_compat.py` と `tests/fixtures/karte/cli_verbs_golden.json` が出力と副作用を固定する。`tests/unit/test_karte_cli_verbs_identity.py` が関数の identity と宣言を検査する。
+6. **identity**: `cli.cmd_*` が各 `verb_*` モジュールの同一オブジェクトであること、`@fail_close` の宣言（`locked`・`prepare`）が保たれること。
+7. 変異検出の確認（実装 PR で実測して記す）: `cmd_append` の飽和判定の削除、`cmd_close_attempt` の書込と `parse` の順序入れ替え、`cmd_check` の `pending` 判定の削除、`build_parser` の1つの `required` の変更、`cmd_close_attempt` の再エクスポート削除が、いずれもこのテスト群で検出されること。
+
+### 実装時の互換契約と実測（F-807-01・02・05・06）
+- `cli.py` は互換名と入口を維持し、各 verb と `prepare` は移設先と同一オブジェクト。`main` は `cli.build_parser` を呼ぶ。標準入力と worktree の参照は呼び出し時に解決する。
+- 分割前 golden と `vars(karte.cli)` を照合し、42名すべて一致（不足0・追加0）。上記の設計上の列挙は41名で、`from __future__ import annotations` に由来する `annotations` が抜けていた。実装はこれも保持する。
+- 実装後の物理行数: `report_source.py` 25、`close_attempt_target.py` 33、`verb_ingest_review.py` 15、`verb_append.py` 69、`close_attempt_report.py` 37、`verb_close_attempt.py` 61、`verb_check.py` 70、`verb_show.py` 31、`parser_ingest_args.py` 18、`parser_attempt_args.py` 47、`parser_inspect_args.py` 27、`parser_core.py` 28、`cli.py` 61。
+- `python3 -m maintainability_lint check` は `violations=1 accepted_debt=58`。違反は `karte/cli.py` の stale-baseline のみで、新規モジュールに違反はない。baseline の更新は呼び出し元が行う。
+- 変異の実測: append の飽和判定削除、必須引数の変更、サブパーサ登録順入替、close-attempt の書込前再 parse、check の pending 判定削除、ingest-review の locked 反転、prepare のロック内移動、`cmd_close_attempt` の再エクスポート削除はすべてテスト失敗で検出した。locked 反転と prepare 移動は `test_karte_cli_lock_scope.py` 単体で検出した。変異は復元済み。
+
+### baseline の手順と K-04 完了後に残る登録
+- baseline は手で編集しない。`python3 -m maintainability_lint baseline` の出力で `maintainability_lint/baseline.json` を更新する。fixer は契約上更新できないため、主文脈が機械的に実行する（K-02・K-03 と同じ）。
+- 予定差分: `karte/cli.py` の登録削除のみ（`module-over-100-lines` の1件）。**`accepted_debt` は 59→58 の見込み**。新規モジュール12件（上表）に違反が出ないこと。新規免除・対象除外は追加しない。
+- K-04 完了後に baseline に残る karte 関連登録（K-05・K-06 の対象。本 stack では扱わない）: `karte/similarity.py`（241行）、`karte/touched.py`（105行）、`karte_notify/hook.py`（175行）、`karte_notify/notify.py`（270行）。いずれも `module-over-100-lines`。`karte/cli.py`・`karte/model.py` の登録は 0 になり、#683 本体の PR で baseline.json を触らずに済む。
+
+### docstring の移設（100行制約の要点）
+- `cli.py` のモジュール docstring（91行）、`cmd_ingest_review`・`cmd_check`・`_resolve_close_attempt_number`・`build_parser` の長い docstring は、移設前に下の「K-04 実装で移設した docstring（#749）」へ**逐語で**追記してから短くした（PR8 区分1：経緯は削除せず rationale へ移す）。
+- 入口 `cli.py` の見込み行数（実測の根拠）: 要約 docstring 約15行＋`from __future__`・再エクスポート約45行（1行に複数名を並べ、`from . import x` は使う名だけに絞る）＋`main` 約8行＝約70行。100行を超えそうな場合は、まず再エクスポートする互換名を「テスト・外部が実際に参照する名」へ絞る（上の grep 結果で不要と確認できたモジュール属性を落とす）。それでも超える場合の対処（再エクスポート専用モジュールの新設等）は、PR7 の様式で選択肢と推奨を添えて主文脈へ報告して判断を仰ぐ。`import *` は使わない。
+
+### 未確認事項（実装時に確認）
+- 各新規モジュールが100行に収まるか（`verb_close_attempt.py`・`verb_check.py` が最有力の超過候補）。
+- `tests/unit/test_karte_cli.py` が、`cli` の docstring・ソースの文字列（`inspect.getsource` 等）に依存していないこと。
+- `agent-command-gate.sh`・`.codex/hooks/agent-command-gate.sh` が verb 名の許可一覧を持つので、verb 名・登録経路を変えていないこと。
+
+## K-04 実装で移設した docstring（#749）
+
+旧 `karte/cli.py` の docstring とコメントを逐語保全する。
+
+### `module`
+
+```python
+"""karte の verb 実装（``python3 -m karte <verb>``・標準ライブラリのみ）。
+
+verb:
+  ``ingest-review``  レビューレポートを ``## Findings`` へ取り込む（ID 重複・未知 ID・
+                     harm/scope 欄欠落・**``harm_detail`` への処置方針/経緯の混入**
+                     （Issue #511・:func:`karte.model.check_harm_detail`）・
+                     disposition の不整合・同一指摘への ID 再発番・
+                     前ラウンド未解消の不在を検証）。``## Findings`` は**スコープの内外を
+                     問わない単一の列**で、``issue-implementer``/``issue-fixer`` の
+                     ハンドオフ ``out_of_scope_findings`` も同じ書式へ写してここへ取り込む
+                     （取り込みの実行は主文脈・Issue #495）。
+                     ``--from -`` で **stdin** からも読める（K-13：SubagentStop フックが
+                     ``last_assistant_message`` を直接食わせるため、人手の中継を挟まない）。
+  ``render``         「Prior attempts（DO NOT repeat these）」＋未解消 finding 一覧。
+                     同種の再試行が拒否される段階に達したアプローチは転換指令も合成する。
+                     出力は **subagent のコンテキストへそのまま注入できる自己完結した本文**
+                     （K-14：SubagentStart フックが ``additionalContext`` として注入する）。
+  ``append``         Attempt をスキーマ検証つきで追記。類似飽和なら**書き込まず**拒否し、
+                     反復された root_cause / targets を名指しした転換指令を stdout に返す。
+  ``close-attempt``  修正後の実測 touched-set を ``### Result k`` として追記する
+                     （実測信号の供給源。Attempt ブロック自体は書き換えない）。
+                     ``--attempt`` 省略時は未クローズの Attempt が1つならそれを使い、
+                     2つ以上あれば fail-close して明示を要求する（Issue #378・詳細は
+                     :func:`_resolve_close_attempt_number`）。実測 diff が空のときは
+                     ``--outcome no-change`` の場合を除き fail-close する（Issue #355・
+                     詳細は README）。宣言 ``targets`` と実測 touched が一切重ならない
+                     ときは警告のみ（拒否はしない・Issue #378 C）。
+  ``check``          当該ラウンドの Attempt が存在し**診断が要る**未解消 finding を
+                     網羅しているか、および**全 Attempt** が ``close-attempt`` 済みか
+                     （実測信号の供給）。``disposition: deferred``/``waived``＝「当該 PR では
+                     処置しない」と決まった finding は診断網羅の要求から外す（Issue #503
+                     観測1。外す前は毎ラウンド必ず 1 回 block し、停止ゲートが形骸化した）。
+  ``status``         実害あり残存 / 全件実害なし / 無進捗（同一 finding が3ラウンド連続未解消）
+                     を機械判定する（エスカレーション条件）。**``clean`` は「未解消 0 件」では
+                     なく「clean を妨げる未解消 0 件」**＝``harm: real`` で
+                     ``disposition`` 未決定の finding が1件でも残る間は ``clean`` を返さない
+                     （``scope: out`` でも免除しない）。``disposition: deferred``/``waived``
+                     だけが ``status: open`` のまま verdict を妨げなくなる（Issue #495）。
+                     無進捗判定も同じ除外を受ける（Issue #503 観測3。誰も直さないと決めた
+                     finding に進捗が無いのは当然で、拾うと ``escalate`` が偽陽性になる）。
+                     既定出力は**そのまま注入できる
+                     自己完結した本文**（人手／フックのどちらから呼んでも常に全件出力する。
+                     K-15 が構想した「PostToolUse フックが ``pr-reviewer`` 呼び出し完了直後に
+                     コンテキストへ注入する」自動可視化は未配線のまま、Issue #512 が対応する
+                     AC を移譲し**別の設計**で実装した——届け先を AI のコンテキスト
+                     （``additionalContext``）ではなく**オーナーのチャット**（``systemMessage``）
+                     にし、``ingest-review`` / ``ingest-reviewer`` / ``decide`` / ``close-attempt`` や
+                     Codex reviewer wrapper の実行を検出する（実体は :mod:`karte_notify`・
+                     ``.claude/hooks/karte-notify.sh``）。理由は、AI のコンテキストへ注入する
+                     だけでは「機械判定が AI の要約を経て歪む」経路（実例＝PR #509／Issue #431：
+                     ``escalate: yes`` を主文脈が独自解釈して丸めた）を防げないため。この
+                     verb 自身（``status``）は変更していない——``karte_notify`` は本 verb の
+                     ``--json`` 出力を読むだけの外部消費者であり、finding ID 単位の既読管理は
+                     ``karte_notify`` 側の責務。ただし PostToolUse はツール呼び出しをブロック
+                     できず「判定を可視化する」までが役割である点は変わらない）。
+
+終了コード（``dsv2`` に合わせる）:
+  0 OK ／ 2 未検出 ／ 3 類似飽和（append 拒否）／ 4 前提違反・検証失敗（fail-close）。
+  5 取り込み済み・未完了（EXIT_INCOMPLETE・レビューアの再掲漏れ。台帳は書込み済みで失敗ではない）。
+  読み込む入力（レポート本文のファイル・標準入力、台帳、進行ポインタ、``--diff-file``）が UTF-8 として
+  読めないときも 4（traceback の終了コード 1 にしない・Issue #696 F-696-13）。
+
+進行ポインタ（``tmp/_karte/active.json``）による補完:
+  フック（SubagentStart / SubagentStop）は dispatch prompt を読めないため、Issue 番号と
+  ラウンド番号の唯一の情報源が進行ポインタになる。``--issue`` は全 verb で、``--round`` は
+  ``ingest-review`` / ``append`` / ``check`` で省略でき、省略時はポインタから補完する。
+  補完する値は verb で違う——``ingest-review`` は「最後に取り込んだラウンド **＋1**」
+  （``--round`` 省略時の補完値）、``append`` / ``check`` は「最後に取り込んだ
+  ラウンド **そのまま**」（いま是正中のラウンドを対象にする）。
+  **``ingest-review`` / ``check`` はポインタが無い・壊れている・必要なキーを欠く場合は
+  補完せず EXIT_ERROR**（fail-close）——壊れたポインタを「無い」と同じに扱うと、
+  別 Issue の台帳へ黙って書きかねない。
+  **``append`` の ``--round`` 補完だけは例外**（:func:`karte.pointer_completion.recorded_round`）：ポインタが無い・
+  ``issue`` が対象と食い違う（キー欠落・型違いを含む）・``round`` が 0/欠落（偽値）なら、fail-close せず
+  **カルテ内の最大ラウンドへ黙って縮退する**。拒否するのは、ポインタが壊れている／オブジェクトでない場合
+  （:func:`karte.active_pointer.read_active`）と、``round`` が偽値でないのに型違い・非 ASCII 数字・巨大桁・負・NaN・
+  bool の場合（:func:`karte.int_args.parse_int`）で、どちらも終了コード 4。縮退しても**全 Attempt のクローズを
+  要求する ``check`` が必ず捕捉する**（K-02）。``render`` の見出しの ``round`` も同じ読み方で、無効値は 4。
+  補完の実装は :mod:`karte.pointer_completion`。``ingest-review`` は、引数・ポインタ・本文由来の
+  拒否を issue→round→本文の順にロックの**前**で行い（何も作らない）、ポインタ由来の値だけは
+  ロックの内側で読み直す（:func:`_prepare_ingest`）。
+
+``repo_root`` は **公開 CLI フラグとしては持たない**内部専用パラメータ
+（``args`` に属性として渡されたときだけ使う）。実運用は常にリポジトリルートで動くため、
+公開フラグは信頼境界を広げるだけの攻撃面になる（``dsv2/cli.py`` の
+``cmd_clean_tmp`` と同じ判断・issue #276 round-2）。テストは ``argparse.Namespace`` を
+直接組み立てて各 ``cmd_*`` を呼ぶ。
+
+依存仕様: :mod:`karte` の docstring（Issue #307）。
+"""
+```
+
+### `_read_report`
+
+```python
+"""レビューレポート本文を ``--from`` から読む（``-`` は標準入力）。
+
+    stdin 経路は K-13（SubagentStop フックが ``last_assistant_message`` をそのまま
+    パイプする）のために設ける。**検証は経路によらず同一**——本文を得たあとの処理は
+    ファイル経路と 1 本の流れに合流するので、ID 重複・未知 ID・harm 欄欠落・
+    K-06 の不在禁止・K-05 の ``distinct_from`` はどちらでも同じように効く。
+
+    空入力は「指摘なし」と解釈しない（fail-close）。フックが本文を渡し損ねた場合と
+    「レビューの結果ゼロ件だった」場合を区別できず、後者を装って台帳の未解消指摘を
+    素通しできてしまうため（K-06 と同じ fail-open の型）。
+    """
+```
+
+### `_resolve_close_attempt_number`
+
+```python
+"""``close-attempt`` の ``--attempt`` 省略時の既定値を決める（Issue #378・案 B）。
+
+    以前は「直近で append された Attempt」（``next_attempt_number() - 1``）へ無条件に
+    解決していた。複数 Attempt を先に append してからまとめて close する運用では、
+    **最後に append した Attempt へ全部が吸い込まれ**、誤った Attempt への記録を
+    2 ラウンド連続で誘発した（PR #364 是正ラウンド 2・3）。
+
+    新しい規則:
+      * 未クローズ（``results_for`` が空）の Attempt が **ちょうど 1 つ**なら、それを使う
+        （最新でなくてもよい——曖昧さが無いので安全側）。これが「1 つ append → すぐ close」
+        という従来からの主要な運用と一致し、後方互換を保つ。
+      * 未クローズが **複数** あれば、どれを閉じるつもりか読み取れないので fail-close し、
+        ``--attempt`` の明示を要求する（曖昧なら止めるのが最も確実・B の哲学）。
+      * 未クローズが **0** なら、fail-close して ``--attempt`` の明示か ``append`` を促す。
+        ただし「0」は 2 通りの事実を含みうるので、それぞれ**自分の状態を正しく述べる**
+        メッセージに分ける（F-378-01）——
+          - **Attempt が 1 件も無い**（``append`` をまだ 1 度も呼んでいない）。
+          - **Attempt はあるが全件クローズ済み**（結果は既に記録されている）。
+        両者を同じ「全 Attempt が既にクローズ済み」文言に潰すと、Attempt を1件も
+        append していない利用者に事実と異なる説明を返す（実行時挙動＝fail-close は
+        どちらも正しいが、原因の説明が不正確になる）。
+    """
+```
+
+### `_prepare_ingest`
+
+```python
+"""ロック前の段。``--issue``→``--round``→本文の順に検証し、拒否なら何も作らず本文を返す。
+
+    補完結果はここでは捨てる（ポインタ由来の値は、ロック内で読み直した値だけが正）。
+    """
+```
+
+### `cmd_ingest_review`
+
+```python
+"""レビューレポートを台帳へ取り込む（検証に 1 件でも掛かれば台帳・ポインタを**一切書かない**）。
+
+    入力は ``--from <path>``（repo-root 配下）か ``--from -``（標準入力・K-13）。ロックの**前**
+    （``prepare``）で ``--issue``→``--round``→本文の順に検証して本文を読む——引数・ポインタ・本文
+    由来の拒否は ``tmp/_karte/`` も作らず、閉じない標準入力でロックを握り続けることもない。
+    ``--issue`` / ``--round`` はポインタから補完でき、**補完は最終的にロックの内側で読み直す**
+    （外の値は信用しない。並行 ingest が同じ次ラウンドを選ぶため）。何も作らずに拒否できるのは ``prepare`` 段で拒否できる範囲に限る。
+    ロック内の拒否（競合でのポインタ変化・内容検証・台帳との突き合わせ）は新規 repo でも ``tmp/_karte/`` と ``.writer.lock`` を残す（台帳・ポインタは書かない）。検証は経路によらず共通で、ID 重複・
+    未知 ID・harm 欄欠落・**``scope`` 欄欠落**（Issue #495）・**``disposition`` の不整合**
+    （``deferred`` に ``deferred_to`` が無い等）・ID 再発番（K-05 の ``distinct_from`` で名指し
+    したペアだけ除外）・**前ラウンド未解消 finding の不在**（K-06）を見る。
+    """
+```
+
+### `cmd_check`
+
+```python
+"""当該ラウンドの診断網羅と、**全 Attempt のクローズ**を検査する。
+
+    合格条件は 2 つ:
+      1. 当該ラウンドの Attempt が、**この PR で是正が求められている**未解消 finding
+         （:meth:`model.Karte.remediation_findings`）を網羅している。
+      2. **カルテ上の全 Attempt** が ``close-attempt`` 済み（Result を持つ）。
+
+    1 の対象から ``disposition: deferred``/``waived`` を除くのが Issue #503 の是正
+    （観測1）。除外前は「直さないと決まった finding」にも診断を要求していたため、
+    是正担当が指示どおりそれを触らずに他を完璧に是正しても ``check`` が必ず
+    ``EXIT_ERROR`` を返し、SubagentStop の停止ゲートが**毎ラウンド 1 回 block**した。
+    診断を求めるべきなのは「これから直す finding」であって「直さないと決まった
+    finding」ではない——後者に診断を書かせることは、`.claude/rules/03-operational.md`
+    「スコープ拡大禁止」に反する記録を台帳へ入れさせることでもある。**除外規則は
+    ``status`` の verdict・無進捗検知と同じ単一の述語**（``needs_remediation``）を
+    使う（判定経路ごとに実装しない）。
+
+    2 を課すのが K-02 の是正。実測 touched-set の唯一の供給源は ``close-attempt`` だが、
+    以前は ``check`` も ``append`` も「直前の Attempt がクローズ済みであること」を求めて
+    いなかった。そのため ``root_cause`` を毎回書き換えるだけの試行は、``close-attempt`` を
+    一度も呼ばなければ宣言信号にも実測信号（測定値ゼロ）にも掛からず**無制限に通った**
+    ——偽装ではなく**呼び忘れだけ**でゲートが無効化できた。``check`` は SubagentStop
+    フックの判定根拠なので、ここで落とせば「クローズしないと前に進めない」になる。
+
+    2 の対象を「当該ラウンド**以前**」ではなく**全 Attempt** にするのは逃げ道を残さない
+    ため。``append --round <大きい値>`` で先のラウンドを名乗った Attempt は、以前は
+    ``round <= --round`` の絞り込みから外れて未クローズのまま ``check`` を通せた
+    ——既定経路では踏まないとしても、「呼ばれないと進まないように作る」を掲げる以上
+    暗黙の前提（＝呼び出し側がラウンドを正直に申告すること）に依存させない。
+
+    ``--round`` は進行ポインタの値を**そのまま**補完できる（``ingest-review`` と違って +1 しない。
+    検査したいのは最後に取り込んだ＝いま是正中のラウンド）。フックは dispatch prompt を
+    読めないので、ここが必須だとフック側でラウンド導出を再実装させる（K-02）。
+    """
+```
+
+### `build_parser`
+
+```python
+"""``extra_registrars``＝``(subparsers, add_issue)`` を受けて verb を足す関数の列（別モジュールの verb 用）。
+
+    登録 verb は ``func`` を ``fail_close(locked=...)`` で包んでロック要否を宣言しなければならない。
+    宣言の無い verb があれば :class:`ValueError` で組み立てを拒否する（fail-close）。
+    """
+```
+
+### `main`
+
+```python
+"""薄いディスパッチャ。終了コードへの変換とロックは各 verb 自身の宣言
+    （:func:`karte.verb_boundary.fail_close`）が担い、ここでは再ラップしない。"""
+```
+
+### コメント
+
+```python
+STDIN_SOURCE = "-"  # `--from -`＝標準入力（K-13・慣行に合わせる）
+# --- 共通ヘルパ --------------------------------------------------------------
+# --- verb: ingest-review ------------------------------------------------------
+# --- verb: render -------------------------------------------------------------
+# --- verb: append -------------------------------------------------------------
+# --- verb: close-attempt ------------------------------------------------------
+        # 台帳（repo_root）ではなく呼び出し元 worktree で diff を測る（Issue #437・
+        # 混同すると isolated worktree の commit を見失う）。
+# --- verb: check --------------------------------------------------------------
+    # Issue #503: 除外した finding は黙って落とさず必ず見せる（何を診断しなくてよいのか、
+    # なぜそう判定したのかを読み手が台帳を開かずに確認できるようにする）。
+# --- verb: status -------------------------------------------------------------
+# --- パーサ ------------------------------------------------------------------
+```
