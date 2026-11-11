@@ -109,10 +109,17 @@ from . import (
 from . import touched as touched_mod
 from .errors import KarteUsageError
 from .exit_codes import EXIT_ERROR, EXIT_OK, EXIT_SATURATED
+from .render_text import render_lines
+from .saturation_groups import group_directive as _group_directive
+from .saturation_groups import priors_for as _priors_for
+from .saturation_groups import saturated_groups as _saturated_groups
+from .stall_detection import STALL_ROUNDS as STALL_ROUNDS
+from .stall_detection import stalled_ids as _stalled_ids
+from .status_payload import status_payload as _status_payload
+from .status_text import status_lines
 from .utf8_text import read_stream_text
 from .verb_boundary import fail_close, require_declared
 
-STALL_ROUNDS = 3  # 同一 finding_id がこのラウンド数連続で未解消なら「無進捗」
 STDIN_SOURCE = "-"  # `--from -`＝標準入力（K-13・慣行に合わせる）
 
 
@@ -192,116 +199,6 @@ def _resolve_close_attempt_number(args, karte) -> int:
     )
 
 
-def _view_of(karte: model.Karte, attempt: model.Attempt) -> similarity.AttemptView:
-    return similarity.AttemptView(
-        number=attempt.number,
-        root_cause=attempt.root_cause,
-        change_kind=attempt.change_kind,
-        targets=tuple(attempt.targets),
-        touched=tuple(karte.touched_of(attempt.number)),
-    )
-
-
-def _priors_for(karte: model.Karte, finding_ids) -> list:
-    """``finding_ids`` のうち **未解消** のものを共有する過去 Attempt の投影を返す。"""
-    open_ids = karte.open_ids()
-    relevant = {fid for fid in finding_ids if fid in open_ids}
-    views = []
-    for attempt in karte.attempts:
-        if relevant & set(attempt.finding_ids):
-            views.append(_view_of(karte, attempt))
-    return views
-
-
-def _stalled_ids(karte: model.Karte) -> list:
-    """無進捗（同一 finding が ``STALL_ROUNDS`` ラウンド連続未解消）の finding ID。
-
-    対象は :meth:`model.Karte.remediation_findings`＝**この PR で是正が求められている**
-    未解消 finding に限る（Issue #503 観測3）。``disposition: deferred``/``waived`` は
-    「誰も直さないと決めた」finding なので、進捗が無いのは当然であり無進捗ではない。
-    除外前は ``deferred`` を 1 件でも抱えたまま 3 ラウンド以上回る PR が**毎回**
-    ``escalate: yes`` を出し、本物の無進捗（是正が 3 ラウンド連続で効いていない）が
-    偽陽性に紛れて見落とされる状態になっていた。
-    """
-    return sorted(
-        item.id
-        for item in karte.remediation_findings()
-        if item.max_consecutive_rounds() >= STALL_ROUNDS
-    )
-
-
-def _saturated_groups(karte: model.Karte) -> list:
-    """「同種の再試行がもう ``append`` できない」アプローチを列挙する（K-09：判定の一本化）。
-
-    **``append`` のゲートとまったく同じ判定関数を使う**（:func:`similarity.find_hits` ＋
-    :func:`similarity.is_saturated`）。違うのは主語だけで、``append`` の主語が「これから
-    書き込もうとしている 1 件」であるのに対し、ここでは「**既に書かれた Attempt k と
-    同じ宣言（root_cause / change_kind / targets）を繰り返す仮想の新規試行**」を主語に
-    置く。したがって表示の意味は 1 つに定まる——
-
-        ここに挙がったアプローチと**同種**の ``append`` は必ず ``EXIT_SATURATED`` になる。
-
-    是正前は表示側だけが :func:`similarity.cluster`（union-find の連結成分）を使っており、
-    推移律で広がるクラスタとゲートの pairwise 件数が食い違っていた。例えば
-    A1(rc=x, logic, T1) と A2(rc=x, logic, T2) は change_kind 経由で 1 つの連結成分になる
-    一方、A3(rc=x, interface, T2) は A2 とのみ類似（hits=1）なので ``append`` は通る
-    ——「``render`` が飽和と言った直後に ``append`` が成功する」＝後工程が誤読した（K-09）。
-    現在はどちらも同じ pairwise 判定なので、A1/A2 と同種の再試行だけが拒否対象として
-    表示され、A3 のような別アプローチは表示にも現れないし拒否もされない。
-
-    仮想の新規試行には実測 ``touched`` を持たせない（``append`` は修正の**前**に走るため
-    新規側に実測値は存在しない）。比較相手の過去 Attempt 側には ``close-attempt`` で
-    取り込んだ実測値を載せる——ここも ``append`` と同じ扱い。
-
-    **比較相手（priors）も ``append`` と同じ集合にする**——すなわち候補ごとに
-    :func:`_priors_for` で「その候補が対象とする**未解消** finding を共有する Attempt」へ
-    絞る。以前はここだけが「未解消 finding をどれか共有する全 Attempt」を priors に使って
-    おり、判定関数が 1 つでも**入力集合が 2 通り**あったため表示とゲートが再び食い違った：
-    未解消 finding が 2 件あり Attempt を finding ごとに分けると、finding B の Attempt は
-    finding A の Attempt 群まで priors に数えられて**飽和表示されるのに ``append`` は通る**
-    （過大報告）。逆向き（``append`` は拒否するのに表示に出ない＝過少報告）も同じ穴の裏側。
-    判定関数だけでなく**入力も一本化**して初めて K-09 の「表示＝ゲート」が成立する。
-
-    戻り値は ``(candidate_number, members, hits, candidate_view)`` の列。
-    ``members`` は「その再試行が衝突する Attempt 番号」（自分自身を含む）で、同じ
-    ``members`` を持つ候補は先に現れた 1 件に畳む（同一グループを重複表示しない）。
-    """
-    open_ids = karte.open_ids()
-    relevant = [
-        attempt for attempt in karte.attempts if open_ids & set(attempt.finding_ids)
-    ]
-    groups: list = []
-    seen: set = set()
-    for attempt in relevant:
-        candidate = similarity.AttemptView(
-            number=attempt.number,
-            root_cause=attempt.root_cause,
-            change_kind=attempt.change_kind,
-            targets=tuple(attempt.targets),
-            touched=(),
-        )
-        # `append` と同じ入力集合（候補の finding_ids でスコープした priors）を使う。
-        priors = _priors_for(karte, attempt.finding_ids)
-        hits = similarity.find_hits(candidate, priors)
-        if not similarity.is_saturated(hits):
-            continue
-        members = tuple(sorted({hit.prior for hit in hits}))
-        if members in seen:
-            continue
-        seen.add(members)
-        groups.append((attempt.number, list(members), hits, candidate))
-    return groups
-
-
-def _group_directive(karte: model.Karte, candidate_number: int, hits, candidate) -> str:
-    """飽和したアプローチの転換指令（``render`` / ``close-attempt`` の表示用）。"""
-    attempt = karte.attempt(candidate_number)
-    open_ids = karte.open_ids() & set(attempt.finding_ids if attempt else [])
-    return similarity.build_directive(
-        candidate, hits, open_ids, subject_label="飽和したアプローチ"
-    ).text()
-
-
 # --- verb: ingest-review ------------------------------------------------------
 
 
@@ -337,133 +234,12 @@ def cmd_ingest_review(args, repo_root, report_text) -> int:
 
 @fail_close(locked=False)
 def cmd_render(args, repo_root) -> int:
-    """カルテの現在状態を**そのまま注入できる本文**として出力する（K-14）。
-
-    SubagentStart フック（matcher ``issue-fixer``）がこれを実行し、標準出力を
-    ``hookSpecificOutput.additionalContext`` として是正エージェントへ自動注入する。
-    「是正エージェントに ``render`` を引かせる」設計だと、呼び忘れたら過去の試行を
-    知らないまま修正に入る——本件（同じ失敗の繰り返し）で直そうとしている失敗そのものが
-    残るため、注入側に寄せた。
-
-    したがって出力は**自己完結**させる:
-      * 何の本文か・受け手が何をすべきかを冒頭で述べる（前後の文脈に依存しない）。
-      * 過去 Attempt 一覧（実測 touched と Result を含む）／未解消 finding 一覧／
-        飽和したアプローチの転換指令を、この 1 通で完結させる。
-      * 端末装飾（色・カーソル制御）や対話前提の文言（「上記の…」「続けますか」）を混ぜない。
-
-    ``--issue`` は進行ポインタから補完できる（フックは dispatch prompt を読めない）。
-    カルテ未作成は :data:`EXIT_NOT_FOUND` のまま（ガード違反＝EXIT_ERROR と区別する）。
-    """
+    """カルテの現在状態を本文として出力する。"""
     issue = pointer_completion.resolve_issue(args, repo_root)
     path, karte = karte_loader.load_karte(repo_root, issue)
     active = active_pointer.read_active(repo_root)
     round_no = pointer_completion.recorded_round(active, issue)
-
-    lines = [f"=== Karte: issue-{issue}" + (f" / round {round_no}" if round_no else "") + " ==="]
-    lines.append(
-        f"これは Issue #{issue} の是正ループの診断カルテ（{path}）から機械生成した現在状態である。"
-    )
-    lines.append(
-        "同じ失敗を繰り返さないために、以下の Prior attempts と同じ診断・同じ変更箇所を"
-        "もう一度なぞらないこと。新しい試行は着手前に "
-        f"`python3 -m karte append --issue {issue} --finding-ids <ID...> --root-cause <slug> "
-        "--change-kind <kind> --targets <file::symbol...>` で宣言し、修正後に "
-        f"`python3 -m karte close-attempt --issue {issue} --outcome <fixed|partial|no-change|regressed>` "
-        "で実測差分を記録すること（記録しないと `check` が通らず停止できない）。"
-    )
-    lines.append("")
-    lines.append("## Prior attempts（DO NOT repeat these）")
-    if not karte.attempts:
-        lines.append("  (まだ試行なし)")
-    for attempt in karte.attempts:
-        measured = karte.touched_of(attempt.number)
-        lines.append(
-            f"  - Attempt {attempt.number} [round {attempt.round}] "
-            f"root_cause={attempt.root_cause} change_kind={attempt.change_kind}"
-        )
-        lines.append(f"      finding_ids: {', '.join(attempt.finding_ids)}")
-        lines.append(f"      targets: {', '.join(attempt.targets)}")
-        if attempt.diagnosis:
-            lines.append(f"      diagnosis: {attempt.diagnosis}")
-        if measured:
-            lines.append(f"      実測 touched: {', '.join(measured)}")
-        for result in karte.results_for(attempt.number):
-            note = f" / {result.note}" if result.note else ""
-            lines.append(f"      → Result: {result.outcome}{note}")
-        if not karte.results_for(attempt.number):
-            lines.append("      → Result: (未クローズ。修正後に `close-attempt` で実測を記録する)")
-
-    lines.append("")
-    lines.append("## Open findings（未解消）")
-    open_findings = karte.open_findings()
-    if not open_findings:
-        lines.append("  (未解消の指摘なし)")
-    stalled_ids = set(_stalled_ids(karte))
-    for finding in open_findings:
-        # Issue #503: 無進捗の印も `_stalled_ids`（単一の判定）から引く。ここだけ
-        # `max_consecutive_rounds` を直に見ていると、`status` は無進捗と言わないのに
-        # `render` だけが是正担当へ ★無進捗 を見せる、という食い違いが残る。
-        stalled = " ★無進捗" if finding.id in stalled_ids else ""
-        lines.append(
-            f"  - {finding.id} [harm={finding.harm}] [severity={finding.severity}] "
-            f"[scope={finding.scope}] [disposition={finding.disposition or '未決定'}]"
-            f" rounds={finding.rounds}{stalled}"
-        )
-        # Issue #495: 是正側にも「スコープ外の申告は処置免除ではない」ことを本文で示す
-        # （`scope: out` を理由に直さず素通しする、が塞ごうとしている経路そのもの）。
-        if finding.scope == "out":
-            lines.append(
-                "      注意: scope: out（スコープ外の申告）は実害判定・記録・verdict の"
-                "免除にならない。処置方針（disposition）は主文脈／オーナーが決める。"
-            )
-        if finding.disposition == "deferred":
-            lines.append(f"      申し送り先: {finding.deferred_to}（この PR では直さない）")
-        if finding.disposition == "waived":
-            lines.append(
-                f"      処置不要（waived）: {finding.waived_by} / {finding.waived_reason}"
-            )
-        lines.append(f"      summary: {finding.summary}")
-        lines.append(f"      harm_detail: {finding.harm_detail}")
-        if finding.locus:
-            lines.append(f"      locus: {', '.join(finding.locus)}")
-        lines.append(f"      evidence: {finding.evidence}")
-        # expected / recheck は是正側の入力契約そのもの（Issue #341 F-341-01）。
-        # ここに出さないと `issue-fixer` は「何をもって解消か」を前ラウンドから引けない。
-        lines.append(f"      expected: {finding.expected}")
-        lines.append(f"      recheck: {finding.recheck}")
-        related = karte.attempts_for_finding(finding.id)
-        if related:
-            lines.append(
-                "      対応した Attempt: "
-                + ", ".join(str(item.number) for item in related)
-            )
-
-    groups = _saturated_groups(karte)
-    if groups:
-        lines.append("")
-        lines.append("## 飽和したアプローチ（同種の再試行は append が拒否される）")
-        lines.append(
-            "  以下と**同種**の Attempt（root_cause が同じで change_kind が同じか targets が"
-            "重なるもの、あるいは実測 touched-set が一致するもの）を append すると "
-            "EXIT_SATURATED で拒否され、カルテには書かれない。"
-        )
-        lines.append(
-            "  ここに挙がっていないアプローチ（root_cause と targets を変えたもの）の append は"
-            "拒否されない——この節は「次の append が必ず落ちる」という意味ではなく、"
-            "「**このアプローチを繰り返す** append が落ちる」という意味である。"
-        )
-        for number, members, hits, candidate in groups:
-            lines.append(
-                f"  - Attempt {number} と同種（root_cause={candidate.root_cause} / "
-                f"change_kind={candidate.change_kind} / "
-                f"targets={', '.join(candidate.targets)}）: "
-                f"衝突する既存 Attempt {', '.join(str(item) for item in members)}"
-            )
-            directive = _group_directive(karte, number, hits, candidate)
-            if directive:
-                lines.append(directive)
-
-    print("\n".join(lines))
+    print("\n".join(render_lines(issue, path, round_no, karte)))
     return EXIT_OK
 
 
@@ -729,272 +505,16 @@ def cmd_check(args, repo_root) -> int:
 # --- verb: status -------------------------------------------------------------
 
 
-def _status_payload(karte: model.Karte) -> dict:
-    """verdict とエスカレーション材料を機械判定する（Issue #495 でゲートを追加）。
-
-    verdict は**未解消件数ではなく「clean を妨げる未解消 finding」**で決める。
-    ``harm: real`` の finding に限り、``disposition: deferred``（別 Issue へ申し送り）と
-    ``waived``（オーナーが明示的に処置不要を許可）は ``status: open`` のまま台帳に残しつつ、
-    verdict の上でだけ clean を妨げない（:attr:`model.Finding.needs_remediation`——
-    ``check`` の診断網羅要求・無進捗検知と**同じ単一の述語**・Issue #503）。逆に
-    ``harm: real`` で disposition が**未決定**のものは、``scope`` が ``out``（スコープ外の
-    申告）でも clean を妨げる——「スコープ外」と書くだけで実害判定・記録・ゲートを迂回できた
-    のが Issue #495 の欠陥そのものだから、その迂回を機械側で塞ぐ。
-
-    ``harm: none`` には解除力を与えない（:data:`model.CLEARING_HARM`・オーナー確定
-    2026-09-07）。実害なしの未解消だけが残る状態は ``no-harm-only`` のままオーナーへ
-    打ち上げる対象であり、``disposition`` を 2 行書いて ``clean`` へ変えられてはならない。
-
-    ``harmful_open``（``status --json``）は**台帳上の未解消かつ ``harm: real``** の全件で、
-    ``deferred``/``waived`` と決まったものも含む。したがって ``harmful_open`` は verdict の
-    説明にはならない——**「clean を妨げる実害あり」＝ ``blocking_findings`` ∩ ``harmful_open``**
-    であり、これを ``blocking_harmful`` として payload へ直接出す（PR #496 F-495-06）。
-    消費者に積を取らせない：積の取り方を各消費者に委ねると、F-495-05 と同型の
-    「verdict と内訳の意味の取り違え」が消費者側で再発する。
-
-    3 つの集合は ``undecided_disposition`` ⊆ ``blocking_harmful`` ⊆ ``harmful_open``
-    という包含関係にある。``blocking_harmful`` と ``undecided_disposition`` の差は
-    ``disposition: fix-here``（当該 PR で直すと決めたが未修正）の分であり、
-    ``verdict == "harmful-open"`` を説明するのは ``blocking_harmful`` の方
-    （``undecided_disposition`` が空でも ``fix-here`` が残れば ``harmful-open`` になる）。
-    """
-    open_findings = karte.open_findings()
-    harmful = [item for item in open_findings if item.harm == "real"]
-    blocking = karte.remediation_findings()
-    undecided = karte.undecided_findings()
-    blocking_harmful = [item for item in blocking if item.harm == "real"]
-    if not blocking:
-        verdict = "clean"
-    elif blocking_harmful:
-        verdict = "harmful-open"
-    else:
-        verdict = "no-harm-only"
-    stalled = _stalled_ids(karte)
-    # K-09: 表示（ここ）とゲート（append）は同じ判定関数を使う。`saturated_groups` は
-    # 「そのアプローチを繰り返す append が拒否される」既存 Attempt の組。
-    saturated = [members for _number, members, _hits, _candidate in _saturated_groups(karte)]
-    findings = []
-    for finding in karte.findings:
-        related = karte.attempts_for_finding(finding.id)
-        findings.append(
-            {
-                "id": finding.id,
-                "status": finding.status,
-                "harm": finding.harm,
-                "harm_detail": finding.harm_detail,
-                "severity": finding.severity,
-                "scope": finding.scope,
-                "disposition": finding.disposition,
-                "deferred_to": finding.deferred_to,
-                "waived_by": finding.waived_by,
-                "waived_reason": finding.waived_reason,
-                "locus": list(finding.locus),
-                "summary": finding.summary,
-                "evidence": finding.evidence,
-                "expected": finding.expected,
-                "recheck": finding.recheck,
-                "rounds": list(finding.rounds),
-                "resolved_round": finding.resolved_round,
-                "attempts": [
-                    {
-                        "attempt": item.number,
-                        "round": item.round,
-                        "root_cause": item.root_cause,
-                        "change_kind": item.change_kind,
-                        "targets": list(item.targets),
-                        "results": [
-                            {
-                                "outcome": result.outcome,
-                                "touched": list(result.touched),
-                                "note": result.note,
-                            }
-                            for result in karte.results_for(item.number)
-                        ],
-                    }
-                    for item in related
-                ],
-            }
-        )
-    return {
-        "issue": karte.issue,
-        "verdict": verdict,
-        "open_findings": [item.id for item in open_findings],
-        "harmful_open": [item.id for item in harmful],
-        "no_harm_open": [item.id for item in open_findings if item.harm == "none"],
-        # Issue #495: verdict のゲート材料。`blocking_findings` が空のときだけ clean。
-        "blocking_findings": [item.id for item in blocking],
-        # PR #496 F-495-06: `blocking_findings` ∩ `harmful_open`＝「clean を妨げる実害あり」。
-        # verdict `harmful-open` を成立させている当の集合なので、消費者に積を取らせず出す。
-        "blocking_harmful": [item.id for item in blocking_harmful],
-        "undecided_disposition": [item.id for item in undecided],
-        "deferred_findings": [
-            {"id": item.id, "deferred_to": item.deferred_to}
-            for item in open_findings
-            if item.disposition == "deferred"
-        ],
-        "waived_findings": [
-            {"id": item.id, "waived_by": item.waived_by, "waived_reason": item.waived_reason}
-            for item in open_findings
-            if item.disposition == "waived"
-        ],
-        "out_of_scope_open": [item.id for item in open_findings if item.scope == "out"],
-        "stalled_findings": stalled,
-        "stall_rounds": STALL_ROUNDS,
-        "saturated_groups": saturated,
-        "escalate": bool(stalled or saturated),
-        "findings": findings,
-    }
-
-
 @fail_close(locked=False)
 def cmd_status(args, repo_root) -> int:
-    """エスカレーション条件を機械判定し、**そのまま注入できる本文**として出力する（K-15）。
-
-    **手動実行（``python3 -m karte status``）は常に全件を出力する**——フックの既読管理
-    （後述）が及ぶのは通知経路だけで、この verb 自体の出力は変えていない
-    （Issue #512 Acceptance criteria）。
-
-    K-15 は当初「PostToolUse フック（matcher ``Task``）が ``pr-reviewer`` 呼び出し完了直後に
-    これを実行し、判定結果をコンテキストへ自動注入する」設計を構想したが未配線のまま、
-    Issue #512 が対応 AC を移譲して**別の設計**で実装した。実際に配線されたのは
-    :mod:`karte_notify`（``.claude/hooks/karte-notify.sh``・PostToolUse matcher ``Bash|ctx_execute|ctx_batch_execute``）で、
-    トリガーは ``pr-reviewer`` 呼び出し後ではなく ``karte ingest-review``/``close-attempt``
-    実行直後、届け先は AI のコンテキスト（``additionalContext``）ではなく**オーナーの
-    チャット**（``systemMessage``）にした。AI のコンテキストへ注入するだけでは
-    「機械判定が AI の要約を経て歪む」経路を防げないため（実例＝PR #509／Issue #431：
-    ``escalate: yes`` を主文脈が「原因が分かっているから問題ない」と独自解釈して丸めた）。
-    ``karte_notify`` はこの verb の ``--json`` 出力を読むだけの外部消費者であり、finding ID
-    単位の既読管理（``resolved`` 済みで通知済みの finding を再表示しない等）は
-    ``karte_notify.notify`` 側の責務としてここには持ち込まない。
-
-    **PostToolUse はツール呼び出しをブロックできない**（公式ドキュメント：the tool already
-    ran／blocking does not undo the tool call）ため、この verb の役割は「判定を必ず実行し
-    可視化する」までであり、「判定に反した行動（実害あり残存のまま merge する等）を止める」
-    のは別途 PreToolUse で merge 操作を捕まえるゲートが担う（Issue #293／#298・本 verb の対象外）。
-
-    ``--issue`` は進行ポインタ（``tmp/_karte/active.json``）から補完できる（K-13/K-14 と
-    同じ扱い）。既定出力（非 ``--json``）は残存 finding とその harm 判定・verdict・
-    エスカレーション条件のどれに該当するかを 1 通で完結させる（端末装飾・対話前提の
-    文言は混ぜない）。機械可読が要るときは ``--json`` を使う（挙動は変えない）。
-
-    本文出力は ``blocking_findings`` / ``blocking_harmful`` / ``undecided_disposition`` の
-    3 集合を**包含関係の順に**行として出す（PR #496 F-495-07）。``--json`` にだけ
-    ``blocking_harmful`` を出して本文では読み手に積を取らせる、という非対称を残さないため。
-    """
+    """進捗判定を本文または JSON として出力する。"""
     issue = pointer_completion.resolve_issue(args, repo_root)
     path, karte = karte_loader.load_karte(repo_root, issue)
     payload = _status_payload(karte)
     if getattr(args, "json", False):
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return EXIT_OK
-
-    verdict_label = {
-        # Issue #495: clean の定義は「未解消 0 件」ではなく「clean を妨げる未解消 0 件」。
-        # `harm: real` の `deferred`/`waived` は `status: open` のまま残るが verdict を妨げない。
-        # PR #496 F-495-05: `no-harm-only` は「台帳の未解消が全件実害なし」ではない——
-        # 申し送り／処置不要と決めた `harm: real` が別に残りうる（下の「実害あり」行に出る）。
-        # ラベルを「全件実害なし」のままにすると、同じ出力の中で自己矛盾し、
-        # オーナーへ偽の前提で打ち上げることになる。
-        "clean": "clean（clean を妨げる未解消の指摘なし）",
-        "harmful-open": "harmful-open（clean を妨げる実害ありが残存）",
-        "no-harm-only": (
-            "no-harm-only（clean を妨げる未解消はすべて実害なし。"
-            "申し送り/処置不要と決めた実害ありは別に残りうる）"
-        ),
-    }[payload["verdict"]]
-    lines = [f"=== status: issue-{issue} ==="]
-    lines.append(
-        f"これは Issue #{issue} の是正ループの進捗判定を、診断カルテ（{path}）から"
-        "機械生成した現在状態である（karte status）。"
-    )
-    lines.append(f"  verdict: {verdict_label}")
-    lines.append(f"  未解消: {', '.join(payload['open_findings']) or '(なし)'}")
-    # F-495-05: この2行は**台帳上の未解消全件**の harm 別内訳であり、clean を妨げるか否かとは
-    # 別の軸（申し送り/処置不要と決めた実害ありもここに出る）。次の行と読み分けられるよう明示する。
-    lines.append(
-        "  実害あり（未解消・申し送り/処置不要と決めたものを含む）: "
-        f"{', '.join(payload['harmful_open']) or '(なし)'}"
-    )
-    lines.append(f"  実害なし（未解消）: {', '.join(payload['no_harm_open']) or '(なし)'}")
-    # Issue #495: 「スコープ外」「別 Issue へ回す」が実害判定・ゲートの免除にならないことを
-    # 判定結果の面でも見えるようにする（誰かが気づく必要を残さない）。
-    lines.append(
-        f"  clean を妨げる未解消: {', '.join(payload['blocking_findings']) or '(なし)'}"
-    )
-    # PR #496 F-495-07: 機械向け（``--json`` の ``blocking_harmful``）だけが積を取らずに済み、
-    # 人間の読み手は上の「clean を妨げる未解消」行と「実害あり」行の積を自分で取る、という
-    # 非対称を残さない。この行以下の 3 行は包含関係の順
-    # （clean を妨げる未解消 ⊇ clean を妨げる実害あり ⊇ 実害あり・disposition 未決定）に並べ、
-    # 3 つの集合の関係を読み手が取り違えないようにする。
-    lines.append(
-        "  clean を妨げる実害あり（verdict harmful-open を成立させている集合）: "
-        f"{', '.join(payload['blocking_harmful']) or '(なし)'}"
-    )
-    lines.append(
-        "  実害あり・disposition 未決定（clean を妨げる／scope: out でも免除されない）: "
-        f"{', '.join(payload['undecided_disposition']) or '(なし)'}"
-    )
-    lines.append(
-        "  申し送り（disposition: deferred・status は open のまま）: "
-        + (
-            ", ".join(
-                f"{item['id']}→{item['deferred_to']}" for item in payload["deferred_findings"]
-            )
-            or "(なし)"
-        )
-    )
-    lines.append(
-        "  処置不要（disposition: waived・オーナー明示）: "
-        + (
-            ", ".join(
-                f"{item['id']}（{item['waived_by']}）" for item in payload["waived_findings"]
-            )
-            or "(なし)"
-        )
-    )
-    lines.append(
-        f"  スコープ外の申告（scope: out・未解消）: "
-        f"{', '.join(payload['out_of_scope_open']) or '(なし)'}"
-    )
-    lines.append(
-        f"  無進捗（{STALL_ROUNDS} ラウンド連続未解消）: "
-        f"{', '.join(payload['stalled_findings']) or '(なし)'}"
-    )
-    if payload["saturated_groups"]:
-        groups = "; ".join(
-            "Attempt " + ", ".join(str(number) for number in members)
-            for members in payload["saturated_groups"]
-        )
-        # K-09: 「同種の再試行が拒否される組」であって「次の append が必ず落ちる」ではない。
-        lines.append(
-            f"  飽和したアプローチ（同種の再試行は append が拒否される）: {groups}"
-        )
-    if payload["escalate"]:
-        reasons = []
-        if payload["stalled_findings"]:
-            reasons.append(f"無進捗（{', '.join(payload['stalled_findings'])}）")
-        if payload["saturated_groups"]:
-            reasons.append("飽和したアプローチあり")
-        lines.append(f"  escalate: yes（理由: {' / '.join(reasons) or '不明'}）")
-    else:
-        lines.append("  escalate: no（無進捗・飽和したアプローチのいずれにも該当しない）")
-    lines.append("")
-    lines.append("## 残存 finding（未解消・harm 判定つき）")
-    open_lines = [item for item in payload["findings"] if item["status"] == "open"]
-    if not open_lines:
-        lines.append("  (未解消の指摘なし)")
-    for finding in open_lines:
-        trace = []
-        for attempt in finding["attempts"]:
-            outcomes = ", ".join(result["outcome"] for result in attempt["results"]) or "未クローズ"
-            trace.append(f"Attempt {attempt['attempt']}({attempt['root_cause']}→{outcomes})")
-        disposition = finding["disposition"] or "未決定"
-        lines.append(
-            f"  - {finding['id']} [harm={finding['harm']}] [scope={finding['scope']}] "
-            f"[disposition={disposition}]: {finding['summary']}"
-        )
-        lines.append(f"      診断/処置: {'; '.join(trace) or '(未診断)'}")
-    print("\n".join(lines))
+    print("\n".join(status_lines(issue, path, payload)))
     return EXIT_OK
 
 

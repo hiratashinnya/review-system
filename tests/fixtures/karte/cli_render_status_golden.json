@@ -1,0 +1,2358 @@
+{
+  "empty-clean": {
+    "render": {
+      "exit_code": 0,
+      "stdout_sha256": "689ffa0b8dc6f53c8b867e0ee59f624c0e90ae1eb11d79b067bb4ba13e28e9ec"
+    },
+    "status": {
+      "exit_code": 0,
+      "stdout_sha256": "10b144513a883f02b7084839aa41c418d25fa5e934fb0bf3f5d1b06e9c2404d0"
+    },
+    "status-json": {
+      "exit_code": 0,
+      "stdout_sha256": "c29505012c979e139b7d3038b2cd2335584bd186813fb664f7dbcc0751e24250",
+      "json": {
+        "issue": 307,
+        "verdict": "clean",
+        "open_findings": [],
+        "harmful_open": [],
+        "no_harm_open": [],
+        "blocking_findings": [],
+        "blocking_harmful": [],
+        "undecided_disposition": [],
+        "deferred_findings": [],
+        "waived_findings": [],
+        "out_of_scope_open": [],
+        "stalled_findings": [],
+        "stall_rounds": 3,
+        "saturated_groups": [],
+        "escalate": false,
+        "findings": []
+      },
+      "json_key_order": {
+        "keys": [
+          "issue",
+          "verdict",
+          "open_findings",
+          "harmful_open",
+          "no_harm_open",
+          "blocking_findings",
+          "blocking_harmful",
+          "undecided_disposition",
+          "deferred_findings",
+          "waived_findings",
+          "out_of_scope_open",
+          "stalled_findings",
+          "stall_rounds",
+          "saturated_groups",
+          "escalate",
+          "findings"
+        ],
+        "children": [
+          null,
+          null,
+          [],
+          [],
+          [],
+          [],
+          [],
+          [],
+          [],
+          [],
+          [],
+          [],
+          null,
+          [],
+          null,
+          []
+        ]
+      }
+    }
+  },
+  "clean-deferred-waived-resolved": {
+    "render": {
+      "exit_code": 0,
+      "stdout_sha256": "391f8a08b5e5cb61edefd2f6b8c70d705950cbc2b502a5d48f17ab55a0abd8a3"
+    },
+    "status": {
+      "exit_code": 0,
+      "stdout_sha256": "30134626b4ad22bd7486a1f2b5e64e4584f24ed94943b320d9185658a225cc5f"
+    },
+    "status-json": {
+      "exit_code": 0,
+      "stdout_sha256": "d460a7d1f654b4d655f3625ef46f8f9d9c00acbd00a8835ff8bb94960b4dfa2c",
+      "json": {
+        "issue": 307,
+        "verdict": "clean",
+        "open_findings": [
+          "F-307-01",
+          "F-307-02"
+        ],
+        "harmful_open": [
+          "F-307-01",
+          "F-307-02"
+        ],
+        "no_harm_open": [],
+        "blocking_findings": [],
+        "blocking_harmful": [],
+        "undecided_disposition": [],
+        "deferred_findings": [
+          {
+            "id": "F-307-01",
+            "deferred_to": "#42"
+          }
+        ],
+        "waived_findings": [
+          {
+            "id": "F-307-02",
+            "waived_by": "owner",
+            "waived_reason": "合意済み"
+          }
+        ],
+        "out_of_scope_open": [],
+        "stalled_findings": [],
+        "stall_rounds": 3,
+        "saturated_groups": [],
+        "escalate": false,
+        "findings": [
+          {
+            "id": "F-307-01",
+            "status": "open",
+            "harm": "real",
+            "harm_detail": "入力が正しく処理されない",
+            "severity": "major",
+            "scope": "in",
+            "disposition": "deferred",
+            "deferred_to": "#42",
+            "waived_by": "",
+            "waived_reason": "",
+            "locus": [
+              "a.py::f",
+              "b.py::g"
+            ],
+            "summary": "指摘 1",
+            "evidence": "確認した根拠",
+            "expected": "期待する結果",
+            "recheck": "再確認する",
+            "rounds": [
+              1
+            ],
+            "resolved_round": null,
+            "attempts": []
+          },
+          {
+            "id": "F-307-02",
+            "status": "open",
+            "harm": "real",
+            "harm_detail": "入力が正しく処理されない",
+            "severity": "major",
+            "scope": "in",
+            "disposition": "waived",
+            "deferred_to": "",
+            "waived_by": "owner",
+            "waived_reason": "合意済み",
+            "locus": [
+              "a.py::f",
+              "b.py::g"
+            ],
+            "summary": "指摘 2",
+            "evidence": "確認した根拠",
+            "expected": "期待する結果",
+            "recheck": "再確認する",
+            "rounds": [
+              1
+            ],
+            "resolved_round": null,
+            "attempts": []
+          },
+          {
+            "id": "F-307-03",
+            "status": "resolved",
+            "harm": "real",
+            "harm_detail": "入力が正しく処理されない",
+            "severity": "major",
+            "scope": "in",
+            "disposition": "",
+            "deferred_to": "",
+            "waived_by": "",
+            "waived_reason": "",
+            "locus": [
+              "a.py::f",
+              "b.py::g"
+            ],
+            "summary": "指摘 3",
+            "evidence": "確認した根拠",
+            "expected": "期待する結果",
+            "recheck": "再確認する",
+            "rounds": [
+              1,
+              2
+            ],
+            "resolved_round": 3,
+            "attempts": []
+          }
+        ]
+      },
+      "json_key_order": {
+        "keys": [
+          "issue",
+          "verdict",
+          "open_findings",
+          "harmful_open",
+          "no_harm_open",
+          "blocking_findings",
+          "blocking_harmful",
+          "undecided_disposition",
+          "deferred_findings",
+          "waived_findings",
+          "out_of_scope_open",
+          "stalled_findings",
+          "stall_rounds",
+          "saturated_groups",
+          "escalate",
+          "findings"
+        ],
+        "children": [
+          null,
+          null,
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ],
+          [],
+          [],
+          [],
+          [],
+          [
+            {
+              "keys": [
+                "id",
+                "deferred_to"
+              ],
+              "children": [
+                null,
+                null
+              ]
+            }
+          ],
+          [
+            {
+              "keys": [
+                "id",
+                "waived_by",
+                "waived_reason"
+              ],
+              "children": [
+                null,
+                null,
+                null
+              ]
+            }
+          ],
+          [],
+          [],
+          null,
+          [],
+          null,
+          [
+            {
+              "keys": [
+                "id",
+                "status",
+                "harm",
+                "harm_detail",
+                "severity",
+                "scope",
+                "disposition",
+                "deferred_to",
+                "waived_by",
+                "waived_reason",
+                "locus",
+                "summary",
+                "evidence",
+                "expected",
+                "recheck",
+                "rounds",
+                "resolved_round",
+                "attempts"
+              ],
+              "children": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                [
+                  null,
+                  null
+                ],
+                null,
+                null,
+                null,
+                null,
+                [
+                  null
+                ],
+                null,
+                []
+              ]
+            },
+            {
+              "keys": [
+                "id",
+                "status",
+                "harm",
+                "harm_detail",
+                "severity",
+                "scope",
+                "disposition",
+                "deferred_to",
+                "waived_by",
+                "waived_reason",
+                "locus",
+                "summary",
+                "evidence",
+                "expected",
+                "recheck",
+                "rounds",
+                "resolved_round",
+                "attempts"
+              ],
+              "children": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                [
+                  null,
+                  null
+                ],
+                null,
+                null,
+                null,
+                null,
+                [
+                  null
+                ],
+                null,
+                []
+              ]
+            },
+            {
+              "keys": [
+                "id",
+                "status",
+                "harm",
+                "harm_detail",
+                "severity",
+                "scope",
+                "disposition",
+                "deferred_to",
+                "waived_by",
+                "waived_reason",
+                "locus",
+                "summary",
+                "evidence",
+                "expected",
+                "recheck",
+                "rounds",
+                "resolved_round",
+                "attempts"
+              ],
+              "children": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                [
+                  null,
+                  null
+                ],
+                null,
+                null,
+                null,
+                null,
+                [
+                  null,
+                  null
+                ],
+                null,
+                []
+              ]
+            }
+          ]
+        ]
+      }
+    }
+  },
+  "harmful-in-out-fix-here": {
+    "render": {
+      "exit_code": 0,
+      "stdout_sha256": "cf11202bb9ab598bdddfb07c65b3da9b1f229bf6b458199872b5e4a7ce981e6c"
+    },
+    "status": {
+      "exit_code": 0,
+      "stdout_sha256": "ef22ed234b13a69e372bf0c4831dd90bff7cb292c11f2ac9c534aa8a27e0d59c"
+    },
+    "status-json": {
+      "exit_code": 0,
+      "stdout_sha256": "c7000db0998c3cc8f51d9e8d184f009517f67ad4edd1e2afdc90ce9fd24b5ff0",
+      "json": {
+        "issue": 307,
+        "verdict": "harmful-open",
+        "open_findings": [
+          "F-307-01",
+          "F-307-02"
+        ],
+        "harmful_open": [
+          "F-307-01",
+          "F-307-02"
+        ],
+        "no_harm_open": [],
+        "blocking_findings": [
+          "F-307-01",
+          "F-307-02"
+        ],
+        "blocking_harmful": [
+          "F-307-01",
+          "F-307-02"
+        ],
+        "undecided_disposition": [
+          "F-307-01"
+        ],
+        "deferred_findings": [],
+        "waived_findings": [],
+        "out_of_scope_open": [
+          "F-307-02"
+        ],
+        "stalled_findings": [],
+        "stall_rounds": 3,
+        "saturated_groups": [],
+        "escalate": false,
+        "findings": [
+          {
+            "id": "F-307-01",
+            "status": "open",
+            "harm": "real",
+            "harm_detail": "入力が正しく処理されない",
+            "severity": "major",
+            "scope": "in",
+            "disposition": "",
+            "deferred_to": "",
+            "waived_by": "",
+            "waived_reason": "",
+            "locus": [
+              "a.py::f",
+              "b.py::g"
+            ],
+            "summary": "指摘 1",
+            "evidence": "確認した根拠",
+            "expected": "期待する結果",
+            "recheck": "再確認する",
+            "rounds": [
+              1
+            ],
+            "resolved_round": null,
+            "attempts": []
+          },
+          {
+            "id": "F-307-02",
+            "status": "open",
+            "harm": "real",
+            "harm_detail": "入力が正しく処理されない",
+            "severity": "major",
+            "scope": "out",
+            "disposition": "fix-here",
+            "deferred_to": "",
+            "waived_by": "",
+            "waived_reason": "",
+            "locus": [],
+            "summary": "指摘 2",
+            "evidence": "確認した根拠",
+            "expected": "期待する結果",
+            "recheck": "再確認する",
+            "rounds": [
+              1
+            ],
+            "resolved_round": null,
+            "attempts": []
+          }
+        ]
+      },
+      "json_key_order": {
+        "keys": [
+          "issue",
+          "verdict",
+          "open_findings",
+          "harmful_open",
+          "no_harm_open",
+          "blocking_findings",
+          "blocking_harmful",
+          "undecided_disposition",
+          "deferred_findings",
+          "waived_findings",
+          "out_of_scope_open",
+          "stalled_findings",
+          "stall_rounds",
+          "saturated_groups",
+          "escalate",
+          "findings"
+        ],
+        "children": [
+          null,
+          null,
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ],
+          [],
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ],
+          [
+            null
+          ],
+          [],
+          [],
+          [
+            null
+          ],
+          [],
+          null,
+          [],
+          null,
+          [
+            {
+              "keys": [
+                "id",
+                "status",
+                "harm",
+                "harm_detail",
+                "severity",
+                "scope",
+                "disposition",
+                "deferred_to",
+                "waived_by",
+                "waived_reason",
+                "locus",
+                "summary",
+                "evidence",
+                "expected",
+                "recheck",
+                "rounds",
+                "resolved_round",
+                "attempts"
+              ],
+              "children": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                [
+                  null,
+                  null
+                ],
+                null,
+                null,
+                null,
+                null,
+                [
+                  null
+                ],
+                null,
+                []
+              ]
+            },
+            {
+              "keys": [
+                "id",
+                "status",
+                "harm",
+                "harm_detail",
+                "severity",
+                "scope",
+                "disposition",
+                "deferred_to",
+                "waived_by",
+                "waived_reason",
+                "locus",
+                "summary",
+                "evidence",
+                "expected",
+                "recheck",
+                "rounds",
+                "resolved_round",
+                "attempts"
+              ],
+              "children": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                [],
+                null,
+                null,
+                null,
+                null,
+                [
+                  null
+                ],
+                null,
+                []
+              ]
+            }
+          ]
+        ]
+      }
+    }
+  },
+  "no-harm-disposition": {
+    "render": {
+      "exit_code": 0,
+      "stdout_sha256": "31ef30cada3035575dd923368ed504b85365c9bf357666aef0b046fbfe1eb4b2"
+    },
+    "status": {
+      "exit_code": 0,
+      "stdout_sha256": "7ef088d5aeb61d2efb1af0830998f7576b39461a897c0044bd2930b052247ee3"
+    },
+    "status-json": {
+      "exit_code": 0,
+      "stdout_sha256": "987bf306c21dc09b8c7d5f8f710180207233399b1dd90328a816ab6c75ae0725",
+      "json": {
+        "issue": 307,
+        "verdict": "no-harm-only",
+        "open_findings": [
+          "F-307-01",
+          "F-307-02"
+        ],
+        "harmful_open": [
+          "F-307-02"
+        ],
+        "no_harm_open": [
+          "F-307-01"
+        ],
+        "blocking_findings": [
+          "F-307-01"
+        ],
+        "blocking_harmful": [],
+        "undecided_disposition": [],
+        "deferred_findings": [
+          {
+            "id": "F-307-01",
+            "deferred_to": "#42"
+          }
+        ],
+        "waived_findings": [
+          {
+            "id": "F-307-02",
+            "waived_by": "owner",
+            "waived_reason": "合意済み"
+          }
+        ],
+        "out_of_scope_open": [],
+        "stalled_findings": [],
+        "stall_rounds": 3,
+        "saturated_groups": [],
+        "escalate": false,
+        "findings": [
+          {
+            "id": "F-307-01",
+            "status": "open",
+            "harm": "none",
+            "harm_detail": "入力が正しく処理されない",
+            "severity": "major",
+            "scope": "in",
+            "disposition": "deferred",
+            "deferred_to": "#42",
+            "waived_by": "",
+            "waived_reason": "",
+            "locus": [],
+            "summary": "指摘 1",
+            "evidence": "確認した根拠",
+            "expected": "期待する結果",
+            "recheck": "再確認する",
+            "rounds": [
+              1
+            ],
+            "resolved_round": null,
+            "attempts": []
+          },
+          {
+            "id": "F-307-02",
+            "status": "open",
+            "harm": "real",
+            "harm_detail": "入力が正しく処理されない",
+            "severity": "major",
+            "scope": "in",
+            "disposition": "waived",
+            "deferred_to": "",
+            "waived_by": "owner",
+            "waived_reason": "合意済み",
+            "locus": [
+              "a.py::f",
+              "b.py::g"
+            ],
+            "summary": "指摘 2",
+            "evidence": "確認した根拠",
+            "expected": "期待する結果",
+            "recheck": "再確認する",
+            "rounds": [
+              1
+            ],
+            "resolved_round": null,
+            "attempts": []
+          }
+        ]
+      },
+      "json_key_order": {
+        "keys": [
+          "issue",
+          "verdict",
+          "open_findings",
+          "harmful_open",
+          "no_harm_open",
+          "blocking_findings",
+          "blocking_harmful",
+          "undecided_disposition",
+          "deferred_findings",
+          "waived_findings",
+          "out_of_scope_open",
+          "stalled_findings",
+          "stall_rounds",
+          "saturated_groups",
+          "escalate",
+          "findings"
+        ],
+        "children": [
+          null,
+          null,
+          [
+            null,
+            null
+          ],
+          [
+            null
+          ],
+          [
+            null
+          ],
+          [
+            null
+          ],
+          [],
+          [],
+          [
+            {
+              "keys": [
+                "id",
+                "deferred_to"
+              ],
+              "children": [
+                null,
+                null
+              ]
+            }
+          ],
+          [
+            {
+              "keys": [
+                "id",
+                "waived_by",
+                "waived_reason"
+              ],
+              "children": [
+                null,
+                null,
+                null
+              ]
+            }
+          ],
+          [],
+          [],
+          null,
+          [],
+          null,
+          [
+            {
+              "keys": [
+                "id",
+                "status",
+                "harm",
+                "harm_detail",
+                "severity",
+                "scope",
+                "disposition",
+                "deferred_to",
+                "waived_by",
+                "waived_reason",
+                "locus",
+                "summary",
+                "evidence",
+                "expected",
+                "recheck",
+                "rounds",
+                "resolved_round",
+                "attempts"
+              ],
+              "children": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                [],
+                null,
+                null,
+                null,
+                null,
+                [
+                  null
+                ],
+                null,
+                []
+              ]
+            },
+            {
+              "keys": [
+                "id",
+                "status",
+                "harm",
+                "harm_detail",
+                "severity",
+                "scope",
+                "disposition",
+                "deferred_to",
+                "waived_by",
+                "waived_reason",
+                "locus",
+                "summary",
+                "evidence",
+                "expected",
+                "recheck",
+                "rounds",
+                "resolved_round",
+                "attempts"
+              ],
+              "children": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                [
+                  null,
+                  null
+                ],
+                null,
+                null,
+                null,
+                null,
+                [
+                  null
+                ],
+                null,
+                []
+              ]
+            }
+          ]
+        ]
+      }
+    }
+  },
+  "two-rounds": {
+    "render": {
+      "exit_code": 0,
+      "stdout_sha256": "8a65e7dfc8d955099a89658905f7871b1c58237bba97695deb6652052f5161c6"
+    },
+    "status": {
+      "exit_code": 0,
+      "stdout_sha256": "3b9240a7fb97398aca0bc306fd1f9dea6f5f8b3ad0a20e1372ea8bbaa8cff4f7"
+    },
+    "status-json": {
+      "exit_code": 0,
+      "stdout_sha256": "1c6ba3bc37059d01af5c10f69a34d22a20641ed124a85f9bf37d8f010a9700a2",
+      "json": {
+        "issue": 307,
+        "verdict": "harmful-open",
+        "open_findings": [
+          "F-307-01"
+        ],
+        "harmful_open": [
+          "F-307-01"
+        ],
+        "no_harm_open": [],
+        "blocking_findings": [
+          "F-307-01"
+        ],
+        "blocking_harmful": [
+          "F-307-01"
+        ],
+        "undecided_disposition": [
+          "F-307-01"
+        ],
+        "deferred_findings": [],
+        "waived_findings": [],
+        "out_of_scope_open": [],
+        "stalled_findings": [],
+        "stall_rounds": 3,
+        "saturated_groups": [],
+        "escalate": false,
+        "findings": [
+          {
+            "id": "F-307-01",
+            "status": "open",
+            "harm": "real",
+            "harm_detail": "入力が正しく処理されない",
+            "severity": "major",
+            "scope": "in",
+            "disposition": "",
+            "deferred_to": "",
+            "waived_by": "",
+            "waived_reason": "",
+            "locus": [
+              "a.py::f",
+              "b.py::g"
+            ],
+            "summary": "指摘 1",
+            "evidence": "確認した根拠",
+            "expected": "期待する結果",
+            "recheck": "再確認する",
+            "rounds": [
+              1,
+              2
+            ],
+            "resolved_round": null,
+            "attempts": []
+          }
+        ]
+      },
+      "json_key_order": {
+        "keys": [
+          "issue",
+          "verdict",
+          "open_findings",
+          "harmful_open",
+          "no_harm_open",
+          "blocking_findings",
+          "blocking_harmful",
+          "undecided_disposition",
+          "deferred_findings",
+          "waived_findings",
+          "out_of_scope_open",
+          "stalled_findings",
+          "stall_rounds",
+          "saturated_groups",
+          "escalate",
+          "findings"
+        ],
+        "children": [
+          null,
+          null,
+          [
+            null
+          ],
+          [
+            null
+          ],
+          [],
+          [
+            null
+          ],
+          [
+            null
+          ],
+          [
+            null
+          ],
+          [],
+          [],
+          [],
+          [],
+          null,
+          [],
+          null,
+          [
+            {
+              "keys": [
+                "id",
+                "status",
+                "harm",
+                "harm_detail",
+                "severity",
+                "scope",
+                "disposition",
+                "deferred_to",
+                "waived_by",
+                "waived_reason",
+                "locus",
+                "summary",
+                "evidence",
+                "expected",
+                "recheck",
+                "rounds",
+                "resolved_round",
+                "attempts"
+              ],
+              "children": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                [
+                  null,
+                  null
+                ],
+                null,
+                null,
+                null,
+                null,
+                [
+                  null,
+                  null
+                ],
+                null,
+                []
+              ]
+            }
+          ]
+        ]
+      }
+    }
+  },
+  "three-rounds-stalled": {
+    "render": {
+      "exit_code": 0,
+      "stdout_sha256": "f941f22f757a9aedb93df3203bae5814e36242902fa5ac8c788a4371a601cb2f"
+    },
+    "status": {
+      "exit_code": 0,
+      "stdout_sha256": "36e521f5a8a91369b4fab33ef7d00f09b4dc739cc7ab881d473c1e83436dbbff"
+    },
+    "status-json": {
+      "exit_code": 0,
+      "stdout_sha256": "a604f52101290925fc72ba26a5285a414b88930762c963a267adb0be556b7b51",
+      "json": {
+        "issue": 307,
+        "verdict": "harmful-open",
+        "open_findings": [
+          "F-307-01"
+        ],
+        "harmful_open": [
+          "F-307-01"
+        ],
+        "no_harm_open": [],
+        "blocking_findings": [
+          "F-307-01"
+        ],
+        "blocking_harmful": [
+          "F-307-01"
+        ],
+        "undecided_disposition": [
+          "F-307-01"
+        ],
+        "deferred_findings": [],
+        "waived_findings": [],
+        "out_of_scope_open": [],
+        "stalled_findings": [
+          "F-307-01"
+        ],
+        "stall_rounds": 3,
+        "saturated_groups": [],
+        "escalate": true,
+        "findings": [
+          {
+            "id": "F-307-01",
+            "status": "open",
+            "harm": "real",
+            "harm_detail": "入力が正しく処理されない",
+            "severity": "major",
+            "scope": "in",
+            "disposition": "",
+            "deferred_to": "",
+            "waived_by": "",
+            "waived_reason": "",
+            "locus": [
+              "a.py::f",
+              "b.py::g"
+            ],
+            "summary": "指摘 1",
+            "evidence": "確認した根拠",
+            "expected": "期待する結果",
+            "recheck": "再確認する",
+            "rounds": [
+              1,
+              2,
+              3
+            ],
+            "resolved_round": null,
+            "attempts": []
+          }
+        ]
+      },
+      "json_key_order": {
+        "keys": [
+          "issue",
+          "verdict",
+          "open_findings",
+          "harmful_open",
+          "no_harm_open",
+          "blocking_findings",
+          "blocking_harmful",
+          "undecided_disposition",
+          "deferred_findings",
+          "waived_findings",
+          "out_of_scope_open",
+          "stalled_findings",
+          "stall_rounds",
+          "saturated_groups",
+          "escalate",
+          "findings"
+        ],
+        "children": [
+          null,
+          null,
+          [
+            null
+          ],
+          [
+            null
+          ],
+          [],
+          [
+            null
+          ],
+          [
+            null
+          ],
+          [
+            null
+          ],
+          [],
+          [],
+          [],
+          [
+            null
+          ],
+          null,
+          [],
+          null,
+          [
+            {
+              "keys": [
+                "id",
+                "status",
+                "harm",
+                "harm_detail",
+                "severity",
+                "scope",
+                "disposition",
+                "deferred_to",
+                "waived_by",
+                "waived_reason",
+                "locus",
+                "summary",
+                "evidence",
+                "expected",
+                "recheck",
+                "rounds",
+                "resolved_round",
+                "attempts"
+              ],
+              "children": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                [
+                  null,
+                  null
+                ],
+                null,
+                null,
+                null,
+                null,
+                [
+                  null,
+                  null,
+                  null
+                ],
+                null,
+                []
+              ]
+            }
+          ]
+        ]
+      }
+    }
+  },
+  "unclosed-attempt": {
+    "render": {
+      "exit_code": 0,
+      "stdout_sha256": "f4dcfd2fe25789c3f4939dc28eac05fce5c175ee8dc8a676a30bc92be7e85fde"
+    },
+    "status": {
+      "exit_code": 0,
+      "stdout_sha256": "770f9a7df1cb80a4d9e5ed38548b7cfa0659d51818d58095eaa7748777914cd9"
+    },
+    "status-json": {
+      "exit_code": 0,
+      "stdout_sha256": "599adf74b62f2bac58eb0f2505b8589fe2ccbb4c87897e0f9cee8aa0328226fc",
+      "json": {
+        "issue": 307,
+        "verdict": "harmful-open",
+        "open_findings": [
+          "F-307-01"
+        ],
+        "harmful_open": [
+          "F-307-01"
+        ],
+        "no_harm_open": [],
+        "blocking_findings": [
+          "F-307-01"
+        ],
+        "blocking_harmful": [
+          "F-307-01"
+        ],
+        "undecided_disposition": [
+          "F-307-01"
+        ],
+        "deferred_findings": [],
+        "waived_findings": [],
+        "out_of_scope_open": [],
+        "stalled_findings": [],
+        "stall_rounds": 3,
+        "saturated_groups": [],
+        "escalate": false,
+        "findings": [
+          {
+            "id": "F-307-01",
+            "status": "open",
+            "harm": "real",
+            "harm_detail": "入力が正しく処理されない",
+            "severity": "major",
+            "scope": "in",
+            "disposition": "",
+            "deferred_to": "",
+            "waived_by": "",
+            "waived_reason": "",
+            "locus": [
+              "a.py::f",
+              "b.py::g"
+            ],
+            "summary": "指摘 1",
+            "evidence": "確認した根拠",
+            "expected": "期待する結果",
+            "recheck": "再確認する",
+            "rounds": [
+              1
+            ],
+            "resolved_round": null,
+            "attempts": [
+              {
+                "attempt": 1,
+                "round": 1,
+                "root_cause": "same-cause",
+                "change_kind": "logic",
+                "targets": [
+                  "a.py::f"
+                ],
+                "results": []
+              }
+            ]
+          }
+        ]
+      },
+      "json_key_order": {
+        "keys": [
+          "issue",
+          "verdict",
+          "open_findings",
+          "harmful_open",
+          "no_harm_open",
+          "blocking_findings",
+          "blocking_harmful",
+          "undecided_disposition",
+          "deferred_findings",
+          "waived_findings",
+          "out_of_scope_open",
+          "stalled_findings",
+          "stall_rounds",
+          "saturated_groups",
+          "escalate",
+          "findings"
+        ],
+        "children": [
+          null,
+          null,
+          [
+            null
+          ],
+          [
+            null
+          ],
+          [],
+          [
+            null
+          ],
+          [
+            null
+          ],
+          [
+            null
+          ],
+          [],
+          [],
+          [],
+          [],
+          null,
+          [],
+          null,
+          [
+            {
+              "keys": [
+                "id",
+                "status",
+                "harm",
+                "harm_detail",
+                "severity",
+                "scope",
+                "disposition",
+                "deferred_to",
+                "waived_by",
+                "waived_reason",
+                "locus",
+                "summary",
+                "evidence",
+                "expected",
+                "recheck",
+                "rounds",
+                "resolved_round",
+                "attempts"
+              ],
+              "children": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                [
+                  null,
+                  null
+                ],
+                null,
+                null,
+                null,
+                null,
+                [
+                  null
+                ],
+                null,
+                [
+                  {
+                    "keys": [
+                      "attempt",
+                      "round",
+                      "root_cause",
+                      "change_kind",
+                      "targets",
+                      "results"
+                    ],
+                    "children": [
+                      null,
+                      null,
+                      null,
+                      null,
+                      [
+                        null
+                      ],
+                      []
+                    ]
+                  }
+                ]
+              ]
+            }
+          ]
+        ]
+      }
+    }
+  },
+  "pair-saturated-multiple-results": {
+    "render": {
+      "exit_code": 0,
+      "stdout_sha256": "7eb31859643794c9dd63d269313df3c121bfda79ecf3775eeb5ca65f8d3008e0"
+    },
+    "status": {
+      "exit_code": 0,
+      "stdout_sha256": "e2a68195f3dad2bf3ad220be9f111008caae9d4c65177a145e4fbe32734f27b1"
+    },
+    "status-json": {
+      "exit_code": 0,
+      "stdout_sha256": "de9e65459f88f8297830cccb3faeb210af01dc7a5b99743b54ad8d16a560dbce",
+      "json": {
+        "issue": 307,
+        "verdict": "harmful-open",
+        "open_findings": [
+          "F-307-01"
+        ],
+        "harmful_open": [
+          "F-307-01"
+        ],
+        "no_harm_open": [],
+        "blocking_findings": [
+          "F-307-01"
+        ],
+        "blocking_harmful": [
+          "F-307-01"
+        ],
+        "undecided_disposition": [
+          "F-307-01"
+        ],
+        "deferred_findings": [],
+        "waived_findings": [],
+        "out_of_scope_open": [],
+        "stalled_findings": [],
+        "stall_rounds": 3,
+        "saturated_groups": [
+          [
+            1,
+            2
+          ]
+        ],
+        "escalate": true,
+        "findings": [
+          {
+            "id": "F-307-01",
+            "status": "open",
+            "harm": "real",
+            "harm_detail": "入力が正しく処理されない",
+            "severity": "major",
+            "scope": "in",
+            "disposition": "",
+            "deferred_to": "",
+            "waived_by": "",
+            "waived_reason": "",
+            "locus": [
+              "a.py::f",
+              "b.py::g"
+            ],
+            "summary": "指摘 1",
+            "evidence": "確認した根拠",
+            "expected": "期待する結果",
+            "recheck": "再確認する",
+            "rounds": [
+              1
+            ],
+            "resolved_round": null,
+            "attempts": [
+              {
+                "attempt": 1,
+                "round": 1,
+                "root_cause": "same-cause",
+                "change_kind": "logic",
+                "targets": [
+                  "a.py::f"
+                ],
+                "results": [
+                  {
+                    "outcome": "partial",
+                    "touched": [
+                      "a.py",
+                      "a.py::f"
+                    ],
+                    "note": "一部"
+                  },
+                  {
+                    "outcome": "regressed",
+                    "touched": [
+                      "c.py"
+                    ],
+                    "note": "別の結果"
+                  }
+                ]
+              },
+              {
+                "attempt": 2,
+                "round": 2,
+                "root_cause": "same-cause",
+                "change_kind": "logic",
+                "targets": [
+                  "b.py::g"
+                ],
+                "results": []
+              }
+            ]
+          }
+        ]
+      },
+      "json_key_order": {
+        "keys": [
+          "issue",
+          "verdict",
+          "open_findings",
+          "harmful_open",
+          "no_harm_open",
+          "blocking_findings",
+          "blocking_harmful",
+          "undecided_disposition",
+          "deferred_findings",
+          "waived_findings",
+          "out_of_scope_open",
+          "stalled_findings",
+          "stall_rounds",
+          "saturated_groups",
+          "escalate",
+          "findings"
+        ],
+        "children": [
+          null,
+          null,
+          [
+            null
+          ],
+          [
+            null
+          ],
+          [],
+          [
+            null
+          ],
+          [
+            null
+          ],
+          [
+            null
+          ],
+          [],
+          [],
+          [],
+          [],
+          null,
+          [
+            [
+              null,
+              null
+            ]
+          ],
+          null,
+          [
+            {
+              "keys": [
+                "id",
+                "status",
+                "harm",
+                "harm_detail",
+                "severity",
+                "scope",
+                "disposition",
+                "deferred_to",
+                "waived_by",
+                "waived_reason",
+                "locus",
+                "summary",
+                "evidence",
+                "expected",
+                "recheck",
+                "rounds",
+                "resolved_round",
+                "attempts"
+              ],
+              "children": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                [
+                  null,
+                  null
+                ],
+                null,
+                null,
+                null,
+                null,
+                [
+                  null
+                ],
+                null,
+                [
+                  {
+                    "keys": [
+                      "attempt",
+                      "round",
+                      "root_cause",
+                      "change_kind",
+                      "targets",
+                      "results"
+                    ],
+                    "children": [
+                      null,
+                      null,
+                      null,
+                      null,
+                      [
+                        null
+                      ],
+                      [
+                        {
+                          "keys": [
+                            "outcome",
+                            "touched",
+                            "note"
+                          ],
+                          "children": [
+                            null,
+                            [
+                              null,
+                              null
+                            ],
+                            null
+                          ]
+                        },
+                        {
+                          "keys": [
+                            "outcome",
+                            "touched",
+                            "note"
+                          ],
+                          "children": [
+                            null,
+                            [
+                              null
+                            ],
+                            null
+                          ]
+                        }
+                      ]
+                    ]
+                  },
+                  {
+                    "keys": [
+                      "attempt",
+                      "round",
+                      "root_cause",
+                      "change_kind",
+                      "targets",
+                      "results"
+                    ],
+                    "children": [
+                      null,
+                      null,
+                      null,
+                      null,
+                      [
+                        null
+                      ],
+                      []
+                    ]
+                  }
+                ]
+              ]
+            }
+          ]
+        ]
+      }
+    }
+  },
+  "nontransitive-chain": {
+    "render": {
+      "exit_code": 0,
+      "stdout_sha256": "aed2cd13b12b300d4e823554c818d9d72bb71a6a8ef0ced47145bfc48ab829d9"
+    },
+    "status": {
+      "exit_code": 0,
+      "stdout_sha256": "24dc3184b6196cb10df6d670b01383f970d773eeb45f7fc32bd0fc9f7c989b34"
+    },
+    "status-json": {
+      "exit_code": 0,
+      "stdout_sha256": "dae79dd8fbec05f89b8629cceb8692af07ef4a7dd22baad5f8f79090c925e063",
+      "json": {
+        "issue": 307,
+        "verdict": "harmful-open",
+        "open_findings": [
+          "F-307-01"
+        ],
+        "harmful_open": [
+          "F-307-01"
+        ],
+        "no_harm_open": [],
+        "blocking_findings": [
+          "F-307-01"
+        ],
+        "blocking_harmful": [
+          "F-307-01"
+        ],
+        "undecided_disposition": [
+          "F-307-01"
+        ],
+        "deferred_findings": [],
+        "waived_findings": [],
+        "out_of_scope_open": [],
+        "stalled_findings": [],
+        "stall_rounds": 3,
+        "saturated_groups": [
+          [
+            1,
+            2
+          ],
+          [
+            1,
+            2,
+            3
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        "escalate": true,
+        "findings": [
+          {
+            "id": "F-307-01",
+            "status": "open",
+            "harm": "real",
+            "harm_detail": "入力が正しく処理されない",
+            "severity": "major",
+            "scope": "in",
+            "disposition": "",
+            "deferred_to": "",
+            "waived_by": "",
+            "waived_reason": "",
+            "locus": [
+              "a.py::f",
+              "b.py::g"
+            ],
+            "summary": "指摘 1",
+            "evidence": "確認した根拠",
+            "expected": "期待する結果",
+            "recheck": "再確認する",
+            "rounds": [
+              1
+            ],
+            "resolved_round": null,
+            "attempts": [
+              {
+                "attempt": 1,
+                "round": 1,
+                "root_cause": "same-cause",
+                "change_kind": "logic",
+                "targets": [
+                  "a.py::f"
+                ],
+                "results": []
+              },
+              {
+                "attempt": 2,
+                "round": 2,
+                "root_cause": "same-cause",
+                "change_kind": "logic",
+                "targets": [
+                  "b.py::g"
+                ],
+                "results": []
+              },
+              {
+                "attempt": 3,
+                "round": 3,
+                "root_cause": "same-cause",
+                "change_kind": "interface",
+                "targets": [
+                  "b.py::g"
+                ],
+                "results": []
+              }
+            ]
+          }
+        ]
+      },
+      "json_key_order": {
+        "keys": [
+          "issue",
+          "verdict",
+          "open_findings",
+          "harmful_open",
+          "no_harm_open",
+          "blocking_findings",
+          "blocking_harmful",
+          "undecided_disposition",
+          "deferred_findings",
+          "waived_findings",
+          "out_of_scope_open",
+          "stalled_findings",
+          "stall_rounds",
+          "saturated_groups",
+          "escalate",
+          "findings"
+        ],
+        "children": [
+          null,
+          null,
+          [
+            null
+          ],
+          [
+            null
+          ],
+          [],
+          [
+            null
+          ],
+          [
+            null
+          ],
+          [
+            null
+          ],
+          [],
+          [],
+          [],
+          [],
+          null,
+          [
+            [
+              null,
+              null
+            ],
+            [
+              null,
+              null,
+              null
+            ],
+            [
+              null,
+              null
+            ]
+          ],
+          null,
+          [
+            {
+              "keys": [
+                "id",
+                "status",
+                "harm",
+                "harm_detail",
+                "severity",
+                "scope",
+                "disposition",
+                "deferred_to",
+                "waived_by",
+                "waived_reason",
+                "locus",
+                "summary",
+                "evidence",
+                "expected",
+                "recheck",
+                "rounds",
+                "resolved_round",
+                "attempts"
+              ],
+              "children": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                [
+                  null,
+                  null
+                ],
+                null,
+                null,
+                null,
+                null,
+                [
+                  null
+                ],
+                null,
+                [
+                  {
+                    "keys": [
+                      "attempt",
+                      "round",
+                      "root_cause",
+                      "change_kind",
+                      "targets",
+                      "results"
+                    ],
+                    "children": [
+                      null,
+                      null,
+                      null,
+                      null,
+                      [
+                        null
+                      ],
+                      []
+                    ]
+                  },
+                  {
+                    "keys": [
+                      "attempt",
+                      "round",
+                      "root_cause",
+                      "change_kind",
+                      "targets",
+                      "results"
+                    ],
+                    "children": [
+                      null,
+                      null,
+                      null,
+                      null,
+                      [
+                        null
+                      ],
+                      []
+                    ]
+                  },
+                  {
+                    "keys": [
+                      "attempt",
+                      "round",
+                      "root_cause",
+                      "change_kind",
+                      "targets",
+                      "results"
+                    ],
+                    "children": [
+                      null,
+                      null,
+                      null,
+                      null,
+                      [
+                        null
+                      ],
+                      []
+                    ]
+                  }
+                ]
+              ]
+            }
+          ]
+        ]
+      }
+    }
+  },
+  "pointer-completion": {
+    "render": {
+      "exit_code": 0,
+      "stdout_sha256": "6ff2a26fca9092676d089a96f61ea9aad1456901528e53ecd533774a96c54c9d"
+    },
+    "status": {
+      "exit_code": 0,
+      "stdout_sha256": "ef22ed234b13a69e372bf0c4831dd90bff7cb292c11f2ac9c534aa8a27e0d59c"
+    },
+    "status-json": {
+      "exit_code": 0,
+      "stdout_sha256": "c7000db0998c3cc8f51d9e8d184f009517f67ad4edd1e2afdc90ce9fd24b5ff0",
+      "json": {
+        "issue": 307,
+        "verdict": "harmful-open",
+        "open_findings": [
+          "F-307-01",
+          "F-307-02"
+        ],
+        "harmful_open": [
+          "F-307-01",
+          "F-307-02"
+        ],
+        "no_harm_open": [],
+        "blocking_findings": [
+          "F-307-01",
+          "F-307-02"
+        ],
+        "blocking_harmful": [
+          "F-307-01",
+          "F-307-02"
+        ],
+        "undecided_disposition": [
+          "F-307-01"
+        ],
+        "deferred_findings": [],
+        "waived_findings": [],
+        "out_of_scope_open": [
+          "F-307-02"
+        ],
+        "stalled_findings": [],
+        "stall_rounds": 3,
+        "saturated_groups": [],
+        "escalate": false,
+        "findings": [
+          {
+            "id": "F-307-01",
+            "status": "open",
+            "harm": "real",
+            "harm_detail": "入力が正しく処理されない",
+            "severity": "major",
+            "scope": "in",
+            "disposition": "",
+            "deferred_to": "",
+            "waived_by": "",
+            "waived_reason": "",
+            "locus": [
+              "a.py::f",
+              "b.py::g"
+            ],
+            "summary": "指摘 1",
+            "evidence": "確認した根拠",
+            "expected": "期待する結果",
+            "recheck": "再確認する",
+            "rounds": [
+              1
+            ],
+            "resolved_round": null,
+            "attempts": []
+          },
+          {
+            "id": "F-307-02",
+            "status": "open",
+            "harm": "real",
+            "harm_detail": "入力が正しく処理されない",
+            "severity": "major",
+            "scope": "out",
+            "disposition": "fix-here",
+            "deferred_to": "",
+            "waived_by": "",
+            "waived_reason": "",
+            "locus": [],
+            "summary": "指摘 2",
+            "evidence": "確認した根拠",
+            "expected": "期待する結果",
+            "recheck": "再確認する",
+            "rounds": [
+              1
+            ],
+            "resolved_round": null,
+            "attempts": []
+          }
+        ]
+      },
+      "json_key_order": {
+        "keys": [
+          "issue",
+          "verdict",
+          "open_findings",
+          "harmful_open",
+          "no_harm_open",
+          "blocking_findings",
+          "blocking_harmful",
+          "undecided_disposition",
+          "deferred_findings",
+          "waived_findings",
+          "out_of_scope_open",
+          "stalled_findings",
+          "stall_rounds",
+          "saturated_groups",
+          "escalate",
+          "findings"
+        ],
+        "children": [
+          null,
+          null,
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ],
+          [],
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ],
+          [
+            null
+          ],
+          [],
+          [],
+          [
+            null
+          ],
+          [],
+          null,
+          [],
+          null,
+          [
+            {
+              "keys": [
+                "id",
+                "status",
+                "harm",
+                "harm_detail",
+                "severity",
+                "scope",
+                "disposition",
+                "deferred_to",
+                "waived_by",
+                "waived_reason",
+                "locus",
+                "summary",
+                "evidence",
+                "expected",
+                "recheck",
+                "rounds",
+                "resolved_round",
+                "attempts"
+              ],
+              "children": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                [
+                  null,
+                  null
+                ],
+                null,
+                null,
+                null,
+                null,
+                [
+                  null
+                ],
+                null,
+                []
+              ]
+            },
+            {
+              "keys": [
+                "id",
+                "status",
+                "harm",
+                "harm_detail",
+                "severity",
+                "scope",
+                "disposition",
+                "deferred_to",
+                "waived_by",
+                "waived_reason",
+                "locus",
+                "summary",
+                "evidence",
+                "expected",
+                "recheck",
+                "rounds",
+                "resolved_round",
+                "attempts"
+              ],
+              "children": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                [],
+                null,
+                null,
+                null,
+                null,
+                [
+                  null
+                ],
+                null,
+                []
+              ]
+            }
+          ]
+        ]
+      }
+    }
+  },
+  "not-found": {
+    "render": {
+      "exit_code": 2,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "未検出: カルテが無い: <REPO_ROOT>/tmp/_karte/issue-307.md（先に `ingest-review --issue 307 --round 1` を実行する）\n"
+    },
+    "status": {
+      "exit_code": 2,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "未検出: カルテが無い: <REPO_ROOT>/tmp/_karte/issue-307.md（先に `ingest-review --issue 307 --round 1` を実行する）\n"
+    },
+    "status-json": {
+      "exit_code": 2,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "未検出: カルテが無い: <REPO_ROOT>/tmp/_karte/issue-307.md（先に `ingest-review --issue 307 --round 1` を実行する）\n"
+    }
+  },
+  "invalid-issue-text": {
+    "render": {
+      "exit_code": 4,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "拒否（fail-close）: issue 番号は 1 以上の十進整数のみ（前置ゼロ・符号・空白を認めない）: 'abc'\n"
+    },
+    "status": {
+      "exit_code": 4,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "拒否（fail-close）: issue 番号は 1 以上の十進整数のみ（前置ゼロ・符号・空白を認めない）: 'abc'\n"
+    },
+    "status-json": {
+      "exit_code": 4,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "拒否（fail-close）: issue 番号は 1 以上の十進整数のみ（前置ゼロ・符号・空白を認めない）: 'abc'\n"
+    }
+  },
+  "invalid-issue-non-ascii": {
+    "render": {
+      "exit_code": 4,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "拒否（fail-close）: issue 番号は 1 以上の十進整数のみ（前置ゼロ・符号・空白を認めない）: '１２'\n"
+    },
+    "status": {
+      "exit_code": 4,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "拒否（fail-close）: issue 番号は 1 以上の十進整数のみ（前置ゼロ・符号・空白を認めない）: '１２'\n"
+    },
+    "status-json": {
+      "exit_code": 4,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "拒否（fail-close）: issue 番号は 1 以上の十進整数のみ（前置ゼロ・符号・空白を認めない）: '１２'\n"
+    }
+  },
+  "missing-pointer": {
+    "render": {
+      "exit_code": 4,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "拒否（fail-close）: 進行ポインタ <REPO_ROOT>/tmp/_karte/active.json が無い（先に `ingest-review --issue N --round R` を明示指定で実行する）\n"
+    },
+    "status": {
+      "exit_code": 4,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "拒否（fail-close）: 進行ポインタ <REPO_ROOT>/tmp/_karte/active.json が無い（先に `ingest-review --issue N --round R` を明示指定で実行する）\n"
+    },
+    "status-json": {
+      "exit_code": 4,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "拒否（fail-close）: 進行ポインタ <REPO_ROOT>/tmp/_karte/active.json が無い（先に `ingest-review --issue N --round R` を明示指定で実行する）\n"
+    }
+  },
+  "broken-pointer": {
+    "render": {
+      "exit_code": 4,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "拒否（fail-close）: 進行ポインタ <REPO_ROOT>/tmp/_karte/active.json が JSON として壊れている: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)（補完に使えないため取り込まない。ポインタを作り直すこと）\n"
+    },
+    "status": {
+      "exit_code": 4,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "拒否（fail-close）: 進行ポインタ <REPO_ROOT>/tmp/_karte/active.json が JSON として壊れている: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)（補完に使えないため取り込まない。ポインタを作り直すこと）\n"
+    },
+    "status-json": {
+      "exit_code": 4,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "拒否（fail-close）: 進行ポインタ <REPO_ROOT>/tmp/_karte/active.json が JSON として壊れている: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)（補完に使えないため取り込まない。ポインタを作り直すこと）\n"
+    }
+  },
+  "broken-karte": {
+    "render": {
+      "exit_code": 4,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "拒否（fail-close）: 先頭行が '# Karte: issue-<N>' でない（カルテ書式ではない）\n"
+    },
+    "status": {
+      "exit_code": 4,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "拒否（fail-close）: 先頭行が '# Karte: issue-<N>' でない（カルテ書式ではない）\n"
+    },
+    "status-json": {
+      "exit_code": 4,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "拒否（fail-close）: 先頭行が '# Karte: issue-<N>' でない（カルテ書式ではない）\n"
+    }
+  }
+}

@@ -864,3 +864,231 @@ Issue #503「提案挙動」（``deferred``/``waived`` の除外を単一の述�
 # --- 同一指摘の再発番検出 -----------------------------------------------------
 # --- シリアライズ -------------------------------------------------------------
 ```
+
+## K-03 分割計画（#748）
+
+Issue #748（親 #745・K-03・下段 #799＝K-02）の設計と実装結果。設計者＝Claude Code (AI)。K-01・K-02 の節は変更しない。
+
+### 着手時点の実測（L2 head a5cb5d2d 上）
+- `python3 -m maintainability_lint check`: `violations=0 accepted_debt=61`（全体）。
+- `karte/cli.py` の登録は3件: `module-over-100-lines`（1101行）、`comment-over-3-lines`が2件（892行目から6行・924行目から5行。どちらも `cmd_status` 内）。Issue #748 本文の「初期5件・現main 1,519行」は #696/#697 統合前の値で、現在値と食い違う。
+- `cli.py` の構成（行数）: モジュール docstring 約90、import・定数 約25、`_read_report` 26、`_resolve_close_attempt_number` 43、`_view_of`/`_priors_for`/`_stalled_ids`/`_saturated_groups`/`_group_directive` 計約100、`cmd_ingest_review` 15、**`cmd_render` 129**、`cmd_append` 61、`cmd_close_attempt` 77、`cmd_check` 96、**`_status_payload` 115**、**`cmd_status` 149**、`build_parser` 91、`main` 5。
+
+### 方針
+- 移す対象は「render/status の表示整形・状態集計」のみ（#748 のスコープ）。`cmd_append`・`cmd_close_attempt`・`cmd_check`・`build_parser` は K-04（#749）の対象なので動かさない。
+- **`cmd_render` と `cmd_status` は `cli.py` に薄い入口として残す**（`@fail_close` の宣言・`pointer_completion.resolve_issue`・`karte_loader.load_karte` の呼び出し・`print`・戻り値 `EXIT_OK`）。`build_parser` の `set_defaults(func=cmd_render/cmd_status)` と `require_declared` の検査を変えない。#721（usage error の終了コード）・#728 が後続で触るため、終了コードの経路は動かさない。
+- 本文の組み立て（文字列の行リスト生成）は純関数に分け、**1行ごとの文言・順序・空行を1文字も変えない**。長い docstring・コメントは本節の下へ逐語移設し、新モジュールには3行以内の要約だけを残す（K-01・K-02 と同じ運用）。
+
+### 新規モジュール（各100行以内・依存は上から下の一方向）
+| 順 | モジュール | 移す内容（移設元 `karte/cli.py`） |
+|---|---|---|
+| 1 | `stall_detection.py` | `STALL_ROUNDS`、`_stalled_ids`（→`stalled_ids`） |
+| 1 | `saturation_groups.py` | `_view_of`、`_priors_for`、`_saturated_groups`、`_group_directive`（公開名で移設。`_saturated_groups` の約35行 docstring は逐語で本節へ） |
+| 2 | `status_verdict.py` | `_status_payload` の前半（open/harmful/blocking/undecided の集合と verdict の算出） |
+| 2 | `status_findings.py` | `_status_payload` の `findings` 配列の整形 |
+| 3 | `status_payload.py` | `status_payload(karte)`（上の2つと `stall_detection`/`saturation_groups` から `--json` の dict を組み立てる。キー順を変えない） |
+| 4 | `status_text.py` | `cmd_status` の非 `--json` 本文（verdict ラベル表・要約行群・escalate 行）。`status_finding_lines.py` に「残存 finding」節を分けてよい（100行に収めるため） |
+| 2 | `render_attempt_lines.py` | `cmd_render` の「Prior attempts」節 |
+| 2 | `render_finding_lines.py` | `cmd_render` の「Open findings」節 |
+| 3 | `render_saturation_lines.py` | `cmd_render` の「飽和したアプローチ」節 |
+| 4 | `render_text.py` | `cmd_render` の本文全体の組み立て（見出し・導入文・各節の連結） |
+
+- `status_text.py` と `render_text.py` は `cli` を import しない。どのモジュールも `karte.cli` を import しない（循環を作らない）。`karte.model`・`karte.similarity`・既存の K-01/K-02 モジュールにだけ依存する。
+- 各モジュールが100行に収まらない場合は、**関数の責務で分け、行数のために任意の位置で切らない**。`dataclass` は作らない（作る場合はロジック class と別 file）。
+
+### `cli.py` に残す公開名と互換
+- 残す: `main`、`build_parser`、`cmd_*`（`cmd_render`・`cmd_status` は薄い入口）、`STALL_ROUNDS`、`EXIT_*`、`STDIN_SOURCE`。
+- 既存テストが `cli._saturated_groups`・`cli._priors_for`・`cli._stalled_ids`・`cli._status_payload` を直接呼ぶ（`tests/unit/test_karte_cli.py` 1357・1360・1421・1436・3541・3543 行付近）。いずれも **patch ではなく呼び出し**なので、`cli.py` で `from .saturation_groups import saturated_groups as _saturated_groups` のように別名で再エクスポートすれば import 先を変えずに通る。`mock.patch` で `karte.cli.<name>` を差し替えているテストは無い（`repo_roots._PACKAGE_ROOT` 等の他モジュールのみ）。実装時に grep で再確認する。
+- `cmd_check`・`cmd_append` が `_stalled_ids`・`_saturated_groups`・`_priors_for` を使うので、その参照が再エクスポート経由で引き続き解決することを確認する。
+- `karte_notify/*` の docstring が `karte/cli.py::_status_payload` を依存仕様として名指しする。再エクスポートで名前は残るが、実体は `status_payload.py` に移る。これらの参照の更新は K-03 のスコープ外とし、必要なら別 Issue で申し送る（本 PR では `karte_notify` を編集しない）。
+
+### 同値性の検証（足りない回帰検出力）
+既存の `tests/unit/test_karte_cli.py`（verdict 行を厳密に検査する `clean`/`harmful-open` 系、#720 で強化）は**一切書き換えない**。足りないのは「分割前と出力が1文字も変わらない」ことの直接固定なので、次を**分割前のコードで先に記録**してから分割する（K-01・K-02 の golden と同じ手順）。
+1. `tests/unit/test_karte_cli_split_compat.py` と `tests/fixtures/karte/cli_render_status_golden.json` を追加。分割前（本 PR の最初の実装 commit より前）の `render`・`status`・`status --json` の stdout 全文の sha256 と終了コードを記録する。
+2. 入力は決定論的な karte 文書の変異: verdict の3値（clean・harmful-open・no-harm-only）、`deferred`/`waived`/`fix-here`/未決定の disposition、`scope: out`、`harm: none` への disposition、無進捗（3 ラウンド連続）、飽和（pairwise の組と推移律で広がらない組）、Attempt なし・未クローズあり・Result 複数、locus 複数・空、進行ポインタ補完あり/なし。
+3. 異常系: カルテ未作成（`EXIT_NOT_FOUND`）、`--issue` 不正・補完不能、壊れた karte（`KarteFormatError` 経路）。stderr 全文と終了コードを固定する。現状の終了コードを変えない（#721 の挙動変更を入れない）。
+4. `status --json` は `json.loads` した dict の**キー順込み**の比較（`status_payload` のキー順が消費者 `karte_notify` に影響しうるため）。
+5. 変異検出の確認: verdict 判定の1条件削除、`STALL_ROUNDS` の変更、`render` の節見出しの1文字変更が、いずれもこのテストで検出されることを実装 PR で実測して記す。
+
+### baseline の手順と残存違反（K-03 完了時点）
+- baseline は手で編集しない。`python3 -m maintainability_lint baseline` の出力で `maintainability_lint/baseline.json` を更新する。fixer は契約上更新できないため、主文脈が機械的に実行する（K-02 と同じ）。
+- 予定差分: `karte/cli.py` の `comment-over-3-lines` 2件の削除と、`module-over-100-lines` の行数・fingerprint の更新。**`accepted_debt` は 61→59 の見込み**（`cli.py` の `module-over-100-lines` は残る）。新規免除・対象除外は追加しない。
+- K-03 完了時点で `karte/cli.py` に残る違反: `module-over-100-lines` 1件（目標は概ね600行以下。見込みは約630行）、コメント違反 0。K-04（#749）で `cli.py` を100行以内にし、登録を 0 にする。
+- 新しい `#` コメントの連続4行以上は作らない。移設する長いコメント（`cmd_status` 内の 892・924 行目の塊）は3行以内に縮め、全文は下の「移設元コメント」へ。
+
+### 実装時の互換契約と実測（F-806-01・02・04・05・06・07）
+- `cmd_render`・`cmd_status` のデコレータ、読込、出力と終了コードを維持し、行組立と判定を各モジュールへ移した。旧 API の `_group_directive` を含む互換名と `model` を `cli` に残す。
+- 分割前に確定した golden を変更せず、stdout・stderr・終了コード・JSON キー順を検証する。解除定数の参照は `Finding.cleared_by_disposition` に限り、AST 検査で全 `karte` モジュールのコードを確認する。
+- 物理行数は `cli.py` 1101→625。残る verb・parser・既存 docstring は K-04 の対象であり、600 行の目標を 25 行超える。新規モジュールは 15〜92 行。
+- `maintainability_lint check` は `violations=3 accepted_debt=58`。`cli.py` の行数変更と古いコメント登録 2 件に由来し、新規モジュールに違反はない。baseline 更新後の見込みは accepted_debt 59。
+- verdict、無進捗閾値、render 見出し、解除定数参照、互換名の 5 変異はいずれも対応テストが検出し、各変異を復元した。
+
+### 移設元の docstring・コメント（逐語保全）
+
+#### `_stalled_ids` docstring
+
+```python
+    """無進捗（同一 finding が ``STALL_ROUNDS`` ラウンド連続未解消）の finding ID。
+
+    対象は :meth:`model.Karte.remediation_findings`＝**この PR で是正が求められている**
+    未解消 finding に限る（Issue #503 観測3）。``disposition: deferred``/``waived`` は
+    「誰も直さないと決めた」finding なので、進捗が無いのは当然であり無進捗ではない。
+    除外前は ``deferred`` を 1 件でも抱えたまま 3 ラウンド以上回る PR が**毎回**
+    ``escalate: yes`` を出し、本物の無進捗（是正が 3 ラウンド連続で効いていない）が
+    偽陽性に紛れて見落とされる状態になっていた。
+    """
+```
+
+#### `_saturated_groups` docstring
+
+```python
+    """「同種の再試行がもう ``append`` できない」アプローチを列挙する（K-09：判定の一本化）。
+
+    **``append`` のゲートとまったく同じ判定関数を使う**（:func:`similarity.find_hits` ＋
+    :func:`similarity.is_saturated`）。違うのは主語だけで、``append`` の主語が「これから
+    書き込もうとしている 1 件」であるのに対し、ここでは「**既に書かれた Attempt k と
+    同じ宣言（root_cause / change_kind / targets）を繰り返す仮想の新規試行**」を主語に
+    置く。したがって表示の意味は 1 つに定まる——
+
+        ここに挙がったアプローチと**同種**の ``append`` は必ず ``EXIT_SATURATED`` になる。
+
+    是正前は表示側だけが :func:`similarity.cluster`（union-find の連結成分）を使っており、
+    推移律で広がるクラスタとゲートの pairwise 件数が食い違っていた。例えば
+    A1(rc=x, logic, T1) と A2(rc=x, logic, T2) は change_kind 経由で 1 つの連結成分になる
+    一方、A3(rc=x, interface, T2) は A2 とのみ類似（hits=1）なので ``append`` は通る
+    ——「``render`` が飽和と言った直後に ``append`` が成功する」＝後工程が誤読した（K-09）。
+    現在はどちらも同じ pairwise 判定なので、A1/A2 と同種の再試行だけが拒否対象として
+    表示され、A3 のような別アプローチは表示にも現れないし拒否もされない。
+
+    仮想の新規試行には実測 ``touched`` を持たせない（``append`` は修正の**前**に走るため
+    新規側に実測値は存在しない）。比較相手の過去 Attempt 側には ``close-attempt`` で
+    取り込んだ実測値を載せる——ここも ``append`` と同じ扱い。
+
+    **比較相手（priors）も ``append`` と同じ集合にする**——すなわち候補ごとに
+    :func:`_priors_for` で「その候補が対象とする**未解消** finding を共有する Attempt」へ
+    絞る。以前はここだけが「未解消 finding をどれか共有する全 Attempt」を priors に使って
+    おり、判定関数が 1 つでも**入力集合が 2 通り**あったため表示とゲートが再び食い違った：
+    未解消 finding が 2 件あり Attempt を finding ごとに分けると、finding B の Attempt は
+    finding A の Attempt 群まで priors に数えられて**飽和表示されるのに ``append`` は通る**
+    （過大報告）。逆向き（``append`` は拒否するのに表示に出ない＝過少報告）も同じ穴の裏側。
+    判定関数だけでなく**入力も一本化**して初めて K-09 の「表示＝ゲート」が成立する。
+
+    戻り値は ``(candidate_number, members, hits, candidate_view)`` の列。
+    ``members`` は「その再試行が衝突する Attempt 番号」（自分自身を含む）で、同じ
+    ``members`` を持つ候補は先に現れた 1 件に畳む（同一グループを重複表示しない）。
+    """
+```
+
+#### `cmd_render` docstring
+
+```python
+    """カルテの現在状態を**そのまま注入できる本文**として出力する（K-14）。
+
+    SubagentStart フック（matcher ``issue-fixer``）がこれを実行し、標準出力を
+    ``hookSpecificOutput.additionalContext`` として是正エージェントへ自動注入する。
+    「是正エージェントに ``render`` を引かせる」設計だと、呼び忘れたら過去の試行を
+    知らないまま修正に入る——本件（同じ失敗の繰り返し）で直そうとしている失敗そのものが
+    残るため、注入側に寄せた。
+
+    したがって出力は**自己完結**させる:
+      * 何の本文か・受け手が何をすべきかを冒頭で述べる（前後の文脈に依存しない）。
+      * 過去 Attempt 一覧（実測 touched と Result を含む）／未解消 finding 一覧／
+        飽和したアプローチの転換指令を、この 1 通で完結させる。
+      * 端末装飾（色・カーソル制御）や対話前提の文言（「上記の…」「続けますか」）を混ぜない。
+
+    ``--issue`` は進行ポインタから補完できる（フックは dispatch prompt を読めない）。
+    カルテ未作成は :data:`EXIT_NOT_FOUND` のまま（ガード違反＝EXIT_ERROR と区別する）。
+    """
+```
+
+#### `_status_payload` docstring
+
+```python
+    """verdict とエスカレーション材料を機械判定する（Issue #495 でゲートを追加）。
+
+    verdict は**未解消件数ではなく「clean を妨げる未解消 finding」**で決める。
+    ``harm: real`` の finding に限り、``disposition: deferred``（別 Issue へ申し送り）と
+    ``waived``（オーナーが明示的に処置不要を許可）は ``status: open`` のまま台帳に残しつつ、
+    verdict の上でだけ clean を妨げない（:attr:`model.Finding.needs_remediation`——
+    ``check`` の診断網羅要求・無進捗検知と**同じ単一の述語**・Issue #503）。逆に
+    ``harm: real`` で disposition が**未決定**のものは、``scope`` が ``out``（スコープ外の
+    申告）でも clean を妨げる——「スコープ外」と書くだけで実害判定・記録・ゲートを迂回できた
+    のが Issue #495 の欠陥そのものだから、その迂回を機械側で塞ぐ。
+
+    ``harm: none`` には解除力を与えない（:data:`model.CLEARING_HARM`・オーナー確定
+    2026-09-07）。実害なしの未解消だけが残る状態は ``no-harm-only`` のままオーナーへ
+    打ち上げる対象であり、``disposition`` を 2 行書いて ``clean`` へ変えられてはならない。
+
+    ``harmful_open``（``status --json``）は**台帳上の未解消かつ ``harm: real``** の全件で、
+    ``deferred``/``waived`` と決まったものも含む。したがって ``harmful_open`` は verdict の
+    説明にはならない——**「clean を妨げる実害あり」＝ ``blocking_findings`` ∩ ``harmful_open``**
+    であり、これを ``blocking_harmful`` として payload へ直接出す（PR #496 F-495-06）。
+    消費者に積を取らせない：積の取り方を各消費者に委ねると、F-495-05 と同型の
+    「verdict と内訳の意味の取り違え」が消費者側で再発する。
+
+    3 つの集合は ``undecided_disposition`` ⊆ ``blocking_harmful`` ⊆ ``harmful_open``
+    という包含関係にある。``blocking_harmful`` と ``undecided_disposition`` の差は
+    ``disposition: fix-here``（当該 PR で直すと決めたが未修正）の分であり、
+    ``verdict == "harmful-open"`` を説明するのは ``blocking_harmful`` の方
+    （``undecided_disposition`` が空でも ``fix-here`` が残れば ``harmful-open`` になる）。
+    """
+```
+
+#### `cmd_status` docstring
+
+```python
+    """エスカレーション条件を機械判定し、**そのまま注入できる本文**として出力する（K-15）。
+
+    **手動実行（``python3 -m karte status``）は常に全件を出力する**——フックの既読管理
+    （後述）が及ぶのは通知経路だけで、この verb 自体の出力は変えていない
+    （Issue #512 Acceptance criteria）。
+
+    K-15 は当初「PostToolUse フック（matcher ``Task``）が ``pr-reviewer`` 呼び出し完了直後に
+    これを実行し、判定結果をコンテキストへ自動注入する」設計を構想したが未配線のまま、
+    Issue #512 が対応 AC を移譲して**別の設計**で実装した。実際に配線されたのは
+    :mod:`karte_notify`（``.claude/hooks/karte-notify.sh``・PostToolUse matcher ``Bash|ctx_execute|ctx_batch_execute``）で、
+    トリガーは ``pr-reviewer`` 呼び出し後ではなく ``karte ingest-review``/``close-attempt``
+    実行直後、届け先は AI のコンテキスト（``additionalContext``）ではなく**オーナーの
+    チャット**（``systemMessage``）にした。AI のコンテキストへ注入するだけでは
+    「機械判定が AI の要約を経て歪む」経路を防げないため（実例＝PR #509／Issue #431：
+    ``escalate: yes`` を主文脈が「原因が分かっているから問題ない」と独自解釈して丸めた）。
+    ``karte_notify`` はこの verb の ``--json`` 出力を読むだけの外部消費者であり、finding ID
+    単位の既読管理（``resolved`` 済みで通知済みの finding を再表示しない等）は
+    ``karte_notify.notify`` 側の責務としてここには持ち込まない。
+
+    **PostToolUse はツール呼び出しをブロックできない**（公式ドキュメント：the tool already
+    ran／blocking does not undo the tool call）ため、この verb の役割は「判定を必ず実行し
+    可視化する」までであり、「判定に反した行動（実害あり残存のまま merge する等）を止める」
+    のは別途 PreToolUse で merge 操作を捕まえるゲートが担う（Issue #293／#298・本 verb の対象外）。
+
+    ``--issue`` は進行ポインタ（``tmp/_karte/active.json``）から補完できる（K-13/K-14 と
+    同じ扱い）。既定出力（非 ``--json``）は残存 finding とその harm 判定・verdict・
+    エスカレーション条件のどれに該当するかを 1 通で完結させる（端末装飾・対話前提の
+    文言は混ぜない）。機械可読が要るときは ``--json`` を使う（挙動は変えない）。
+
+    本文出力は ``blocking_findings`` / ``blocking_harmful`` / ``undecided_disposition`` の
+    3 集合を**包含関係の順に**行として出す（PR #496 F-495-07）。``--json`` にだけ
+    ``blocking_harmful`` を出して本文では読み手に積を取らせる、という非対称を残さないため。
+    """
+```
+
+#### `cmd_status` コメント（移設前 892–897 行）
+
+```python
+        # Issue #495: clean の定義は「未解消 0 件」ではなく「clean を妨げる未解消 0 件」。
+        # `harm: real` の `deferred`/`waived` は `status: open` のまま残るが verdict を妨げない。
+        # PR #496 F-495-05: `no-harm-only` は「台帳の未解消が全件実害なし」ではない——
+        # 申し送り／処置不要と決めた `harm: real` が別に残りうる（下の「実害あり」行に出る）。
+        # ラベルを「全件実害なし」のままにすると、同じ出力の中で自己矛盾し、
+        # オーナーへ偽の前提で打ち上げることになる。
+```
+
+#### `cmd_status` コメント（移設前 924–928 行）
+
+```python
+    # PR #496 F-495-07: 機械向け（``--json`` の ``blocking_harmful``）だけが積を取らずに済み、
+    # 人間の読み手は上の「clean を妨げる未解消」行と「実害あり」行の積を自分で取る、という
+    # 非対称を残さない。この行以下の 3 行は包含関係の順
+    # （clean を妨げる未解消 ⊇ clean を妨げる実害あり ⊇ 実害あり・disposition 未決定）に並べ、
+    # 3 つの集合の関係を読み手が取り違えないようにする。
+```
