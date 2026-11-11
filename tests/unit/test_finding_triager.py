@@ -1,0 +1,55 @@
+import hashlib
+import hmac
+import json
+import unittest
+
+from finding_triager.adapter import prepare, propose
+from finding_triager.assessment import FIELDS
+
+
+class FindingTriagerTest(unittest.TestCase):
+    def setUp(self):
+        self.key = b"x" * 32
+        self.expected = {"issue": 783, "phase": "review", "round": 1, "run_id": "run",
+                         "target_key": "target", "input_digest": "a" * 64, "snapshot_oid": "b" * 40}
+        review = {**self.expected, "producer": "pr-reviewer", "findings": [
+            {"finding_id": "F-1", "harm": "real", "scope": "in", "severity": "major"}]}
+        self.raw = json.dumps(review).encode()
+        self.signature = hmac.new(self.key, self.raw, hashlib.sha256).hexdigest()
+        facts = dict.fromkeys(FIELDS, False)
+        facts.update(evidence_complete=True, ac_relation_verified=True, ac_violation=True)
+        self.assessment = {"finding_id": "F-1", "harm": "real", "scope": "in",
+                           "evidence": dict.fromkeys(("ac", "vd_cp", "design", "change"), "evidence"),
+                           "facts": facts}
+
+    def test_standalone_prompt_and_candidate(self):
+        prompt, _ = prepare(self.raw, self.signature, self.key, self.expected)
+        self.assertIn("harm_detail に書くのは実害だけ", prompt)
+        artifact = propose(self.raw, self.signature, self.key, self.expected, [self.assessment])
+        self.assertEqual(artifact["proposals"][0]["result"]["candidate"], "fix-here")
+        self.assertEqual(artifact["provenance"]["review_sha256"], hashlib.sha256(self.raw).hexdigest())
+
+    def test_conflict_and_unknown_relation_fail_closed(self):
+        self.assessment["scope"] = "out"
+        proposal = propose(self.raw, self.signature, self.key, self.expected, [self.assessment])["proposals"][0]
+        self.assertEqual(proposal["result"]["candidate"], "owner-review")
+        self.assertEqual(proposal["reviewer"]["scope"], "in")
+        self.assertEqual(proposal["triager"]["scope"], "out")
+        self.assessment["scope"] = "in"
+        self.assessment["facts"]["ac_relation_verified"] = False
+        proposal = propose(self.raw, self.signature, self.key, self.expected, [self.assessment])["proposals"][0]
+        self.assertEqual(proposal["result"]["candidate"], "owner-review")
+
+    def test_rejects_untrusted_inputs(self):
+        for raw, signature, expected in ((self.raw + b" ", self.signature, self.expected),
+                                         (self.raw, self.signature, {**self.expected, "snapshot_oid": "c" * 40}),
+                                         (self.raw, "0" * 64, self.expected)):
+            with self.subTest(raw=raw, expected=expected), self.assertRaises(ValueError):
+                propose(raw, signature, self.key, expected, [self.assessment])
+        self.assessment["evidence"]["ac"] = ""
+        with self.assertRaises(ValueError):
+            propose(self.raw, self.signature, self.key, self.expected, [self.assessment])
+
+
+if __name__ == "__main__":
+    unittest.main()
