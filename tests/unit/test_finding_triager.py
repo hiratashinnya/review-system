@@ -53,3 +53,12 @@ class FindingTriagerTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class ProposalValidationTest(FindingTriagerTest):
+    def test_recomputes_artifact_and_rejects_tampering(self):
+        from finding_triager.validator import validate_proposal
+        artifact = propose(self.raw, self.signature, self.key, self.expected, [self.assessment])
+        self.assertEqual(validate_proposal(artifact, self.raw, self.signature, self.key, self.expected), artifact)
+        artifact["proposals"][0]["result"]["candidate"] = "advisory"
+        with self.assertRaises(ValueError):
+            validate_proposal(artifact, self.raw, self.signature, self.key, self.expected)

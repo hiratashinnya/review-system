@@ -1,0 +1,282 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Finding triage proposal v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "finding-triage/v1"
+    },
+    "producer": {
+      "const": "finding-triager"
+    },
+    "role": {
+      "const": "finding-triager"
+    },
+    "issue": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "phase": {
+      "enum": [
+        "review",
+        "remediation_review"
+      ]
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "target_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "input_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "snapshot_oid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "policy_version": {
+      "const": "1.0"
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "review_sha256",
+        "policy_sha256"
+      ],
+      "properties": {
+        "review_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "proposals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "finding_id",
+          "reviewer",
+          "triager",
+          "policy_input",
+          "result"
+        ],
+        "properties": {
+          "finding_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reviewer": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "harm",
+              "scope",
+              "severity"
+            ],
+            "properties": {
+              "harm": {
+                "enum": [
+                  "real",
+                  "none"
+                ]
+              },
+              "scope": {
+                "enum": [
+                  "in",
+                  "out"
+                ]
+              },
+              "severity": {
+                "enum": [
+                  "minor",
+                  "major",
+                  "blocker"
+                ]
+              }
+            }
+          },
+          "triager": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "finding_id",
+              "harm",
+              "scope",
+              "evidence",
+              "facts"
+            ],
+            "properties": {
+              "finding_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "harm": {
+                "enum": [
+                  "real",
+                  "none"
+                ]
+              },
+              "scope": {
+                "enum": [
+                  "in",
+                  "out"
+                ]
+              },
+              "evidence": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "ac",
+                  "vd_cp",
+                  "design",
+                  "change"
+                ],
+                "properties": {
+                  "ac": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "vd_cp": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "design": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "change": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "facts": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "ac_relation_verified",
+                  "ac_violation",
+                  "advisory_verified",
+                  "contract_violation",
+                  "design_violation",
+                  "evidence_complete",
+                  "handoff_verified",
+                  "high_risk",
+                  "optional_improvement",
+                  "preexisting",
+                  "regression",
+                  "scope_expansion_required",
+                  "spec_decision_required",
+                  "worsened"
+                ],
+                "properties": {
+                  "design_violation": {
+                    "type": "boolean"
+                  },
+                  "evidence_complete": {
+                    "type": "boolean"
+                  },
+                  "scope_expansion_required": {
+                    "type": "boolean"
+                  },
+                  "handoff_verified": {
+                    "type": "boolean"
+                  },
+                  "preexisting": {
+                    "type": "boolean"
+                  },
+                  "spec_decision_required": {
+                    "type": "boolean"
+                  },
+                  "worsened": {
+                    "type": "boolean"
+                  },
+                  "advisory_verified": {
+                    "type": "boolean"
+                  },
+                  "ac_relation_verified": {
+                    "type": "boolean"
+                  },
+                  "optional_improvement": {
+                    "type": "boolean"
+                  },
+                  "contract_violation": {
+                    "type": "boolean"
+                  },
+                  "regression": {
+                    "type": "boolean"
+                  },
+                  "high_risk": {
+                    "type": "boolean"
+                  },
+                  "ac_violation": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          },
+          "policy_input": {
+            "type": "object"
+          },
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "candidate",
+              "reason_codes"
+            ],
+            "properties": {
+              "candidate": {
+                "enum": [
+                  "fix-here",
+                  "deferred",
+                  "advisory",
+                  "owner-review"
+                ]
+              },
+              "reason_codes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "producer",
+    "role",
+    "issue",
+    "phase",
+    "round",
+    "run_id",
+    "target_key",
+    "input_digest",
+    "snapshot_oid",
+    "policy_version",
+    "provenance",
+    "proposals"
+  ]
+}
