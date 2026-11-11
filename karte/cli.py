@@ -56,6 +56,8 @@ verb:
 
 終了コード（``dsv2`` に合わせる）:
   0 OK ／ 2 未検出 ／ 3 類似飽和（append 拒否）／ 4 前提違反・検証失敗（fail-close）。
+  読み込む入力（レポート本文のファイル・標準入力、台帳、進行ポインタ、``--diff-file``）が UTF-8 として
+  読めないときも 4（traceback の終了コード 1 にしない・Issue #696 F-696-13）。
 
 進行ポインタ（``tmp/_karte/active.json``）による補完:
   フック（SubagentStart / SubagentStop）は dispatch prompt を読めないため、Issue 番号と
@@ -67,12 +69,15 @@ verb:
   **``ingest-review`` / ``check`` はポインタが無い・壊れている・必要なキーを欠く場合は
   補完せず EXIT_ERROR**（fail-close）——壊れたポインタを「無い」と同じに扱うと、
   別 Issue の台帳へ黙って書きかねない。
-  **``append`` の ``--round`` 補完だけは例外**：ポインタが無い、または ``issue`` が
-  対象と食い違う場合は fail-close せず、**カルテ内の最大ラウンドへ黙って縮退する**
-  （ポインタが JSON として壊れている場合のみ :func:`_read_active` が拒否する）。
-  ``append`` は停止ゲートではないため縮退しても安全——ラウンドのズレが起きても、
-  **全 Attempt のクローズを要求する ``check`` が fail-close で必ず捕捉する**（K-02）ので、
-  ここで厳格化しても二重の安全網にしかならない。
+  **``append`` の ``--round`` 補完だけは例外**（:func:`karte.pointer_completion.recorded_round`）：ポインタが無い・
+  ``issue`` が対象と食い違う（キー欠落・型違いを含む）・``round`` が 0/欠落（偽値）なら、fail-close せず
+  **カルテ内の最大ラウンドへ黙って縮退する**。拒否するのは、ポインタが壊れている／オブジェクトでない場合
+  （:func:`karte.active_pointer.read_active`）と、``round`` が偽値でないのに型違い・非 ASCII 数字・巨大桁・負・NaN・
+  bool の場合（:func:`karte.int_args.parse_int`）で、どちらも終了コード 4。縮退しても**全 Attempt のクローズを
+  要求する ``check`` が必ず捕捉する**（K-02）。``render`` の見出しの ``round`` も同じ読み方で、無効値は 4。
+  補完の実装は :mod:`karte.pointer_completion`。``ingest-review`` は、引数・ポインタ・本文由来の
+  拒否を issue→round→本文の順にロックの**前**で行い（何も作らない）、ポインタ由来の値だけは
+  ロックの内側で読み直す（:func:`_prepare_ingest`）。
 
 ``repo_root`` は **公開 CLI フラグとしては持たない**内部専用パラメータ
 （``args`` に属性として渡されたときだけ使う）。実運用は常にリポジトリルートで動くため、
@@ -86,249 +91,31 @@ verb:
 from __future__ import annotations
 
 import argparse
-import functools
 import json
 import sys
-from pathlib import Path
 
-from . import model, paths, similarity, touched as touched_mod
-from .model import KarteFormatError
-from .paths import KartePathError
-from .touched import TouchedError
-
-EXIT_OK = 0
-EXIT_NOT_FOUND = 2
-EXIT_SATURATED = 3
-EXIT_ERROR = 4
+from . import (
+    active_pointer,
+    ingest_review,
+    int_args,
+    karte_loader,
+    model,
+    paths,
+    pointer_completion,
+    repo_roots,
+    similarity,
+)
+from . import touched as touched_mod
+from .errors import KarteUsageError
+from .exit_codes import EXIT_ERROR, EXIT_OK, EXIT_SATURATED
+from .utf8_text import read_stream_text
+from .verb_boundary import fail_close, require_declared
 
 STALL_ROUNDS = 3  # 同一 finding_id がこのラウンド数連続で未解消なら「無進捗」
-
-# `karte` パッケージが置かれているディレクトリ（＝呼び出し元 worktree root の候補）。
-# `karte` パッケージ自体は呼び出し元 worktree にチェックアウトされて実行される
-# （`issue-implementer`/`issue-fixer` は isolated worktree で走る前提）ため、この値は
-# 「今この process がどの worktree で動いているか」を指す。台帳解決（`_repo_root`）は
-# これを `main_worktree_root()` で main worktree へ変換するが、diff 計算（`_diff_cwd`）は
-# 変換前のこの値をそのまま使う——両者を同じ変換に流用しない（Issue #437）。
-_PACKAGE_ROOT = Path(__file__).resolve().parent.parent
-
-# repo-root のオーバーライド点。**既定は None（＝未解決）**で、実際の導出は
-# `_repo_root` が呼ばれたときに行う（K-12 の遅延評価）。
-_REPO_ROOT = None
-
-
-class KarteUsageError(Exception):
-    """前提違反（存在しない Attempt・未知 finding ID 等）。fail-close で何も書かない。"""
-
-
-class KarteNotFound(KarteUsageError):
-    """対象のカルテがまだ存在しない（未検出＝EXIT_NOT_FOUND）。"""
-
-
-def _fail_close(func):
-    """``cmd_*`` を「例外を投げず終了コードを返す」境界にする。
-
-    verb 単位が終了コードの境界（＝呼び出し側は ``main`` 経由でも直呼びでも同じ
-    fail-close 挙動を得る）。``main`` にだけ ``try/except`` を置くと、フックや
-    テストのように ``cmd_*`` を直接呼ぶ経路では例外が素通りし、「拒否されたのに
-    exit code が返らない」＝判定不能になる。ガードの効力を呼び出し経路に依存させない。
-    """
-
-    @functools.wraps(func)
-    def wrapper(args) -> int:
-        try:
-            if func.__name__ in {"cmd_append", "cmd_close_attempt"}:
-                with paths.writer_lock(_repo_root(args)):
-                    return func(args)
-            return func(args)
-        except KarteNotFound as exc:
-            print(f"未検出: {exc}", file=sys.stderr)
-            return EXIT_NOT_FOUND
-        except (KarteUsageError, KartePathError, KarteFormatError, TouchedError, OSError) as exc:
-            print(f"拒否（fail-close）: {exc}", file=sys.stderr)
-            return EXIT_ERROR
-
-    return wrapper
-
-
-# --- 共通ヘルパ --------------------------------------------------------------
-
-
-def _repo_root(args) -> Path:
-    """repo-root を **呼び出しごとに遅延解決**する（K-12）。
-
-    linked worktree（``issue-implementer`` 等の isolated worktree）でも main worktree の
-    ``tmp/_karte/`` へ収束させる（K-01）。``.git`` がファイルなら ``gitdir:`` を辿る
-    :func:`paths.main_worktree_root` を使う（ガードは downstream の ``_resolved_root`` 等で
-    必ず掛かる）。
-
-    **import 時に評価しない**。``main_worktree_root`` は ``.git`` ファイルが不正形式なら
-    :class:`KartePathError` を送出するが、モジュールレベルで評価すると、その例外は
-    どの ``cmd_*``（:func:`_fail_close` でラップ済み）の内側でもない **import 時**に飛ぶ。
-    結果、``.git`` が壊れた worktree では ``python3 -m karte <任意の verb>`` が未捕捉例外で
-    終了し、文書化された終了コード ``{0,2,3,4}`` の外に漏れていた（K-03 と同種＝観測不能）。
-    ここで解決すれば、経路が ``main()`` でも ``cmd_*`` 直呼びでも必ず ``_fail_close`` の
-    内側に入る＝「ガードの効力を呼び出し経路に依存させない」規律と一貫する。
-
-    結果をキャッシュしない（呼び出しごとに数回の ``.git`` 参照で済み、キャッシュすると
-    プロセス内で worktree を跨ぐテスト・フックの挙動が呼び出し順に依存するため）。
-    """
-    override = getattr(args, "repo_root", None)
-    if override:
-        return Path(override).resolve()
-    if _REPO_ROOT is not None:
-        return Path(_REPO_ROOT)
-    return paths.main_worktree_root(_PACKAGE_ROOT)
-
-
-def _diff_cwd(args) -> Path:
-    """``git diff`` を実行する cwd（呼び出し元 worktree のルート）を解決する（Issue #437）。
-
-    台帳解決（:func:`_repo_root`）とは**意図的に別関数**にする。台帳（``tmp/_karte/``）は
-    worktree 間で共有すべき単一の正本なので :func:`paths.main_worktree_root` で main worktree
-    へ収束させる必要があるが、``git diff`` が測るべきなのは**呼び出し元 worktree そのものの
-    変更**であり、同じ収束をかけると isolated worktree（``issue-implementer``/``issue-fixer``
-    の ``.claude/worktrees/agent-*``）で行った commit が main worktree の作業ツリーには存在せず
-    diff が常に空になる。結果、Issue #355 の空 diff fail-close（本来は正しい安全装置）が、
-    isolated worktree から実行するたび spurious に発火していた（Issue #437）。
-
-    ``_repo_root`` が ``main_worktree_root(_PACKAGE_ROOT)`` で変換するのに対し、ここでは
-    :func:`paths.invoking_worktree_root` で実在確認だけを通した ``_PACKAGE_ROOT`` を
-    そのまま使う——``_PACKAGE_ROOT`` は「``karte`` パッケージが今どの worktree で
-    動いているか」を指す値であり、変換前の時点で既に呼び出し元 worktree のルートである。
-    ``args.repo_root`` override（テスト専用・K-12）は台帳解決専用のパラメータなので
-    ここでは参照しない——実運用でこの値を上書きする公開経路は存在しない。
-    """
-    return paths.invoking_worktree_root(_PACKAGE_ROOT)
-
-
-def _read_active(repo_root, *, required: bool = False) -> dict:
-    """進行ポインタ ``tmp/_karte/active.json`` を読む。
-
-    ``required``
-        ``--issue`` / ``--round`` の補完に使う（＝これが唯一の情報源）とき True。
-        ポインタが**まだ無い**場合に ``{}`` を返さず :class:`KarteUsageError` を送出する。
-
-    **壊れている場合は ``required`` によらず常に拒否する**（K-13/K-14/K-15）。JSON として
-    読めない・dict でないポインタを黙って「無い」と同じ ``{}`` に潰すと、補完が沈黙の
-    うちに別の値（別 Issue・別ラウンド）へ倒れ、誤った台帳を書き換えても観測できない。
-    「まだ無い」（正常な初期状態）と「壊れている」（異常）は別物として扱う。
-    """
-    try:
-        path = paths.active_path(repo_root)
-    except paths.KarteMissing as exc:
-        if required:
-            raise KarteUsageError(f"進行ポインタが無い: {exc}") from None
-        return {}
-    if not path.is_file():
-        if required:
-            raise KarteUsageError(
-                f"進行ポインタ {path} が無い"
-                "（先に `ingest-review --issue N --round R` を明示指定で実行する）"
-            )
-        return {}
-    try:
-        data = json.loads(paths.read_text(path))
-    except ValueError as exc:
-        raise KarteUsageError(
-            f"進行ポインタ {path} が JSON として壊れている: {exc}"
-            "（補完に使えないため取り込まない。ポインタを作り直すこと）"
-        ) from None
-    if not isinstance(data, dict):
-        raise KarteUsageError(
-            f"進行ポインタ {path} の中身が JSON オブジェクトでない: {type(data).__name__}"
-        )
-    return data
-
-
-def _write_active(repo_root, issue: int, round_no: int) -> None:
-    path = paths.active_path(repo_root, create_dir=True)
-    paths.write_text_atomic(
-        path, json.dumps({"issue": int(issue), "round": int(round_no)}, ensure_ascii=False) + "\n"
-    )
-
-
-def _resolve_issue(args) -> int:
-    """``--issue`` 省略時は進行ポインタ ``tmp/_karte/active.json`` から補完する。
-
-    フック（SubagentStart の ``render`` / SubagentStop の ``ingest-review`` / ``check`` /
-    PostToolUse の ``status``）は dispatch prompt を読めないため、Issue 番号の唯一の情報源が
-    このポインタになる（K-13/K-14/K-15）。
-    ポインタが無い・壊れている・``issue`` を欠くときは推測せず fail-close する。
-    """
-    if getattr(args, "issue", None) is not None:
-        return paths.validate_issue(args.issue)
-    active = _read_active(_repo_root(args), required=True)
-    if "issue" not in active:
-        raise KarteUsageError(
-            "--issue が未指定で、進行ポインタ tmp/_karte/active.json に 'issue' が無い"
-            "（先に `ingest-review --issue N --round R` を実行する）"
-        )
-    return paths.validate_issue(active["issue"])
-
-
-def _validate_round(value) -> int:
-    text = str(value)
-    if not text.isdigit() or int(text) < 1:
-        raise KarteUsageError(f"round は 1 以上の整数: {value!r}")
-    return int(text)
-
-
 STDIN_SOURCE = "-"  # `--from -`＝標準入力（K-13・慣行に合わせる）
 
 
-def _resolve_ingest_round(args, issue: int) -> int:
-    """``ingest-review`` のラウンド番号を決める（``--round`` 省略時は進行ポインタ＋1）。
-
-    ポインタが保持しているのは**最後に取り込んだ**ラウンド番号なので、新しいレビュー
-    レポートは必ずその次のラウンドになる（同じ番号で再取り込みすると単調増加の検査に
-    掛かって台帳の状態遷移が壊れる）。フックは「何ラウンド目か」を知る術がないため、
-    ここで決定論的に導出する（K-13）。
-
-    ポインタが無い・壊れている・``round`` を欠く・``issue`` が対象と食い違う場合は
-    推測せず fail-close する（初回の取り込みは ``--issue``/``--round`` を明示して行う）。
-    """
-    if getattr(args, "round", None) is not None:
-        return _validate_round(args.round)
-    active = _read_active(_repo_root(args), required=True)
-    if "round" not in active:
-        raise KarteUsageError(
-            "--round が未指定で、進行ポインタ tmp/_karte/active.json に 'round' も無い"
-            "（初回の取り込みは `--round 1` を明示する）"
-        )
-    if "issue" in active and paths.validate_issue(active["issue"]) != issue:
-        raise KarteUsageError(
-            f"進行ポインタが指す issue-{active['issue']} と対象 issue-{issue} が食い違う"
-            "（--round を明示するか、対象 Issue の取り込みからやり直す）"
-        )
-    return _validate_round(active["round"]) + 1
-
-
-def _resolve_check_round(args, issue: int) -> int:
-    """``check`` のラウンド番号を決める（``--round`` 省略時は進行ポインタの値を**そのまま**）。
-
-    ``ingest-review`` と違って **+1 しない**——ポインタが保持しているのは「最後に取り込んだ
-    ラウンド」で、``check`` が検査したいのはまさにそのラウンド（いま是正中のラウンド）だから。
-    K-02 で ``check`` は SubagentStop フックの判定根拠になったが、**フックは dispatch prompt を
-    読めない**ため、ここで補完できないとフック側がラウンド導出を再実装することになる
-    （他 4 verb は補完できるのに ``check`` だけ非対称だった）。
-
-    ポインタが無い・壊れている・``round`` を欠く・``issue`` が対象と食い違う場合は推測せず
-    fail-close する（``_resolve_ingest_round`` と同じ扱い）。
-    """
-    if getattr(args, "round", None) is not None:
-        return _validate_round(args.round)
-    active = _read_active(_repo_root(args), required=True)
-    if "round" not in active:
-        raise KarteUsageError(
-            "--round が未指定で、進行ポインタ tmp/_karte/active.json に 'round' も無い"
-            "（`--round` を明示するか、先に `ingest-review` を実行する）"
-        )
-    if "issue" in active and paths.validate_issue(active["issue"]) != issue:
-        raise KarteUsageError(
-            f"進行ポインタが指す issue-{active['issue']} と対象 issue-{issue} が食い違う"
-            "（--round を明示するか、対象 Issue の取り込みからやり直す）"
-        )
-    return _validate_round(active["round"])
+# --- 共通ヘルパ --------------------------------------------------------------
 
 
 def _read_report(args, repo_root) -> str:
@@ -350,25 +137,13 @@ def _read_report(args, repo_root) -> str:
         return paths.read_text(paths.resolve_within_repo(source, repo_root))
     if sys.stdin is None:
         raise KarteUsageError("`--from -` が指定されたが標準入力が無い")
-    text = sys.stdin.read()
+    text = read_stream_text(sys.stdin)
     if not text.strip():
         raise KarteUsageError(
             "`--from -` の標準入力が空（レビューレポート本文が渡されていない）。"
             "空入力を『指摘なし』とは解釈しない"
         )
     return text
-
-
-def _validate_attempt_number(value) -> int:
-    """``--attempt`` を検証する（``_validate_round`` と同型・K-03）。
-
-    ``int(args.attempt)`` を無検証で呼ぶと非数値入力で ``ValueError`` が送出され、
-    ``_fail_close`` の捕捉対象外（文書化された終了コード ``{0,2,3,4}`` の外）に漏れる。
-    """
-    text = str(value)
-    if not text.isdigit() or int(text) < 1:
-        raise KarteUsageError(f"attempt は 1 以上の整数: {value!r}")
-    return int(text)
 
 
 def _resolve_close_attempt_number(args, karte) -> int:
@@ -395,7 +170,7 @@ def _resolve_close_attempt_number(args, karte) -> int:
         どちらも正しいが、原因の説明が不正確になる）。
     """
     if args.attempt is not None:
-        return _validate_attempt_number(args.attempt)
+        return int_args.parse_int(args.attempt, "attempt")
     unclosed = [item.number for item in karte.attempts if not karte.results_for(item.number)]
     if len(unclosed) > 1:
         raise KarteUsageError(
@@ -416,26 +191,6 @@ def _resolve_close_attempt_number(args, karte) -> int:
     )
 
 
-def _load(args, issue: int):
-    """カルテを読み込む。存在しなければ :class:`KarteNotFound`（＝EXIT_NOT_FOUND）。
-
-    「まだ作られていない」（置き場ごと無い＝:class:`paths.KarteMissing`）は**未検出**であって
-    ガード違反ではない。両者を同じ EXIT_ERROR に潰すと、``render`` を先に叩く運用側が
-    「カルテが未作成」と「触ってはならないパス」を区別できない。
-    """
-    try:
-        path = paths.karte_path(issue, _repo_root(args))
-    except paths.KarteMissing as exc:
-        raise KarteNotFound(
-            f"{exc}（先に `ingest-review --issue {issue} --round 1` を実行する）"
-        ) from None
-    if not path.is_file():
-        raise KarteNotFound(
-            f"カルテが無い: {path}（先に `ingest-review --issue {issue} --round 1` を実行する）"
-        )
-    return path, model.parse(paths.read_text(path))
-
-
 def _view_of(karte: model.Karte, attempt: model.Attempt) -> similarity.AttemptView:
     return similarity.AttemptView(
         number=attempt.number,
@@ -446,13 +201,10 @@ def _view_of(karte: model.Karte, attempt: model.Attempt) -> similarity.AttemptVi
     )
 
 
-def _open_ids(karte: model.Karte) -> set:
-    return {item.id for item in karte.open_findings()}
-
-
 def _priors_for(karte: model.Karte, finding_ids) -> list:
     """``finding_ids`` のうち **未解消** のものを共有する過去 Attempt の投影を返す。"""
-    relevant = {fid for fid in finding_ids if fid in _open_ids(karte)}
+    open_ids = karte.open_ids()
+    relevant = {fid for fid in finding_ids if fid in open_ids}
     views = []
     for attempt in karte.attempts:
         if relevant & set(attempt.finding_ids):
@@ -513,7 +265,7 @@ def _saturated_groups(karte: model.Karte) -> list:
     ``members`` は「その再試行が衝突する Attempt 番号」（自分自身を含む）で、同じ
     ``members`` を持つ候補は先に現れた 1 件に畳む（同一グループを重複表示しない）。
     """
-    open_ids = _open_ids(karte)
+    open_ids = karte.open_ids()
     relevant = [
         attempt for attempt in karte.attempts if open_ids & set(attempt.finding_ids)
     ]
@@ -543,7 +295,7 @@ def _saturated_groups(karte: model.Karte) -> list:
 def _group_directive(karte: model.Karte, candidate_number: int, hits, candidate) -> str:
     """飽和したアプローチの転換指令（``render`` / ``close-attempt`` の表示用）。"""
     attempt = karte.attempt(candidate_number)
-    open_ids = _open_ids(karte) & set(attempt.finding_ids if attempt else [])
+    open_ids = karte.open_ids() & set(attempt.finding_ids if attempt else [])
     return similarity.build_directive(
         candidate, hits, open_ids, subject_label="飽和したアプローチ"
     ).text()
@@ -552,221 +304,38 @@ def _group_directive(karte: model.Karte, candidate_number: int, hits, candidate)
 # --- verb: ingest-review ------------------------------------------------------
 
 
-@_fail_close
-def cmd_ingest_review(args) -> int:
-    """レビューレポートを台帳へ取り込む（検証に 1 件でも掛かれば**一切書かない**）。
+def _prepare_ingest(args, repo_root) -> str:
+    """ロック前の段。``--issue``→``--round``→本文の順に検証し、拒否なら何も作らず本文を返す。
 
-    入力は ``--from <path>``（repo-root 配下）か ``--from -``（標準入力・K-13）。
-    ``--issue`` / ``--round`` は進行ポインタから補完できる（:func:`_resolve_issue` /
-    :func:`_resolve_ingest_round`）。検証は経路によらず共通で、ID 重複・未知 ID・
-    harm 欄欠落・**``scope`` 欄欠落**（Issue #495）・**``disposition`` の不整合**
-    （``deferred`` に ``deferred_to`` が無い等）・ID 再発番（K-05 の ``distinct_from`` で
-    名指ししたペアだけ除外）・**前ラウンド未解消 finding の不在**（K-06）を見る。
+    補完結果はここでは捨てる（ポインタ由来の値は、ロック内で読み直した値だけが正）。
     """
-    repo_root = _repo_root(args)
-    issue = _resolve_issue(args)
-    round_no = _resolve_ingest_round(args, issue)
-    report_text = _read_report(args, repo_root)
-
-    with paths.writer_lock(repo_root):
-        return _ingest_review_locked(args, repo_root, issue, round_no, report_text)
+    pointer_completion.ingest_target(args, repo_root)
+    return _read_report(args, repo_root)
 
 
-def _ingest_review_locked(args, repo_root, issue, round_no, report_text) -> int:
-    """Hold the shared writer lock from the first karte read through replacement."""
+@fail_close(locked=True, prepare=_prepare_ingest)
+def cmd_ingest_review(args, repo_root, report_text) -> int:
+    """レビューレポートを台帳へ取り込む（検証に 1 件でも掛かれば台帳・ポインタを**一切書かない**）。
 
-    path = paths.karte_path(issue, repo_root, create_dir=True)
-    karte = model.parse(paths.read_text(path)) if path.is_file() else model.new_karte(issue)
-
-    last_round = max((r for item in karte.findings for r in item.rounds), default=0)
-    if round_no <= last_round:
-        raise KarteUsageError(
-            f"round は単調増加させる（取り込み済みの最新ラウンドは {last_round}・"
-            f"指定は {round_no}）。同じラウンドの再取り込みは台帳の状態遷移を壊す"
-        )
-
-    review = model.parse_review(report_text, issue)
-    previously_open = _open_ids(karte)
-
-    errors: list = []
-    accepted: list = []  # (finding_id, ReviewFinding, is_new)
-    seen: set = set()
-    next_seq = karte.next_seq()
-    for item in review:
-        if item.finding_id is None:
-            finding_id = model.format_finding_id(issue, next_seq)
-            next_seq += 1
-            is_new = True
-        else:
-            finding_id = item.finding_id
-            _issue_of_id, seq = model.parse_finding_id(finding_id)
-            if karte.finding(finding_id) is not None:
-                is_new = False
-            elif seq == next_seq:
-                next_seq += 1
-                is_new = True
-            else:
-                errors.append(
-                    f"{item.lineno} 行目: 未知の finding ID: {finding_id}"
-                    f"（台帳に無く、次に採番できるのは {model.format_finding_id(issue, next_seq)}）"
-                )
-                continue
-        if finding_id in seen:
-            errors.append(f"{item.lineno} 行目: finding ID がレポート内で重複している: {finding_id}")
-            continue
-        seen.add(finding_id)
-
-        bad_refs = _invalid_distinct_refs(karte, seen, finding_id, item)
-        if bad_refs:
-            errors.extend(bad_refs)
-            continue
-
-        if is_new:
-            duplicate = _find_duplicate(karte, accepted, item)
-            if duplicate is not None:
-                errors.append(
-                    f"{item.lineno} 行目: ID 再発番を検出: {finding_id} は既存の未解消 "
-                    f"{duplicate} と同一の指摘（locus が交差し summary が一致）。"
-                    "未解消の指摘を再度挙げるときは同じ ID を再利用すること"
-                    f"（別物なら当該ブロックに `distinct_from: {duplicate}` を書いて名指しする）"
-                )
-                continue
-        accepted.append((finding_id, item, is_new))
-
-    # K-06: 「不在＝解消」を廃止する。前ラウンド時点で未解消だった finding が 1 件でも
-    # 欠けていれば取り込みごと拒否する（部分的なレポート 1 通で `harm: real` の指摘が
-    # 消える fail-open だった）。欠けている ID は全て列挙する（1 件ずつ往復させない）。
-    absent = sorted(
-        previously_open - {fid for fid, _item, _is_new in accepted},
-        key=lambda fid: model.parse_finding_id(fid)[1],
-    )
-    if absent:
-        errors.append(
-            "前ラウンドで未解消の finding が今回のレポートに再掲されていない: "
-            f"{', '.join(absent)}"
-            "（不在は解消ではない。解消したなら当該 ID のブロックを `status: resolved` で"
-            "再掲し、未解消なら `status: open` のまま再掲する）"
-        )
-
-    if errors:
-        for line in errors:
-            print(f"拒否（fail-close）: {line}", file=sys.stderr)
-        return EXIT_ERROR
-
-    created = []
-    resolved = []
-    excluded = []  # distinct_from で重複判定を外したペア（監査用に出力へ残す）
-    for finding_id, item, _is_new in accepted:
-        finding = karte.finding(finding_id)
-        if finding is None:
-            finding = model.Finding(id=finding_id)
-            karte.findings.append(finding)
-            created.append(finding_id)
-        # K-06: 解消は**明示宣言**でのみ成立する（`harm` の値によらず一律）。
-        finding.status = item.status
-        finding.resolved_round = round_no if item.status == "resolved" else None
-        if item.status == "resolved":
-            resolved.append(finding_id)
-        finding.harm = item.harm
-        finding.harm_detail = item.harm_detail
-        finding.severity = item.severity
-        # Issue #495: `scope` と `disposition` 系もレポートの値で毎ラウンド上書きする
-        # （他の欄と同じ扱い）。据え置きにすると「1 度書いた disposition が、以後
-        # 書かれなくても残り続ける」ことになり、レポート側の記述と台帳が静かにずれる。
-        # 書き忘れは未決定へ倒れて verdict のゲートに掛かる＝fail-close 側へ倒れる。
-        finding.scope = item.scope
-        finding.disposition = item.disposition
-        finding.deferred_to = item.deferred_to
-        finding.waived_by = item.waived_by
-        finding.waived_reason = item.waived_reason
-        finding.locus = list(item.locus)
-        finding.summary = item.summary
-        finding.evidence = item.evidence
-        finding.expected = item.expected
-        finding.recheck = item.recheck
-        if round_no not in finding.rounds:
-            finding.rounds.append(round_no)
-        finding.rounds.sort()
-        for other in item.distinct_from:
-            excluded.append(f"{finding_id} ↔ {other}")
-
-    karte.findings.sort(key=lambda item: item.seq)
-    paths.write_text_atomic(path, model.dumps(karte))
-    _write_active(repo_root, issue, round_no)
-
-    print(f"=== ingest-review: issue-{issue} round {round_no} ===")
-    print(f"  取り込み: {len(accepted)} 件（新規 {len(created)} / 再掲 {len(accepted) - len(created)}）")
-    if created:
-        print(f"  新規採番: {', '.join(created)}")
-    if resolved:
-        print(f"  解消（レポートで `status: resolved` と明示された）: {', '.join(sorted(resolved))}")
-    if excluded:
-        print(f"  重複判定の明示的除外（distinct_from）: {'; '.join(excluded)}")
-    print(f"  未解消: {', '.join(sorted(_open_ids(karte))) or '(なし)'}")
-    out_of_scope = sorted(item.id for item in karte.open_findings() if item.scope == "out")
-    if out_of_scope:
-        # Issue #495: スコープ外の申告も同じ列に入ったことを取り込み時点で見せる
-        # （別経路へ逃がしていないことの可視化）。
-        print(f"  うち scope: out（実害判定・verdict の免除にはならない）: {', '.join(out_of_scope)}")
-    undecided = sorted(item.id for item in karte.undecided_findings())
-    if undecided:
-        print(
-            "  実害あり・disposition 未決定（clean を妨げる。fix-here / deferred / waived を決める）: "
-            + ", ".join(undecided)
-        )
-    print(f"  カルテ: {path}")
-    return EXIT_OK
-
-
-def _invalid_distinct_refs(karte: model.Karte, seen: set, finding_id: str, item) -> list:
-    """``distinct_from`` の参照先が実在するか（K-05 のエスケープハッチを監査可能に保つ）。
-
-    名指しできるのは **台帳にある finding** か、**同じレポート内で先に現れた finding** だけ。
-    実在しない ID を書けてしまうと「何と別物か」の名指しが検証されず、重複判定を
-    無効化するだけの呪文になる（＝握りつぶしの経路になる）ので fail-close で拒否する。
-    自分自身の名指しも、判定を外す相手が存在しない無意味な宣言なので拒否する。
+    入力は ``--from <path>``（repo-root 配下）か ``--from -``（標準入力・K-13）。ロックの**前**
+    （``prepare``）で ``--issue``→``--round``→本文の順に検証して本文を読む——引数・ポインタ・本文
+    由来の拒否は ``tmp/_karte/`` も作らず、閉じない標準入力でロックを握り続けることもない。
+    ``--issue`` / ``--round`` はポインタから補完でき、**補完は最終的にロックの内側で読み直す**
+    （外の値は信用しない。並行 ingest が同じ次ラウンドを選ぶため）。何も作らずに拒否できるのは ``prepare`` 段で拒否できる範囲に限る。
+    ロック内の拒否（競合でのポインタ変化・内容検証・台帳との突き合わせ）は新規 repo でも ``tmp/_karte/`` と ``.writer.lock`` を残す（台帳・ポインタは書かない）。検証は経路によらず共通で、ID 重複・
+    未知 ID・harm 欄欠落・**``scope`` 欄欠落**（Issue #495）・**``disposition`` の不整合**
+    （``deferred`` に ``deferred_to`` が無い等）・ID 再発番（K-05 の ``distinct_from`` で名指し
+    したペアだけ除外）・**前ラウンド未解消 finding の不在**（K-06）を見る。
     """
-    errors = []
-    for other in item.distinct_from:
-        if other == finding_id:
-            errors.append(
-                f"{item.lineno} 行目: distinct_from に自分自身は書けない: {other}"
-            )
-        elif karte.finding(other) is None and other not in seen:
-            errors.append(
-                f"{item.lineno} 行目: distinct_from が指す finding ID が実在しない: {other}"
-                "（台帳にあるか、同じレポートで先に現れた ID だけを名指しできる）"
-            )
-    return errors
-
-
-def _find_duplicate(karte: model.Karte, accepted, item):
-    """新規採番しようとしている指摘が、既存の未解消 finding の焼き直しでないかを見る。
-
-    ``item.distinct_from`` で名指しされた相手は比較から外す（K-05）。外れるのは
-    **名指しされたペアだけ**で、判定そのもの・閾値
-    （:data:`model.DUPLICATE_SIMILARITY_THRESHOLD`）は据え置く——偽陽性の逃げ道として
-    閾値を下げると、本来検出したい再発番まで一律に見逃す。
-    """
-    exempt = set(item.distinct_from)
-    for finding in karte.open_findings():
-        if finding.id in exempt:
-            continue
-        if model.is_same_finding(item.summary, item.locus, finding.summary, finding.locus):
-            return finding.id
-    for finding_id, other, _is_new in accepted:
-        if finding_id in exempt:
-            continue
-        if model.is_same_finding(item.summary, item.locus, other.summary, other.locus):
-            return finding_id
-    return None
+    issue, round_no = pointer_completion.ingest_target(args, repo_root)
+    return ingest_review.ingest_locked(repo_root, issue, round_no, report_text)
 
 
 # --- verb: render -------------------------------------------------------------
 
 
-@_fail_close
-def cmd_render(args) -> int:
+@fail_close(locked=False)
+def cmd_render(args, repo_root) -> int:
     """カルテの現在状態を**そのまま注入できる本文**として出力する（K-14）。
 
     SubagentStart フック（matcher ``issue-fixer``）がこれを実行し、標準出力を
@@ -784,10 +353,10 @@ def cmd_render(args) -> int:
     ``--issue`` は進行ポインタから補完できる（フックは dispatch prompt を読めない）。
     カルテ未作成は :data:`EXIT_NOT_FOUND` のまま（ガード違反＝EXIT_ERROR と区別する）。
     """
-    issue = _resolve_issue(args)
-    path, karte = _load(args, issue)
-    active = _read_active(_repo_root(args))
-    round_no = active.get("round") if active.get("issue") == issue else None
+    issue = pointer_completion.resolve_issue(args, repo_root)
+    path, karte = karte_loader.load_karte(repo_root, issue)
+    active = active_pointer.read_active(repo_root)
+    round_no = pointer_completion.recorded_round(active, issue)
 
     lines = [f"=== Karte: issue-{issue}" + (f" / round {round_no}" if round_no else "") + " ==="]
     lines.append(
@@ -900,17 +469,17 @@ def cmd_render(args) -> int:
 # --- verb: append -------------------------------------------------------------
 
 
-@_fail_close
-def cmd_append(args) -> int:
-    issue = _resolve_issue(args)
-    path, karte = _load(args, issue)
-    active = _read_active(_repo_root(args))
+@fail_close(locked=True)
+def cmd_append(args, repo_root) -> int:
+    issue = pointer_completion.resolve_issue(args, repo_root)
+    path, karte = karte_loader.load_karte(repo_root, issue)
+    active = active_pointer.read_active(repo_root)
     if args.round is not None:
-        round_no = _validate_round(args.round)
-    elif active.get("issue") == issue and active.get("round"):
-        round_no = _validate_round(active["round"])
+        round_no = int_args.parse_int(args.round, "round")
     else:
-        round_no = max((r for item in karte.findings for r in item.rounds), default=1)
+        round_no = pointer_completion.recorded_round(active, issue) or max(
+            (r for item in karte.findings for r in item.rounds), default=1
+        )
 
     finding_ids = model.validate_finding_ids(args.finding_ids)
     unknown = [fid for fid in finding_ids if karte.finding(fid) is None]
@@ -939,7 +508,8 @@ def cmd_append(args) -> int:
     priors = _priors_for(karte, finding_ids)
     hits = similarity.find_hits(new_view, priors)
     if similarity.is_saturated(hits):
-        open_targets = {fid for fid in finding_ids if fid in _open_ids(karte)}
+        open_ids = karte.open_ids()
+        open_targets = {fid for fid in finding_ids if fid in open_ids}
         print(similarity.build_directive(new_view, hits, open_targets).text())
         print(
             "（Attempt は書き込んでいない。転換したアプローチで `append` をやり直すこと）"
@@ -966,10 +536,10 @@ def cmd_append(args) -> int:
 # --- verb: close-attempt ------------------------------------------------------
 
 
-@_fail_close
-def cmd_close_attempt(args) -> int:
-    issue = _resolve_issue(args)
-    path, karte = _load(args, issue)
+@fail_close(locked=True)
+def cmd_close_attempt(args, repo_root) -> int:
+    issue = pointer_completion.resolve_issue(args, repo_root)
+    path, karte = karte_loader.load_karte(repo_root, issue)
     number = _resolve_close_attempt_number(args, karte)
     attempt = karte.attempt(number)
     if attempt is None:
@@ -982,12 +552,12 @@ def cmd_close_attempt(args) -> int:
     outcome = _validate_outcome(args.outcome)
 
     if args.diff_file:
-        diff_path = paths.resolve_within_repo(args.diff_file, _repo_root(args))
+        diff_path = paths.resolve_within_repo(args.diff_file, repo_root)
         diff_text = paths.read_text(diff_path)
     else:
-        # 台帳（`_repo_root`）ではなく呼び出し元 worktree（`_diff_cwd`）で diff を測る
-        # （Issue #437・両者を混同すると isolated worktree の commit を見失う）。
-        diff_text = touched_mod.git_diff(_diff_cwd(args), args.base)
+        # 台帳（repo_root）ではなく呼び出し元 worktree で diff を測る（Issue #437・
+        # 混同すると isolated worktree の commit を見失う）。
+        diff_text = touched_mod.git_diff(repo_roots.invoking_worktree(), args.base)
     measured = model.check_list(touched_mod.parse_diff(diff_text), "touched")
 
     if not measured and outcome != "no-change":
@@ -1056,8 +626,8 @@ def _validate_outcome(value: str) -> str:
 # --- verb: check --------------------------------------------------------------
 
 
-@_fail_close
-def cmd_check(args) -> int:
+@fail_close(locked=False)
+def cmd_check(args, repo_root) -> int:
     """当該ラウンドの診断網羅と、**全 Attempt のクローズ**を検査する。
 
     合格条件は 2 つ:
@@ -1088,12 +658,15 @@ def cmd_check(args) -> int:
     ——既定経路では踏まないとしても、「呼ばれないと進まないように作る」を掲げる以上
     暗黙の前提（＝呼び出し側がラウンドを正直に申告すること）に依存させない。
 
-    ``--round`` は進行ポインタから補完できる（:func:`_resolve_check_round`）。フックは
-    dispatch prompt を読めないので、ここが必須だとフック側でラウンド導出を再実装させる。
+    ``--round`` は進行ポインタの値を**そのまま**補完できる（``ingest-review`` と違って +1 しない。
+    検査したいのは最後に取り込んだ＝いま是正中のラウンド）。フックは dispatch prompt を
+    読めないので、ここが必須だとフック側でラウンド導出を再実装させる（K-02）。
     """
-    issue = _resolve_issue(args)
-    _path, karte = _load(args, issue)
-    round_no = _resolve_check_round(args, issue)
+    issue = pointer_completion.resolve_issue(args, repo_root)
+    _path, karte = karte_loader.load_karte(repo_root, issue)
+    round_no = pointer_completion.resolve_round(
+        args, repo_root, issue, pointer_completion.MissingRoundHint.RUN_INGEST_FIRST
+    ).number
 
     attempts = [item for item in karte.attempts if item.round == round_no]
     expected = sorted(
@@ -1272,8 +845,8 @@ def _status_payload(karte: model.Karte) -> dict:
     }
 
 
-@_fail_close
-def cmd_status(args) -> int:
+@fail_close(locked=False)
+def cmd_status(args, repo_root) -> int:
     """エスカレーション条件を機械判定し、**そのまま注入できる本文**として出力する（K-15）。
 
     **手動実行（``python3 -m karte status``）は常に全件を出力する**——フックの既読管理
@@ -1283,7 +856,7 @@ def cmd_status(args) -> int:
     K-15 は当初「PostToolUse フック（matcher ``Task``）が ``pr-reviewer`` 呼び出し完了直後に
     これを実行し、判定結果をコンテキストへ自動注入する」設計を構想したが未配線のまま、
     Issue #512 が対応 AC を移譲して**別の設計**で実装した。実際に配線されたのは
-    :mod:`karte_notify`（``.claude/hooks/karte-notify.sh``・PostToolUse matcher ``Bash``）で、
+    :mod:`karte_notify`（``.claude/hooks/karte-notify.sh``・PostToolUse matcher ``Bash|ctx_execute|ctx_batch_execute``）で、
     トリガーは ``pr-reviewer`` 呼び出し後ではなく ``karte ingest-review``/``close-attempt``
     実行直後、届け先は AI のコンテキスト（``additionalContext``）ではなく**オーナーの
     チャット**（``systemMessage``）にした。AI のコンテキストへ注入するだけでは
@@ -1307,8 +880,8 @@ def cmd_status(args) -> int:
     3 集合を**包含関係の順に**行として出す（PR #496 F-495-07）。``--json`` にだけ
     ``blocking_harmful`` を出して本文では読み手に積を取らせる、という非対称を残さないため。
     """
-    issue = _resolve_issue(args)
-    path, karte = _load(args, issue)
+    issue = pointer_completion.resolve_issue(args, repo_root)
+    path, karte = karte_loader.load_karte(repo_root, issue)
     payload = _status_payload(karte)
     if getattr(args, "json", False):
         print(json.dumps(payload, ensure_ascii=False, indent=2))
@@ -1427,7 +1000,12 @@ def cmd_status(args) -> int:
 # --- パーサ ------------------------------------------------------------------
 
 
-def build_parser() -> argparse.ArgumentParser:
+def build_parser(extra_registrars=()) -> argparse.ArgumentParser:
+    """``extra_registrars``＝``(subparsers, add_issue)`` を受けて verb を足す関数の列（別モジュールの verb 用）。
+
+    登録 verb は ``func`` を ``fail_close(locked=...)`` で包んでロック要否を宣言しなければならない。
+    宣言の無い verb があれば :class:`ValueError` で組み立てを拒否する（fail-close）。
+    """
     parser = argparse.ArgumentParser(
         prog="karte",
         description="是正ループの診断カルテ（tmp/_karte/issue-<N>.md）を操作する",
@@ -1509,11 +1087,14 @@ def build_parser() -> argparse.ArgumentParser:
     add_issue(status)
     status.add_argument("--json", action="store_true", help="機械可読な JSON で出力")
     status.set_defaults(func=cmd_status)
+    for register in extra_registrars:
+        register(subparsers, add_issue)
+    require_declared(subparsers)
     return parser
 
 
-def main(argv=None) -> int:
-    """薄いディスパッチャ。終了コードへの変換は各 ``cmd_*``（:func:`_fail_close`）が担う。"""
-    parser = build_parser()
-    args = parser.parse_args(argv)
+def main(argv=None, extra_registrars=()) -> int:
+    """薄いディスパッチャ。終了コードへの変換とロックは各 verb 自身の宣言
+    （:func:`karte.verb_boundary.fail_close`）が担い、ここでは再ラップしない。"""
+    args = build_parser(extra_registrars).parse_args(argv)
     return args.func(args)

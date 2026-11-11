@@ -2,7 +2,7 @@
 import json
 import sys
 from pathlib import Path
-from karte_notify.notify import SUPPORTED_TOOL_NAMES
+from karte_notify.trigger import SUPPORTED_TOOL_NAMES
 from .store import load
 from .notice_roots import registered_roots, response_roots
 

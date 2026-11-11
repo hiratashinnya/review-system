@@ -26,30 +26,29 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
 
-from karte import cli, model, paths, similarity, touched
+from karte import (
+    cli,
+    exit_codes,
+    ingest_review,
+    model,
+    paths,
+    pointer_completion,
+    repo_roots,
+    similarity,
+    touched,
+)
+from karte.verb_boundary import fail_close
+from tests.unit.karte_support import make_tmp_repo as _make_repo
+from tests.unit.karte_support import report_text as _report
+from tests.unit.karte_support import writer_lock_is_held
 
 _HAS_GIT = shutil.which("git") is not None
-
-
-def _make_repo(case) -> Path:
-    root = Path(tempfile.mkdtemp(prefix="karte-")).resolve()
-    case.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
-    (root / "tmp").mkdir()
-    return root
-
-
-def _report(*findings) -> str:
-    """``### <title>`` ブロック列のレビューレポート本文を組み立てる。"""
-    blocks = []
-    for title, fields in findings:
-        lines = [f"### {title}"]
-        lines += [f"{key}: {value}" for key, value in fields.items()]
-        blocks.append("\n".join(lines))
-    return "\n\n".join(blocks) + "\n"
 
 
 class KarteTestCase(unittest.TestCase):
@@ -201,17 +200,17 @@ class TestExplicitIssueWinsOverActivePointer(KarteTestCase):
     def test_resolve_issue_prefers_the_explicit_flag(self):
         self._point_active_at(999)
         args = argparse.Namespace(issue=str(self.issue), repo_root=str(self.root))
-        self.assertEqual(cli._resolve_issue(args), self.issue)
+        self.assertEqual(pointer_completion.resolve_issue(args, self.root), self.issue)
         # 省略した場合だけポインタへ落ちる（規律が「明示せよ」である理由そのもの）。
         fallback = argparse.Namespace(issue=None, repo_root=str(self.root))
-        self.assertEqual(cli._resolve_issue(fallback), 999)
+        self.assertEqual(pointer_completion.resolve_issue(fallback, self.root), 999)
 
     def test_ingest_and_append_write_the_explicit_issues_karte(self):
         self._point_active_at(999, round_no=7)
         code, _out, err = self._ingest(1, ("new", HARMFUL))
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         code, _out, err = self._append(round="1")
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("F-307-01", self._karte_text())
         self.assertFalse(
             (self.root / "tmp" / "_karte" / "issue-999.md").exists(),
@@ -225,7 +224,7 @@ class TestExplicitIssueWinsOverActivePointer(KarteTestCase):
 class TestIngestReview(KarteTestCase):
     def test_creates_karte_and_allocates_ids(self):
         code, out, _err = self._ingest(1, ("new", HARMFUL), ("new", COSMETIC))
-        self.assertEqual(code, cli.EXIT_OK)
+        self.assertEqual(code, exit_codes.EXIT_OK)
         self.assertIn("F-307-01", out)
         self.assertIn("F-307-02", out)
         karte = self._karte()
@@ -242,7 +241,7 @@ class TestIngestReview(KarteTestCase):
         broken = dict(HARMFUL)
         del broken["harm"]
         code, _out, err = self._ingest(1, ("new", broken))
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("harm", err)
         self.assertFalse((self.root / "tmp/_karte/issue-307.md").exists())
 
@@ -250,13 +249,13 @@ class TestIngestReview(KarteTestCase):
         self._ingest(1, ("new", HARMFUL))
         other = dict(COSMETIC)
         code, _out, err = self._ingest(2, ("F-307-01", HARMFUL), ("F-307-01", other))
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("重複", err)
 
     def test_unknown_id_is_rejected(self):
         self._ingest(1, ("new", HARMFUL))
         code, _out, err = self._ingest(2, ("F-307-09", COSMETIC))
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("未知の finding ID", err)
 
     def test_reissued_id_for_same_finding_is_detected(self):
@@ -265,7 +264,7 @@ class TestIngestReview(KarteTestCase):
         reworded = dict(HARMFUL)
         reworded["summary"] = "build_attrs が既存の attrs を破棄している（再掲）"
         code, _out, err = self._ingest(2, ("new", reworded))
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("ID 再発番", err)
         self.assertIn("F-307-01", err)
         self.assertEqual(len(self._karte().findings), 1)  # 何も書かれていない
@@ -276,7 +275,7 @@ class TestIngestReview(KarteTestCase):
         code, out, err = self._ingest(
             2, ("F-307-01", HARMFUL), ("F-307-02", dict(COSMETIC, status="resolved"))
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("F-307-02", out)
         karte = self._karte()
         self.assertEqual(karte.finding("F-307-02").status, "resolved")
@@ -287,13 +286,13 @@ class TestIngestReview(KarteTestCase):
     def test_round_must_be_monotonic(self):
         self._ingest(2, ("new", HARMFUL))
         code, _out, err = self._ingest(2, ("F-307-01", HARMFUL))
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("単調増加", err)
 
     def test_report_without_blocks_is_rejected(self):
         source = self._write_report("empty.md", "# レビュー結果\n\n特になし\n")
         code, _out, err = self._run(cli.cmd_ingest_review, round="1", source=source)
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("finding ブロック", err)
 
 
@@ -309,12 +308,12 @@ class TestAppendSimilarity(KarteTestCase):
         """root_cause 一致＋targets 交差の 3 件目が拒否され、転換指令が stdout に返る。"""
         for targets in (["a/b.py::build_attrs"], ["a/b.py::build_attrs", "a/b.py::render"]):
             code, _out, _err = self._append(root_cause="attrs-overwrite", targets=targets)
-            self.assertEqual(code, cli.EXIT_OK)
+            self.assertEqual(code, exit_codes.EXIT_OK)
 
         code, out, _err = self._append(
             root_cause="attrs-overwrite", change_kind="test", targets=["a/b.py::build_attrs"]
         )
-        self.assertEqual(code, cli.EXIT_SATURATED)
+        self.assertEqual(code, exit_codes.EXIT_SATURATED)
         self.assertIn("DIRECTIVE", out)
         self.assertIn("attrs-overwrite", out)          # 反復された root_cause を名指し
         self.assertIn("a/b.py::build_attrs", out)      # 反復された targets を名指し
@@ -327,7 +326,7 @@ class TestAppendSimilarity(KarteTestCase):
             code, _out, err = self._append(
                 root_cause=f"cause-{index}", targets=[f"pkg/mod{index}.py::fn{index}"]
             )
-            self.assertEqual(code, cli.EXIT_OK, msg=f"{index} 回目で拒否された: {err}")
+            self.assertEqual(code, exit_codes.EXIT_OK, msg=f"{index} 回目で拒否された: {err}")
         self.assertEqual(len(self._karte().attempts), 7)
 
     def test_same_root_cause_but_disjoint_targets_and_kind_is_allowed(self):
@@ -335,7 +334,7 @@ class TestAppendSimilarity(KarteTestCase):
         code, _out, _err = self._append(
             root_cause="shared", change_kind="interface", targets=["y/b.py::g"]
         )
-        self.assertEqual(code, cli.EXIT_OK)
+        self.assertEqual(code, exit_codes.EXIT_OK)
 
     def test_relabeled_attempt_with_same_touched_set_is_rejected(self):
         """ラベルを変えても実測 touched-set が同一なら拒否される（受入基準）。
@@ -362,7 +361,7 @@ class TestAppendSimilarity(KarteTestCase):
             root_cause="cause-three", change_kind="interface",
             targets=["pkg/forms.py::build_attrs"],
         )
-        self.assertEqual(code, cli.EXIT_SATURATED)
+        self.assertEqual(code, exit_codes.EXIT_SATURATED)
         self.assertIn("実測 touched-set が一致", out)
         self.assertIn("pkg/forms.py::build_attrs", out)
         self.assertEqual(len(self._karte().attempts), 2)
@@ -372,12 +371,12 @@ class TestAppendSimilarity(KarteTestCase):
             cli.cmd_append, round=None, finding_ids=["F-307-42"], root_cause="x",
             change_kind="logic", targets=["a/b.py::f"], diagnosis="",
         )
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("未知の finding ID", err)
 
     def test_invalid_root_cause_slug_is_rejected(self):
         code, _out, err = self._append(root_cause="Attrs Overwrite")
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("slug", err)
 
     def test_resolved_findings_do_not_gate(self):
@@ -388,11 +387,11 @@ class TestAppendSimilarity(KarteTestCase):
         code, _out, err = self._ingest(
             2, ("F-307-01", dict(HARMFUL, status="resolved")), ("new", COSMETIC)
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         code, _out, _err = self._append(
             finding_ids=["F-307-02"], root_cause="same", targets=["a/b.py::f"]
         )
-        self.assertEqual(code, cli.EXIT_OK)
+        self.assertEqual(code, exit_codes.EXIT_OK)
 
 
 # --- close-attempt -----------------------------------------------------------
@@ -413,7 +412,7 @@ class TestCloseAttempt(KarteTestCase):
             "+    attrs.update(extra)\n"
         )
         code, out, _err = self._close(1, diff, outcome="fixed", note="属性の合成に変更")
-        self.assertEqual(code, cli.EXIT_OK)
+        self.assertEqual(code, exit_codes.EXIT_OK)
         self.assertIn("pkg/forms.py::build_attrs", out)
         karte = self._karte()
         self.assertEqual(karte.touched_of(1), ["pkg/forms.py", "pkg/forms.py::build_attrs"])
@@ -425,33 +424,33 @@ class TestCloseAttempt(KarteTestCase):
         diff = "--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-a\n+b\n"
         self._close(1, diff)
         code, _out, err = self._close(1, diff)
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("既に Result がある", err)
 
     def test_missing_attempt_is_rejected(self):
         code, _out, err = self._close(9, "--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-a\n+b\n")
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("Attempt 9", err)
 
     def test_non_numeric_attempt_is_fail_closed_not_uncaught(self):
-        """K-03: ``--attempt`` が非数値でも ``_fail_close`` の外（EXIT_ERROR 以外）に漏れない。
+        """K-03: ``--attempt`` が非数値でも ``fail_close`` の外（EXIT_ERROR 以外）に漏れない。
 
-        是正前は ``int(args.attempt)`` が無検証で ``ValueError`` を送出し、``_fail_close``
+        是正前は ``int(args.attempt)`` が無検証で ``ValueError`` を送出し、``fail_close``
         （5 種の例外しか捕まえない）を素通りして終了コードが文書化された
         ``{0,2,3,4}`` の外（未捕捉の例外＝1 相当）になっていた。
         """
         code, _out, err = self._close("abc", "--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-a\n+b\n")
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("attempt", err)
 
     def test_zero_attempt_is_fail_closed(self):
         code, _out, err = self._close("0", "--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-a\n+b\n")
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("attempt", err)
 
     def test_negative_attempt_is_fail_closed(self):
         code, _out, err = self._close("-1", "--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-a\n+b\n")
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("attempt", err)
 
 
@@ -470,7 +469,7 @@ class TestCloseAttemptEmptyDiff(KarteTestCase):
 
     def test_empty_diff_is_rejected_for_fixed_outcome(self):
         code, _out, err = self._close(1, "", outcome="fixed")
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("no-change", err)
         self.assertIn("空", err)
         # 拒否時は何も追記されない（fail-close）。
@@ -480,13 +479,13 @@ class TestCloseAttemptEmptyDiff(KarteTestCase):
         for outcome in ("partial", "regressed"):
             with self.subTest(outcome=outcome):
                 code, _out, err = self._close(1, "", outcome=outcome, note="")
-                self.assertEqual(code, cli.EXIT_ERROR)
+                self.assertEqual(code, exit_codes.EXIT_ERROR)
                 self.assertIn("no-change", err)
                 self.assertEqual(self._karte().results_for(1), [])
 
     def test_empty_diff_is_allowed_for_no_change_outcome(self):
         code, out, err = self._close(1, "", outcome="no-change", note="解釈違いで実装は元々正しかった")
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("no-change", out)
         karte = self._karte()
         self.assertEqual(karte.results_for(1)[0].outcome, "no-change")
@@ -496,7 +495,7 @@ class TestCloseAttemptEmptyDiff(KarteTestCase):
         """回帰防止：空 diff の拒否を足しても、通常の非空 diff は従来どおり通る。"""
         diff = "--- a/pkg/forms.py\n+++ b/pkg/forms.py\n@@ -1 +1 @@ def build_attrs(self):\n-x\n+y\n"
         code, _out, err = self._close(1, diff, outcome="fixed")
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertEqual(self._karte().touched_of(1), ["pkg/forms.py", "pkg/forms.py::build_attrs"])
 
 
@@ -520,10 +519,10 @@ class TestCloseAttemptDefaultAttemptResolution(KarteTestCase):
         self._append(root_cause="rc-1", targets=["pkg/m1.py::f1"])
         self._append(root_cause="rc-2", targets=["pkg/m2.py::f2"])
         code, _out, err = self._close(2, self._diff_for("m2"))  # Attempt 2 を先にクローズ
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
 
         code, out, err = self._close_default_attempt(self._diff_for("m1"), outcome="fixed")
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("Attempt 1", out)
         self.assertEqual(self._karte().results_for(1)[0].outcome, "fixed")
 
@@ -531,7 +530,7 @@ class TestCloseAttemptDefaultAttemptResolution(KarteTestCase):
         self._append(root_cause="rc-1", targets=["pkg/m1.py::f1"])
         self._append(root_cause="rc-2", targets=["pkg/m2.py::f2"])
         code, _out, err = self._close_default_attempt(self._diff_for("m1"))
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("Attempt 1", err)
         self.assertIn("Attempt 2", err)
         self.assertIn("--attempt", err)
@@ -542,7 +541,7 @@ class TestCloseAttemptDefaultAttemptResolution(KarteTestCase):
         self._append(root_cause="rc-1", targets=["pkg/m1.py::f1"])
         self._close(1, self._diff_for("m1"))
         code, _out, err = self._close_default_attempt(self._diff_for("m1"))
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("クローズ済み", err)
         self.assertIn("--attempt", err)
 
@@ -555,7 +554,7 @@ class TestCloseAttemptDefaultAttemptResolution(KarteTestCase):
         """
         self.assertEqual(self._karte().attempts, [])  # 前提: Attempt 0件
         code, _out, err = self._close_default_attempt(self._diff_for("m1"))
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("--attempt", err)
         self.assertIn("1件も無い", err)
         # 「全 Attempt が既にクローズ済み」（事実と異なる）とは述べない。
@@ -566,7 +565,7 @@ class TestCloseAttemptDefaultAttemptResolution(KarteTestCase):
         self._append(root_cause="rc-1", targets=["pkg/m1.py::f1"])
         self._append(root_cause="rc-2", targets=["pkg/m2.py::f2"])
         code, _out, err = self._close(1, self._diff_for("m1"))  # 複数未クローズでも明示なら通る
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertEqual(self._karte().results_for(1)[0].attempt, 1)
 
 
@@ -601,7 +600,7 @@ class TestCloseAttemptTargetTouchedMismatchWarning(KarteTestCase):
     def test_disjoint_targets_and_touched_emits_a_warning_but_still_succeeds(self):
         diff = "--- a/pkg/other.py\n+++ b/pkg/other.py\n@@ -1 +1 @@ def g(self):\n-x\n+y\n"
         code, out, err = self._close(1, diff, outcome="fixed")
-        self.assertEqual(code, cli.EXIT_OK, err)  # 拒否しない（保険的検知）
+        self.assertEqual(code, exit_codes.EXIT_OK, err)  # 拒否しない（保険的検知）
         self.assertIn("重ならない", out)
         self.assertIn("pkg/forms.py::build_attrs", out)
         self.assertIn("pkg/other.py", out)
@@ -610,7 +609,7 @@ class TestCloseAttemptTargetTouchedMismatchWarning(KarteTestCase):
     def test_overlapping_targets_and_touched_emits_no_warning(self):
         diff = "--- a/pkg/forms.py\n+++ b/pkg/forms.py\n@@ -1 +1 @@ def build_attrs(self):\n-x\n+y\n"
         code, out, err = self._close(1, diff, outcome="fixed")
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertNotIn("重ならない", out)
 
 
@@ -624,13 +623,13 @@ class TestCheck(KarteTestCase):
 
     def test_missing_attempt_for_round(self):
         code, _out, err = self._run(cli.cmd_check, round="1")
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("Attempt が 1 件も無い", err)
 
     def test_partial_coverage_is_flagged(self):
         self._append(finding_ids=["F-307-01"], root_cause="c1", targets=["a/b.py::f"])
         code, _out, err = self._run(cli.cmd_check, round="1")
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("F-307-02", err)
 
     def test_full_coverage_passes(self):
@@ -639,7 +638,7 @@ class TestCheck(KarteTestCase):
         )
         self._close(1, "--- a/a/b.py\n+++ b/a/b.py\n@@ -1 +1 @@ def f(self):\n-x\n+y\n")
         code, out, _err = self._run(cli.cmd_check, round="1")
-        self.assertEqual(code, cli.EXIT_OK)
+        self.assertEqual(code, exit_codes.EXIT_OK)
         self.assertIn("網羅", out)
 
 
@@ -647,13 +646,13 @@ class TestStatus(KarteTestCase):
     def test_harmful_open(self):
         self._ingest(1, ("new", HARMFUL), ("new", COSMETIC))
         code, out, _err = self._run(cli.cmd_status, json=False)
-        self.assertEqual(code, cli.EXIT_OK)
+        self.assertEqual(code, exit_codes.EXIT_OK)
         self.assertIn("harmful-open", out)
 
     def test_no_harm_only(self):
         self._ingest(1, ("new", COSMETIC))
         code, out, _err = self._run(cli.cmd_status, json=False)
-        self.assertEqual(code, cli.EXIT_OK)
+        self.assertEqual(code, exit_codes.EXIT_OK)
         self.assertIn("no-harm-only", out)
 
     def test_clean(self):
@@ -668,7 +667,7 @@ class TestStatus(KarteTestCase):
         self.assertEqual(karte.finding("F-307-01").status, "resolved")
         self.assertEqual(karte.finding("F-307-02").status, "resolved")
         code, out, _err = self._run(cli.cmd_status, json=False)
-        self.assertEqual(code, cli.EXIT_OK)
+        self.assertEqual(code, exit_codes.EXIT_OK)
         self.assertIn("clean", out)
 
     def test_stalled_when_same_finding_open_for_three_rounds(self):
@@ -714,13 +713,13 @@ class TestSeverityExpectedRecheck(KarteTestCase):
             with self.subTest(missing=missing):
                 fields = {k: v for k, v in HARMFUL.items() if k != missing}
                 code, _out, err = self._ingest(1, ("new", fields))
-                self.assertNotEqual(code, cli.EXIT_OK, f"{missing} 欠落が素通りしている")
+                self.assertNotEqual(code, exit_codes.EXIT_OK, f"{missing} 欠落が素通りしている")
                 self.assertIn(missing, err)
 
     def test_unknown_severity_is_rejected(self):
         fields = {**HARMFUL, "severity": "critical"}
         code, _out, err = self._ingest(1, ("new", fields))
-        self.assertNotEqual(code, cli.EXIT_OK)
+        self.assertNotEqual(code, exit_codes.EXIT_OK)
         self.assertIn("severity", err)
 
     def test_three_keys_survive_a_write_read_roundtrip(self):
@@ -734,7 +733,7 @@ class TestSeverityExpectedRecheck(KarteTestCase):
         # 是正側（issue-fixer）が前ラウンドの解消条件を引ける、が本キーを足した理由そのもの。
         self._ingest(1, ("new", HARMFUL))
         code, out, _err = self._run(cli.cmd_render)
-        self.assertEqual(code, cli.EXIT_OK)
+        self.assertEqual(code, exit_codes.EXIT_OK)
         self.assertIn(HARMFUL["expected"], out)
         self.assertIn(HARMFUL["recheck"], out)
         self.assertIn("severity=", out)
@@ -742,7 +741,7 @@ class TestSeverityExpectedRecheck(KarteTestCase):
     def test_status_json_carries_the_three_keys(self):
         self._ingest(1, ("new", HARMFUL))
         code, out, _err = self._run(cli.cmd_status, json=True)
-        self.assertEqual(code, cli.EXIT_OK)
+        self.assertEqual(code, exit_codes.EXIT_OK)
         finding = json.loads(out)["findings"][0]
         self.assertEqual(finding["severity"], HARMFUL["severity"])
         self.assertEqual(finding["expected"], HARMFUL["expected"])
@@ -753,7 +752,7 @@ class TestSeverityExpectedRecheck(KarteTestCase):
         self._ingest(1, ("new", HARMFUL))
         updated = {**HARMFUL, "expected": "別の期待に更新", "recheck": "別の再検証手順に更新"}
         code, _out, err = self._ingest(2, ("F-307-01", updated))
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         karte = self._karte()
         self.assertEqual(karte.findings[0].expected, "別の期待に更新")
         self.assertEqual(karte.findings[0].recheck, "別の再検証手順に更新")
@@ -770,7 +769,7 @@ class TestLocusListAndEvidence(KarteTestCase):
     def test_locus_accepts_a_list_of_places(self):
         mirrored = {**HARMFUL, "locus": "[.claude/agents/x.md::out, .codex/agents/x.toml::out]"}
         code, _out, err = self._ingest(1, ("new", mirrored))
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         finding = self._karte().findings[0]
         self.assertEqual(
             finding.locus, [".claude/agents/x.md::out", ".codex/agents/x.toml::out"]
@@ -786,7 +785,7 @@ class TestLocusListAndEvidence(KarteTestCase):
         mirrored = {**HARMFUL, "locus": "[a/x.md::out, b/x.toml::out]"}
         self._ingest(1, ("new", mirrored))
         code, out, _err = self._run(cli.cmd_status, json=True)
-        self.assertEqual(code, cli.EXIT_OK)
+        self.assertEqual(code, exit_codes.EXIT_OK)
         self.assertEqual(len(json.loads(out)["findings"]), 1)
 
     def test_reissued_id_is_detected_when_locus_only_partially_overlaps(self):
@@ -794,13 +793,13 @@ class TestLocusListAndEvidence(KarteTestCase):
         # （完全一致ではなく交差で判定する理由）。
         self._ingest(1, ("new", {**HARMFUL, "locus": "[a/x.md::out, b/x.toml::out]"}))
         code, _out, err = self._ingest(2, ("new", {**HARMFUL, "locus": "b/x.toml::out"}))
-        self.assertNotEqual(code, cli.EXIT_OK, "再発番が素通りしている")
+        self.assertNotEqual(code, exit_codes.EXIT_OK, "再発番が素通りしている")
         self.assertIn("再発番", err)
 
     def test_missing_evidence_is_rejected(self):
         fields = {k: v for k, v in HARMFUL.items() if k != "evidence"}
         code, _out, err = self._ingest(1, ("new", fields))
-        self.assertNotEqual(code, cli.EXIT_OK, "evidence 欠落が素通りしている")
+        self.assertNotEqual(code, exit_codes.EXIT_OK, "evidence 欠落が素通りしている")
         self.assertIn("evidence", err)
 
     def test_evidence_survives_roundtrip_and_is_shown_by_render(self):
@@ -818,7 +817,7 @@ class TestLocusListAndEvidence(KarteTestCase):
         self.assertEqual(findings[0].status, "open")
         # 再掲を省くと K-06 で取り込みごと拒否される＝黙って消せない。
         code, _out, err = self._ingest(2, ("new", HARMFUL))
-        self.assertNotEqual(code, cli.EXIT_OK, "harm: none の指摘が黙って消えている")
+        self.assertNotEqual(code, exit_codes.EXIT_OK, "harm: none の指摘が黙って消えている")
         self.assertIn("F-307-01", err)
 
 
@@ -945,7 +944,7 @@ class TestRender(KarteTestCase):
         self._ingest(1, ("new", HARMFUL))
         self._append(root_cause="attrs-overwrite", targets=["pkg/forms.py::build_attrs"])
         code, out, _err = self._run(cli.cmd_render)
-        self.assertEqual(code, cli.EXIT_OK)
+        self.assertEqual(code, exit_codes.EXIT_OK)
         self.assertIn("Prior attempts（DO NOT repeat these）", out)
         self.assertIn("Attempt 1", out)
         self.assertIn("F-307-01", out)
@@ -962,7 +961,7 @@ class TestRender(KarteTestCase):
         """カルテ未作成は「未検出」であってガード違反ではない（EXIT_ERROR と区別する）。"""
         with contextlib.redirect_stderr(io.StringIO()) as errors:
             code = cli.main(["render", "--issue", "999"])
-        self.assertEqual(code, cli.EXIT_NOT_FOUND)
+        self.assertEqual(code, exit_codes.EXIT_NOT_FOUND)
         self.assertIn("未検出", errors.getvalue())
 
 
@@ -992,11 +991,11 @@ class TestCheckRequiresClosedAttempts(KarteTestCase):
             code, _out, err = self._append(
                 root_cause=f"rc-{index}", targets=[f"pkg/m{index}.py::f{index}"]
             )
-            self.assertEqual(code, cli.EXIT_OK, err)  # append 自体は通ってしまう
+            self.assertEqual(code, exit_codes.EXIT_OK, err)  # append 自体は通ってしまう
         self.assertEqual(len(self._karte().attempts), 3)
 
         code, _out, err = self._run(cli.cmd_check, round="1")
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("未クローズ", err)
         for number in (1, 2, 3):
             self.assertIn(f"--attempt {number}", err)  # どれを閉じればよいか名指しする
@@ -1009,7 +1008,7 @@ class TestCheckRequiresClosedAttempts(KarteTestCase):
         self._close(1, self._diff_for("m1"))
         self._close(2, self._diff_for("m2"))
         code, out, err = self._run(cli.cmd_check, round="1")
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("クローズ済み", out)
 
     def test_unclosed_attempt_from_an_earlier_round_also_blocks(self):
@@ -1019,7 +1018,7 @@ class TestCheckRequiresClosedAttempts(KarteTestCase):
         self._append(round="2", root_cause="rc-2", targets=["pkg/m2.py::f2"])
         self._close(2, self._diff_for("m2"))
         code, _out, err = self._run(cli.cmd_check, round="2")
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("--attempt 1", err)
 
     def test_unclosed_attempt_from_a_later_round_also_blocks(self):
@@ -1035,7 +1034,7 @@ class TestCheckRequiresClosedAttempts(KarteTestCase):
         self._close(1, self._diff_for("m1"))
         self._append(round="9", root_cause="rc-9", targets=["pkg/m9.py::f9"])  # 未クローズ
         code, _out, err = self._run(cli.cmd_check, round="1")
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("未クローズ", err)
         self.assertIn("--attempt 2", err)
 
@@ -1060,7 +1059,7 @@ class TestCheckRoundFromActivePointer(KarteTestCase):
 
     def test_round_is_filled_from_the_pointer(self):
         code, out, err = self._run(cli.cmd_check)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("round 1", out)
 
     def test_pointer_round_is_used_as_is_not_incremented(self):
@@ -1069,39 +1068,39 @@ class TestCheckRoundFromActivePointer(KarteTestCase):
         self._append(round="2", root_cause="rc-2", targets=["pkg/m2.py::f2"])
         self._close(2, "--- a/pkg/m2.py\n+++ b/pkg/m2.py\n@@ -1 +1 @@ def f2(self):\n-x\n+y\n")
         code, out, err = self._run(cli.cmd_check)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("round 2", out)
         self.assertNotIn("round 3", out)
 
     def test_explicit_round_still_wins(self):
         """明示指定はポインタ（round 1・この構成では OK になる）より優先される。"""
         code, out, _err = self._run(cli.cmd_check, round="2")
-        self.assertEqual(code, cli.EXIT_ERROR)  # round 2 の Attempt はまだ無い
+        self.assertEqual(code, exit_codes.EXIT_ERROR)  # round 2 の Attempt はまだ無い
         self.assertIn("round 2", out)
 
     def test_missing_active_pointer_is_fail_closed(self):
         """不在は他 verb と同じ ``EXIT_ERROR``（ラウンドを推測しない）。"""
         self._active_path().unlink()
         code, _out, err = self._run(cli.cmd_check)
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("進行ポインタ", err)
 
     def test_broken_active_pointer_is_fail_closed(self):
         self._active_path().write_text("{ broken", encoding="utf-8")
         code, _out, err = self._run(cli.cmd_check)
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("壊れている", err)
 
     def test_pointer_without_round_is_fail_closed(self):
         self._active_path().write_text('{"issue": 307}', encoding="utf-8")
         code, _out, err = self._run(cli.cmd_check)
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("'round'", err)
 
     def test_pointer_pointing_at_another_issue_is_fail_closed(self):
         self._active_path().write_text('{"issue": 999, "round": 4}', encoding="utf-8")
         code, _out, err = self._run(cli.cmd_check)
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("食い違う", err)
 
     def test_round_is_not_required_on_the_cli_surface(self):
@@ -1141,7 +1140,7 @@ class TestAbsentFindingIsRejected(KarteTestCase):
     def test_absent_open_finding_is_rejected_and_karte_is_untouched(self):
         before = self._karte_text()
         code, _out, err = self._ingest(2, ("F-307-01", HARMFUL))
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("再掲されていない", err)
         self.assertIn("F-307-02", err)
         self.assertIn("F-307-03", err)  # 欠けている ID を**全て**列挙する
@@ -1152,7 +1151,7 @@ class TestAbsentFindingIsRejected(KarteTestCase):
         code, _out, err = self._ingest(
             2, ("F-307-01", HARMFUL), ("F-307-03", self.THIRD)
         )
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("F-307-02", err)  # COSMETIC＝harm none も再掲必須
 
     def test_explicit_resolved_is_the_only_way_to_close(self):
@@ -1162,7 +1161,7 @@ class TestAbsentFindingIsRejected(KarteTestCase):
             ("F-307-02", dict(COSMETIC, status="resolved")),
             ("F-307-03", dict(self.THIRD, status="resolved")),
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("F-307-02", out)
         karte = self._karte()
         self.assertEqual(karte.finding("F-307-02").status, "resolved")
@@ -1176,7 +1175,7 @@ class TestAbsentFindingIsRejected(KarteTestCase):
             ("F-307-02", dict(COSMETIC, status="resolve")),
             ("F-307-03", self.THIRD),
         )
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("status", err)
 
 
@@ -1241,7 +1240,7 @@ class TestDistinctFromEscapeHatch(KarteTestCase):
 
     def test_false_positive_is_rejected_without_the_hatch(self):
         code, _out, err = self._ingest(2, ("F-307-01", DUP_A), ("new", DUP_B))
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("ID 再発番", err)
         self.assertIn("distinct_from", err)  # 逃げ道の書き方を示す
 
@@ -1249,7 +1248,7 @@ class TestDistinctFromEscapeHatch(KarteTestCase):
         code, out, err = self._ingest(
             2, ("F-307-01", DUP_A), ("new", dict(DUP_B, distinct_from="F-307-01"))
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("F-307-02", out)
         self.assertIn("distinct_from", out)  # 監査できるよう出力に残す
         self.assertEqual([item.id for item in self._karte().findings], ["F-307-01", "F-307-02"])
@@ -1263,7 +1262,7 @@ class TestDistinctFromEscapeHatch(KarteTestCase):
             ("F-307-02", DUP_B),
             ("new", dict(DUP_C, distinct_from="F-307-01")),
         )
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("ID 再発番", err)
         self.assertIn("F-307-02", err)  # 名指ししていない F-307-02 とは依然として衝突
 
@@ -1271,21 +1270,21 @@ class TestDistinctFromEscapeHatch(KarteTestCase):
         code, _out, err = self._ingest(
             2, ("F-307-01", DUP_A), ("new", dict(DUP_B, distinct_from="F-307-42"))
         )
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("実在しない", err)
 
     def test_self_reference_is_rejected(self):
         code, _out, err = self._ingest(
             2, ("F-307-01", dict(DUP_A, distinct_from="F-307-01"))
         )
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("自分自身", err)
 
     def test_reference_to_another_issue_is_rejected(self):
         code, _out, err = self._ingest(
             2, ("F-307-01", DUP_A), ("new", dict(DUP_B, distinct_from="F-999-01"))
         )
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("issue", err)
 
 
@@ -1310,7 +1309,7 @@ class TestSaturationDisplayMatchesGate(KarteTestCase):
 
     def test_display_group_is_shown_for_the_saturated_approach(self):
         code, out, err = self._run(cli.cmd_render)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("飽和したアプローチ", out)
         self.assertIn("同種の再試行は append が拒否される", out)
         self.assertIn("Attempt 1, 2", out)
@@ -1322,7 +1321,7 @@ class TestSaturationDisplayMatchesGate(KarteTestCase):
         code, out, _err = self._append(
             root_cause="rc-x", change_kind="logic", targets=["pkg/a.py::f"]
         )
-        self.assertEqual(code, cli.EXIT_SATURATED)
+        self.assertEqual(code, exit_codes.EXIT_SATURATED)
         self.assertIn("DIRECTIVE", out)
         self.assertEqual(len(self._karte().attempts), 2)
 
@@ -1336,7 +1335,7 @@ class TestSaturationDisplayMatchesGate(KarteTestCase):
         code, _out, err = self._append(
             root_cause="rc-x", change_kind="interface", targets=["pkg/b.py::g"]
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertEqual(len(self._karte().attempts), 3)
 
     def test_status_groups_use_the_same_judgment(self):
@@ -1423,7 +1422,7 @@ class TestSaturationScopeIsPerCandidate(KarteTestCase):
             for member in members:
                 with self.subTest(member=member):
                     code, out, err = self._retry(karte.attempt(member))
-                    self.assertEqual(code, cli.EXIT_SATURATED, out + err)
+                    self.assertEqual(code, exit_codes.EXIT_SATURATED, out + err)
                     self.assertIn("DIRECTIVE", out)
         self.assertEqual(len(self._karte().attempts), 3)  # 拒否時は書き込まない
 
@@ -1437,7 +1436,7 @@ class TestSaturationScopeIsPerCandidate(KarteTestCase):
         }
         self.assertNotIn(3, gated)  # 是正前は 3 も飽和扱いされていた
         code, _out, err = self._retry(karte.attempt(3))
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertEqual(len(self._karte().attempts), 4)
 
     def test_render_names_only_the_saturated_approach(self):
@@ -1456,7 +1455,7 @@ class TestRepoRootIsResolvedLazily(unittest.TestCase):
 
     ``main_worktree_root`` は ``.git`` ファイルが ``gitdir:`` で始まらなければ
     :class:`paths.KartePathError` を送出する。是正前はこれを**モジュールレベル**で
-    評価していたため、例外はどの ``cmd_*``（``_fail_close`` でラップ済み）の内側でもない
+    評価していたため、例外はどの ``cmd_*``（``fail_close`` でラップ済み）の内側でもない
     **import 時**に飛び、``python3 -m karte <任意の verb>`` が未捕捉例外で終了した。
     """
 
@@ -1467,14 +1466,14 @@ class TestRepoRootIsResolvedLazily(unittest.TestCase):
         (self.broken / ".git").write_text("this-is-not-a-gitdir-line\n", encoding="utf-8")
 
     def test_module_level_repo_root_is_not_evaluated_at_import(self):
-        self.assertIsNone(cli._REPO_ROOT)
+        self.assertIsNone(repo_roots._REPO_ROOT)
 
     def test_main_returns_exit_error_without_traceback(self):
         errors = io.StringIO()
-        with mock.patch.object(cli, "_PACKAGE_ROOT", self.broken):
+        with mock.patch.object(repo_roots, "_PACKAGE_ROOT", self.broken):
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
                 code = cli.main(["status", "--issue", "1"])
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("拒否（fail-close）", errors.getvalue())
         self.assertNotIn("Traceback", errors.getvalue())
 
@@ -1488,11 +1487,11 @@ class TestRepoRootIsResolvedLazily(unittest.TestCase):
             with self.subTest(func=func.__name__):
                 errors = io.StringIO()
                 args = argparse.Namespace(issue="1", **kwargs)
-                with mock.patch.object(cli, "_PACKAGE_ROOT", self.broken):
+                with mock.patch.object(repo_roots, "_PACKAGE_ROOT", self.broken):
                     with contextlib.redirect_stdout(io.StringIO()):
                         with contextlib.redirect_stderr(errors):
                             code = func(args)
-                self.assertEqual(code, cli.EXIT_ERROR)
+                self.assertEqual(code, exit_codes.EXIT_ERROR)
                 self.assertNotIn("Traceback", errors.getvalue())
 
     def test_every_verb_over_argv_stays_within_documented_exit_codes(self):
@@ -1507,12 +1506,12 @@ class TestRepoRootIsResolvedLazily(unittest.TestCase):
         )
         for argv in argv_cases:
             with self.subTest(verb=argv[0]):
-                with mock.patch.object(cli, "_PACKAGE_ROOT", self.broken):
+                with mock.patch.object(repo_roots, "_PACKAGE_ROOT", self.broken):
                     with contextlib.redirect_stdout(io.StringIO()):
                         with contextlib.redirect_stderr(io.StringIO()):
                             code = cli.main(argv)
-                self.assertIn(code, (cli.EXIT_OK, cli.EXIT_NOT_FOUND,
-                                     cli.EXIT_SATURATED, cli.EXIT_ERROR))
+                self.assertIn(code, (exit_codes.EXIT_OK, exit_codes.EXIT_NOT_FOUND,
+                                     exit_codes.EXIT_SATURATED, exit_codes.EXIT_ERROR))
 
 
 # --- K-13: ingest-review を stdin から受け取る ----------------------------------
@@ -1530,7 +1529,7 @@ class TestIngestFromStdin(KarteTestCase):
         code, out, err = self._run_with_stdin(
             cli.cmd_ingest_review, _report(("new", HARMFUL)), round="1", source="-"
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("F-307-01", out)
         self.assertEqual([item.id for item in self._karte().findings], ["F-307-01"])
 
@@ -1543,7 +1542,7 @@ class TestIngestFromStdin(KarteTestCase):
             round=None,
             source="-",
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("round 2", out)  # ポインタが指す最後のラウンドの次
         self.assertEqual(self._karte().finding("F-307-01").rounds, [1, 2])
         self.assertEqual(
@@ -1559,8 +1558,9 @@ class TestIngestFromStdin(KarteTestCase):
             round=None,
             source="-",
         )
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("進行ポインタ", err)
+        # 拒否された取り込みは何も作らない（ロック前に拒否する＝origin/main と同じ・F-696-11）。
         self.assertFalse((self.root / "tmp" / "_karte").exists())
 
     def test_broken_active_pointer_is_fail_closed(self):
@@ -1574,7 +1574,7 @@ class TestIngestFromStdin(KarteTestCase):
             round=None,
             source="-",
         )
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("壊れている", err)
         self.assertEqual(self._karte_text(), before)
 
@@ -1588,7 +1588,7 @@ class TestIngestFromStdin(KarteTestCase):
             round=None,
             source="-",
         )
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("round", err)
 
     def test_active_pointer_pointing_at_another_issue_is_fail_closed(self):
@@ -1597,15 +1597,23 @@ class TestIngestFromStdin(KarteTestCase):
         code, _out, err = self._run_with_stdin(
             cli.cmd_ingest_review, _report(("F-307-01", HARMFUL)), round=None, source="-"
         )
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("食い違", err)
 
     def test_empty_stdin_is_fail_closed(self):
         code, _out, err = self._run_with_stdin(
             cli.cmd_ingest_review, "   \n", round="1", source="-"
         )
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("空", err)
+        # 本文の読取はロック前なので、拒否された取り込みは tmp/_karte/ すら作らない。
+        self.assertFalse((self.root / "tmp" / "_karte").exists())
+
+    def test_missing_report_file_is_rejected_before_the_lock_creates_anything(self):
+        code, _out, _err = self._run(
+            cli.cmd_ingest_review, round="1", source="no-such-report.md"
+        )
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertFalse((self.root / "tmp" / "_karte").exists())
 
     def test_unreadable_stdin_is_fail_closed(self):
@@ -1614,7 +1622,7 @@ class TestIngestFromStdin(KarteTestCase):
         with mock.patch.object(sys, "stdin", None):
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
                 code = cli.cmd_ingest_review(self._ns(round="1", source="-"))
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("標準入力", errors.getvalue())
 
     def test_absence_prohibition_still_applies_on_the_stdin_path(self):
@@ -1628,7 +1636,7 @@ class TestIngestFromStdin(KarteTestCase):
             round=None,
             source="-",
         )
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("F-307-02", err)
         self.assertEqual(self._karte_text(), before)
 
@@ -1640,7 +1648,7 @@ class TestIngestFromStdin(KarteTestCase):
             round="2",
             source="-",
         )
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("重複", err)
 
         broken = dict(HARMFUL)
@@ -1648,7 +1656,7 @@ class TestIngestFromStdin(KarteTestCase):
         code, _out, err = self._run_with_stdin(
             cli.cmd_ingest_review, _report(("F-307-01", broken)), round="2", source="-"
         )
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("harm", err)
 
     def test_distinct_from_hatch_still_works_on_the_stdin_path(self):
@@ -1659,19 +1667,19 @@ class TestIngestFromStdin(KarteTestCase):
             round="2",
             source="-",
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("F-307-02", out)
 
     def test_stdin_over_argv(self):
         """公開 CLI 面（``--from -``）でも通ること。"""
         buffer = io.StringIO()
         errors = io.StringIO()
-        with mock.patch.object(cli, "_REPO_ROOT", self.root):
+        with mock.patch.object(repo_roots, "_REPO_ROOT", self.root):
             with mock.patch.object(sys, "stdin", io.StringIO(_report(("new", HARMFUL)))):
                 with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(errors):
                     code = cli.main(["ingest-review", "--issue", "307", "--round", "1",
                                      "--from", "-"])
-        self.assertEqual(code, cli.EXIT_OK, errors.getvalue())
+        self.assertEqual(code, exit_codes.EXIT_OK, errors.getvalue())
         self.assertIn("F-307-01", buffer.getvalue())
 
 
@@ -1685,20 +1693,20 @@ class TestRenderForInjection(KarteTestCase):
         self._ingest(1, ("new", HARMFUL))
         self._append(root_cause="attrs-overwrite", targets=["pkg/forms.py::build_attrs"])
         code, out, err = self._run(cli.cmd_render, issue=None)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("issue-307", out)
         self.assertIn("Attempt 1", out)
 
     def test_missing_active_pointer_is_fail_closed(self):
         code, _out, err = self._run(cli.cmd_render, issue=None)
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("進行ポインタ", err)
 
     def test_broken_active_pointer_is_fail_closed(self):
         self._ingest(1, ("new", HARMFUL))
         self._active_path().write_text("[]", encoding="utf-8")
         code, _out, err = self._run(cli.cmd_render, issue=None)
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("進行ポインタ", err)
 
     def test_output_is_self_contained(self):
@@ -1711,7 +1719,7 @@ class TestRenderForInjection(KarteTestCase):
             1, "--- a/pkg/forms.py\n+++ b/pkg/forms.py\n@@ -1 +1 @@ def build_attrs(self):\n-x\n+y\n"
         )
         code, out, err = self._run(cli.cmd_render, issue=None)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
 
         # 何の本文か・どこから来たか（前後の文脈に依存しない）。
         self.assertIn("Issue #307", out)
@@ -1733,7 +1741,7 @@ class TestRenderForInjection(KarteTestCase):
 
     def test_missing_karte_is_still_not_found(self):
         code, _out, err = self._run(cli.cmd_render, issue="999")
-        self.assertEqual(code, cli.EXIT_NOT_FOUND)
+        self.assertEqual(code, exit_codes.EXIT_NOT_FOUND)
         self.assertIn("未検出", err)
 
 
@@ -1746,7 +1754,7 @@ class TestStatusForInjection(KarteTestCase):
     def test_issue_is_filled_from_active_pointer(self):
         self._ingest(1, ("new", HARMFUL))
         code, out, err = self._run(cli.cmd_status, issue=None, json=False)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("issue-307", out)
         self.assertIn("harmful-open", out)
 
@@ -1754,19 +1762,19 @@ class TestStatusForInjection(KarteTestCase):
         """``--json`` は挙動維持（機械可読用）だが --issue 省略は同じく補完される。"""
         self._ingest(1, ("new", HARMFUL))
         code, out, err = self._run(cli.cmd_status, issue=None, json=True)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertEqual(json.loads(out)["issue"], 307)
 
     def test_missing_active_pointer_is_fail_closed(self):
         code, _out, err = self._run(cli.cmd_status, issue=None, json=False)
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("進行ポインタ", err)
 
     def test_broken_active_pointer_is_fail_closed(self):
         self._ingest(1, ("new", HARMFUL))
         self._active_path().write_text("not json at all", encoding="utf-8")
         code, _out, err = self._run(cli.cmd_status, issue=None, json=False)
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("進行ポインタ", err)
 
     def test_output_is_self_contained_for_harmful_open(self):
@@ -1776,7 +1784,7 @@ class TestStatusForInjection(KarteTestCase):
             targets=["pkg/forms.py::build_attrs"],
         )
         code, out, err = self._run(cli.cmd_status, json=False)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
 
         # 何の本文か・どこから来たか（前後の文脈に依存しない）。
         self.assertIn("Issue #307", out)
@@ -1799,12 +1807,12 @@ class TestStatusForInjection(KarteTestCase):
         self._ingest(2, ("F-307-01", HARMFUL))
         self._ingest(3, ("F-307-01", HARMFUL))
         code, out, err = self._run(cli.cmd_status, json=False)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("escalate: yes（理由: 無進捗（F-307-01））", out)
 
     def test_missing_karte_is_still_not_found(self):
         code, _out, err = self._run(cli.cmd_status, issue="999", json=False)
-        self.assertEqual(code, cli.EXIT_NOT_FOUND)
+        self.assertEqual(code, exit_codes.EXIT_NOT_FOUND)
         self.assertIn("未検出", err)
 
 
@@ -1953,13 +1961,17 @@ class TestAtomicWriteDocstringStatesItsLimits(unittest.TestCase):
                 ):
                     with self.assertRaises(paths.KartePathError):
                         paths.write_text_atomic(path, "new\n")
-        command = cli._fail_close(lambda _args: paths.write_text_atomic(path, "new\n"))
+        def write_the_ledger(_args, _root) -> int:
+            paths.write_text_atomic(path, "new\n")
+            return 0
+
+        command = fail_close(locked=False)(write_the_ledger)
         with mock.patch(
             "karte.path_io.os.open", side_effect=OSError(errno.ELOOP, "injected")
         ):
             with contextlib.redirect_stderr(io.StringIO()):
-                code = command(None)
-        self.assertEqual(code, cli.EXIT_ERROR)
+                code = command(argparse.Namespace(repo_root=str(self.root)))
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn(code, {0, 2, 3, 4})
 
     def test_failed_write_closes_descriptor_and_removes_temp_file(self):
@@ -2073,7 +2085,7 @@ class TestPathGuards(KarteTestCase):
         source = outside / "review.md"
         source.write_text(_report(("new", HARMFUL)), encoding="utf-8")
         code, _out, err = self._run(cli.cmd_ingest_review, round="1", source=str(source))
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("repo-root の外", err)
 
     def test_repo_root_flag_not_on_public_cli_surface(self):
@@ -2098,7 +2110,7 @@ class TestCliOverArgv(KarteTestCase):
     def _main(self, *argv):
         buffer = io.StringIO()
         errors = io.StringIO()
-        with mock.patch.object(cli, "_REPO_ROOT", self.root):
+        with mock.patch.object(repo_roots, "_REPO_ROOT", self.root):
             with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(errors):
                 code = cli.main(list(argv))
         return code, buffer.getvalue(), errors.getvalue()
@@ -2108,11 +2120,11 @@ class TestCliOverArgv(KarteTestCase):
         code, out, err = self._main(
             "ingest-review", "--issue", "307", "--round", "1", "--from", report
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("F-307-01", out)
 
         code, out, err = self._main("render", "--issue", "307")
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("Prior attempts（DO NOT repeat these）", out)
 
         # --issue 省略＝進行ポインタ（active.json）から解決する。
@@ -2121,7 +2133,7 @@ class TestCliOverArgv(KarteTestCase):
             "--change-kind", "logic", "--targets", "pkg/forms.py::build_attrs",
             "--diagnosis", "既存 attrs を作り直している",
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("Attempt 1", out)
 
         diff = self._write_report(
@@ -2132,15 +2144,15 @@ class TestCliOverArgv(KarteTestCase):
         code, out, err = self._main(
             "close-attempt", "--attempt", "1", "--outcome", "partial", "--diff-file", diff
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("pkg/forms.py::build_attrs", out)
 
         code, out, err = self._main("check", "--issue", "307", "--round", "1")
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("網羅", out)
 
         code, out, err = self._main("status", "--issue", "307", "--json")
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         payload = json.loads(out)
         self.assertEqual(payload["verdict"], "harmful-open")
         self.assertEqual(payload["findings"][0]["attempts"][0]["results"][0]["outcome"], "partial")
@@ -2154,13 +2166,13 @@ class TestCliOverArgv(KarteTestCase):
                 "--root-cause", "attrs-overwrite", "--change-kind", "logic",
                 "--targets", "pkg/forms.py::build_attrs",
             )
-            self.assertEqual(code, cli.EXIT_OK, err)
+            self.assertEqual(code, exit_codes.EXIT_OK, err)
         code, out, _err = self._main(
             "append", "--issue", "307", "--finding-ids", "F-307-01",
             "--root-cause", "attrs-overwrite", "--change-kind", "logic",
             "--targets", "pkg/forms.py::build_attrs",
         )
-        self.assertEqual(code, cli.EXIT_SATURATED)
+        self.assertEqual(code, exit_codes.EXIT_SATURATED)
         self.assertIn("DIRECTIVE", out)
 
     def test_unknown_change_kind_is_a_usage_error(self):
@@ -2430,7 +2442,7 @@ class TestLinkedWorktreeConvergence(unittest.TestCase):
         buffer = io.StringIO()
         errors = io.StringIO()
         ns = argparse.Namespace(issue="307", **kwargs)
-        with mock.patch.object(cli, "_REPO_ROOT", resolved):
+        with mock.patch.object(repo_roots, "_REPO_ROOT", resolved):
             with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(errors):
                 code = func(ns)
         return code, buffer.getvalue(), errors.getvalue()
@@ -2445,11 +2457,11 @@ class TestLinkedWorktreeConvergence(unittest.TestCase):
         code, out, err = self._run_from(
             self.worktree, cli.cmd_ingest_review, round="1", source=str(report)
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("F-307-01", out)
 
         code, out, err = self._run_from(self.root, cli.cmd_render)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("F-307-01", out)
 
         # worktree 配下には一切カルテ置き場が作られない（分裂の再発防止）。
@@ -2471,10 +2483,10 @@ class TestDiffCwdResolvesToInvokingWorktree(unittest.TestCase):
 
     ここでは実 git の main リポジトリ＋実 linked worktree（``git worktree add``）を用意し、
     linked worktree 側の変更が ``close-attempt``（既定 ``--base HEAD``）で正しく実測される
-    ことを固定する。``mock.patch.object(cli, "_PACKAGE_ROOT", ...)`` は「``karte`` パッケージが
+    ことを固定する。``mock.patch.object(repo_roots, "_PACKAGE_ROOT", ...)`` は「``karte`` パッケージが
     今どの worktree で動いているか」の代替にすぎない（production では isolated worktree
     自体に ``karte/`` の実体チェックアウトがあるため ``Path(__file__)`` が自然にそこを指す）。
-    ``git diff`` 自体は実プロセスへ投げるので、cwd 解決ロジック（:func:`cli._diff_cwd`）は
+    ``git diff`` 自体は実プロセスへ投げるので、cwd 解決ロジック（:func:`repo_roots.invoking_worktree`）は
     モックしていない。
 
     **変更を commit ではなく staged のまま残す理由**：``git diff HEAD`` は「working tree
@@ -2559,7 +2571,7 @@ class TestDiffCwdResolvesToInvokingWorktree(unittest.TestCase):
             )),
         )
         code, _out, err = self._run(cli.cmd_ingest_review, round="1", source=report)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
 
         code, _out, err = self._run(
             cli.cmd_append,
@@ -2570,12 +2582,12 @@ class TestDiffCwdResolvesToInvokingWorktree(unittest.TestCase):
             targets=["review_system/fix.py::fixed"],
             diagnosis="",
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
 
     def test_close_attempt_measures_the_invoking_worktrees_own_change(self):
         self._seed_open_finding()
 
-        with mock.patch.object(cli, "_PACKAGE_ROOT", self.linked):
+        with mock.patch.object(repo_roots, "_PACKAGE_ROOT", self.linked):
             code, out, err = self._run(
                 cli.cmd_close_attempt,
                 attempt=None,
@@ -2585,7 +2597,7 @@ class TestDiffCwdResolvesToInvokingWorktree(unittest.TestCase):
                 diff_file=None,
                 note="",
             )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("review_system/fix.py", out)
         self.assertNotIn("(差分なし・no-change)", out)
 
@@ -2605,7 +2617,7 @@ class TestDiffCwdResolvesToInvokingWorktree(unittest.TestCase):
         """
         self._seed_open_finding()
 
-        with mock.patch.object(cli, "_PACKAGE_ROOT", self.main_repo):
+        with mock.patch.object(repo_roots, "_PACKAGE_ROOT", self.main_repo):
             code, _out, err = self._run(
                 cli.cmd_close_attempt,
                 attempt=None,
@@ -2615,7 +2627,7 @@ class TestDiffCwdResolvesToInvokingWorktree(unittest.TestCase):
                 diff_file=None,
                 note="",
             )
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("実測 touched-set が空", err)
 
 
@@ -2634,19 +2646,19 @@ class TestScopeIsRequiredAndNotAnExemption(KarteTestCase):
     def test_missing_scope_is_rejected(self):
         fields = {k: v for k, v in HARMFUL.items() if k != "scope"}
         code, _out, err = self._ingest(1, ("new", fields))
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("scope", err)
         # 拒否時は台帳を作らない（fail-close）。
         self.assertFalse((self.root / "tmp" / "_karte" / "issue-307.md").exists())
 
     def test_unknown_scope_value_is_rejected(self):
         code, _out, err = self._ingest(1, ("new", {**HARMFUL, "scope": "outside"}))
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("scope", err)
 
     def test_out_of_scope_finding_lands_in_the_same_ledger_column(self):
         code, out, err = self._ingest(1, ("new", OUT_OF_SCOPE_HARMFUL))
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("F-307-01", out)
         finding = self._karte().finding("F-307-01")
         self.assertEqual(finding.scope, "out")
@@ -2656,14 +2668,14 @@ class TestScopeIsRequiredAndNotAnExemption(KarteTestCase):
     def test_out_of_scope_finding_still_requires_a_harm_judgment(self):
         fields = {k: v for k, v in OUT_OF_SCOPE_HARMFUL.items() if k != "harm"}
         code, _out, err = self._ingest(1, ("new", fields))
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("harm", err)
 
     def test_absence_prohibition_applies_to_out_of_scope_findings_too(self):
         """``scope: out`` だけ再掲を免除しない（そこが抜け道になる・K-06 と同じ理由）。"""
         self._ingest(1, ("new", OUT_OF_SCOPE_HARMFUL), ("new", HARMFUL))
         code, _out, err = self._ingest(2, ("F-307-02", HARMFUL))
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("F-307-01", err)
 
     def test_scope_survives_a_ledger_roundtrip_and_is_shown(self):
@@ -2689,7 +2701,7 @@ class TestVerdictGateOnDisposition(KarteTestCase):
 
     def _verdict(self):
         code, out, err = self._run(cli.cmd_status, json=True)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         return json.loads(out)
 
     def test_regression_out_of_scope_harmful_without_disposition_is_not_clean(self):
@@ -2700,7 +2712,7 @@ class TestVerdictGateOnDisposition(KarteTestCase):
         「finding として記録されている」形で作り、**verdict が ``clean`` にならない**ことを固定する。
         """
         code, _out, err = self._ingest(1, ("new", OUT_OF_SCOPE_HARMFUL))
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         payload = self._verdict()
         self.assertNotEqual(payload["verdict"], "clean")
         self.assertEqual(payload["verdict"], "harmful-open")
@@ -2731,7 +2743,7 @@ class TestVerdictGateOnDisposition(KarteTestCase):
             1,
             ("new", dict(OUT_OF_SCOPE_HARMFUL, disposition="deferred", deferred_to="#493")),
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         payload = self._verdict()
         self.assertEqual(payload["verdict"], "clean")
         # 二層：verdict は通るが台帳では未解消のまま残り、`resolved` と区別できる。
@@ -2754,7 +2766,7 @@ class TestVerdictGateOnDisposition(KarteTestCase):
                 ),
             ),
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         payload = self._verdict()
         self.assertEqual(payload["verdict"], "clean")
         self.assertEqual(self._karte().finding("F-307-01").status, "open")
@@ -2762,7 +2774,7 @@ class TestVerdictGateOnDisposition(KarteTestCase):
 
     def test_deferred_requires_a_target_issue(self):
         code, _out, err = self._ingest(1, ("new", dict(HARMFUL, disposition="deferred")))
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("deferred_to", err)
         self.assertFalse((self.root / "tmp" / "_karte" / "issue-307.md").exists())
 
@@ -2771,7 +2783,7 @@ class TestVerdictGateOnDisposition(KarteTestCase):
             1,
             ("new", dict(HARMFUL, disposition="deferred", deferred_to="別 Issue で対応する")),
         )
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("deferred_to", err)
 
     def test_waived_requires_owner_and_reason(self):
@@ -2785,17 +2797,17 @@ class TestVerdictGateOnDisposition(KarteTestCase):
                 )
                 del fields[missing]
                 code, _out, err = self._ingest(1, ("new", fields))
-                self.assertEqual(code, cli.EXIT_ERROR)
+                self.assertEqual(code, exit_codes.EXIT_ERROR)
                 self.assertIn(missing, err)
 
     def test_unknown_disposition_is_rejected(self):
         code, _out, err = self._ingest(1, ("new", dict(HARMFUL, disposition="ignore")))
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("disposition", err)
 
     def test_companion_keys_without_a_disposition_are_rejected(self):
         code, _out, err = self._ingest(1, ("new", dict(HARMFUL, deferred_to="#493")))
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("disposition", err)
 
     def test_companion_keys_of_another_disposition_are_rejected(self):
@@ -2803,7 +2815,7 @@ class TestVerdictGateOnDisposition(KarteTestCase):
             1,
             ("new", dict(HARMFUL, disposition="deferred", deferred_to="#493", waived_by="owner")),
         )
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("waived_by", err)
 
     def test_no_harm_only_is_unchanged_by_the_new_gate(self):
@@ -2849,14 +2861,14 @@ class TestClearingPowerIsLimitedToHarmReal(KarteTestCase):
 
     def _verdict(self):
         code, out, err = self._run(cli.cmd_status, json=True)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         return json.loads(out)
 
     def test_no_harm_finding_with_deferred_stays_no_harm_only(self):
         code, _out, err = self._ingest(
             1, ("new", dict(COSMETIC, disposition="deferred", deferred_to="#1"))
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         payload = self._verdict()
         self.assertEqual(payload["verdict"], "no-harm-only")
         self.assertNotEqual(payload["verdict"], "clean")
@@ -2881,7 +2893,7 @@ class TestClearingPowerIsLimitedToHarmReal(KarteTestCase):
                 ),
             ),
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         payload = self._verdict()
         self.assertEqual(payload["verdict"], "no-harm-only")
         self.assertEqual(payload["blocking_findings"], ["F-307-01"])
@@ -2919,10 +2931,10 @@ class TestNoHarmOnlyLabelIsNotOverclaimed(KarteTestCase):
             ("new", dict(HARMFUL, disposition="deferred", deferred_to="#493")),
             ("new", COSMETIC),
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
 
         code, out, err = self._run(cli.cmd_status, json=False)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         # verdict は no-harm-only（clean を妨げる未解消は harm: none だけ）。
         self.assertIn("verdict: no-harm-only", out)
         # にもかかわらず「実害あり」行には申し送り済みの F-307-01 が出る。
@@ -2942,7 +2954,7 @@ class TestNoHarmOnlyLabelIsNotOverclaimed(KarteTestCase):
             ("new", COSMETIC),
         )
         code, out, err = self._run(cli.cmd_status, json=True)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         payload = json.loads(out)
         self.assertEqual(payload["verdict"], "no-harm-only")
         self.assertEqual(payload["harmful_open"], ["F-307-01"])
@@ -2965,7 +2977,7 @@ class TestBlockingHarmfulKey(KarteTestCase):
 
     def _payload(self):
         code, out, err = self._run(cli.cmd_status, json=True)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         return json.loads(out)
 
     def _assert_is_the_intersection(self, payload):
@@ -2987,7 +2999,7 @@ class TestBlockingHarmfulKey(KarteTestCase):
 
     def test_undecided_harmful_appears_in_blocking_harmful(self):
         code, _out, err = self._ingest(1, ("new", OUT_OF_SCOPE_HARMFUL))
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         payload = self._payload()
         self.assertEqual(payload["verdict"], "harmful-open")
         self.assertEqual(payload["blocking_harmful"], ["F-307-01"])
@@ -3000,7 +3012,7 @@ class TestBlockingHarmfulKey(KarteTestCase):
             ("new", dict(HARMFUL, disposition="fix-here")),
             ("new", dict(OUT_OF_SCOPE_HARMFUL, disposition="deferred", deferred_to="#493")),
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         payload = self._payload()
         self.assertEqual(payload["verdict"], "harmful-open")
         # 処置方針は両方とも決まっている（未決定は 0 件）。
@@ -3018,7 +3030,7 @@ class TestBlockingHarmfulKey(KarteTestCase):
             ("new", dict(HARMFUL, disposition="deferred", deferred_to="#493")),
             ("new", COSMETIC),
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         payload = self._payload()
         self.assertEqual(payload["verdict"], "no-harm-only")
         self.assertEqual(payload["harmful_open"], ["F-307-01"])
@@ -3030,7 +3042,7 @@ class TestBlockingHarmfulKey(KarteTestCase):
         code, _out, err = self._ingest(
             1, ("new", dict(HARMFUL, disposition="deferred", deferred_to="#493"))
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         payload = self._payload()
         self.assertEqual(payload["verdict"], "clean")
         self.assertEqual(payload["blocking_harmful"], [])
@@ -3039,7 +3051,7 @@ class TestBlockingHarmfulKey(KarteTestCase):
     def test_key_is_present_even_when_the_ledger_has_no_findings(self):
         """キーの存在は台帳の中身に依存しない（消費者が有無を分岐しなくてよい）。"""
         code, _out, err = self._ingest(1, ("new", dict(HARMFUL, status="resolved")))
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         payload = self._payload()
         self.assertIn("blocking_harmful", payload)
         self.assertEqual(payload["blocking_harmful"], [])
@@ -3062,12 +3074,12 @@ class TestBlockingHarmfulLineInStatusText(KarteTestCase):
 
     def _text(self):
         code, out, err = self._run(cli.cmd_status, json=False)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         return out
 
     def _payload(self):
         code, out, err = self._run(cli.cmd_status, json=True)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         return json.loads(out)
 
     def _line(self, text, label):
@@ -3085,7 +3097,7 @@ class TestBlockingHarmfulLineInStatusText(KarteTestCase):
             ("new", dict(HARMFUL, disposition="fix-here")),
             ("new", dict(OUT_OF_SCOPE_HARMFUL, disposition="deferred", deferred_to="#493")),
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         payload = self._payload()
         self.assertEqual(payload["blocking_harmful"], ["F-307-01"])
 
@@ -3211,10 +3223,10 @@ class TestExistingKarteWithoutScopeIsStillReadable(KarteTestCase):
     def test_render_and_status_still_work_on_a_legacy_karte(self):
         self._write_legacy()
         code, out, err = self._run(cli.cmd_render)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("F-307-01", out)
         code, out, err = self._run(cli.cmd_status, json=True)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         payload = json.loads(out)
         self.assertEqual(payload["findings"][0]["scope"], "in")
         self.assertEqual(payload["verdict"], "harmful-open")
@@ -3224,11 +3236,11 @@ class TestExistingKarteWithoutScopeIsStillReadable(KarteTestCase):
         self._write_legacy()
         legacy_fields = {k: v for k, v in HARMFUL.items() if k != "scope"}
         code, _out, err = self._ingest(2, ("F-307-01", legacy_fields))
-        self.assertEqual(code, cli.EXIT_ERROR, "台帳側の移行措置を取り込み側へ広げてはならない")
+        self.assertEqual(code, exit_codes.EXIT_ERROR, "台帳側の移行措置を取り込み側へ広げてはならない")
         self.assertIn("scope", err)
 
         code, _out, err = self._ingest(2, ("F-307-01", HARMFUL))
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("scope: in", self._karte_text())
 
     def test_invalid_scope_in_the_ledger_is_still_rejected(self):
@@ -3239,7 +3251,7 @@ class TestExistingKarteWithoutScopeIsStillReadable(KarteTestCase):
             encoding="utf-8",
         )
         code, _out, err = self._run(cli.cmd_status, json=True)
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("scope", err)
 
 
@@ -3282,7 +3294,7 @@ class TestHandoffOutOfScopeFindingsAreIngestible(KarteTestCase):
         code, out, err = self._ingest(
             1, *[("new", entry) for entry in self.HANDOFF_ENTRIES]
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("F-307-01", out)
         self.assertIn("F-307-02", out)
 
@@ -3300,7 +3312,7 @@ class TestHandoffOutOfScopeFindingsAreIngestible(KarteTestCase):
         """キーを揃えないハンドオフは取り込みごと拒否される（無言の欠落を作らない）。"""
         broken = {k: v for k, v in self.HANDOFF_ENTRIES[0].items() if k != "recheck"}
         code, _out, err = self._ingest(1, ("new", broken))
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("recheck", err)
 
 
@@ -3354,15 +3366,15 @@ class TestCheckExcludesDeferredAndWaived(KarteTestCase):
         code, _out, err = self._append(
             finding_ids=["F-307-01"], root_cause="attrs-overwrite", targets=["a/b.py::f"]
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         code, _out, err = self._close(1, DIFF)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
 
     def test_check_passes_when_the_only_undiagnosed_finding_is_deferred(self):
         """受入基準：``deferred`` を1件含み、それ以外を診断・クローズしたら ``EXIT_OK``。"""
         self._diagnose_first_only()
         code, out, err = self._run(cli.cmd_check, round="1")
-        self.assertEqual(code, cli.EXIT_OK, err + out)
+        self.assertEqual(code, exit_codes.EXIT_OK, err + out)
         self.assertIn("網羅", out)
 
     def test_waived_findings_are_excluded_too(self):
@@ -3371,10 +3383,10 @@ class TestCheckExcludesDeferredAndWaived(KarteTestCase):
             round="2", finding_ids=["F-307-01"], root_cause="attrs-overwrite",
             targets=["a/b.py::f"],
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self._close(1, DIFF)
         code, out, err = self._run(cli.cmd_check, round="2")
-        self.assertEqual(code, cli.EXIT_OK, err + out)
+        self.assertEqual(code, exit_codes.EXIT_OK, err + out)
 
     def test_excluded_findings_are_reported_not_silently_dropped(self):
         """除外は黙って落とさない（何を診断しなくてよいのかを出力で確認できる）。"""
@@ -3389,10 +3401,10 @@ class TestCheckExcludesDeferredAndWaived(KarteTestCase):
         code, _out, err = self._append(
             finding_ids=["F-307-02"], root_cause="waiver-window", targets=["a/b.py::f"]
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self._close(1, DIFF)
         code, _out, err = self._run(cli.cmd_check, round="1")
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("F-307-01", err)
         self.assertNotIn("F-307-02", err)  # 申し送り済みは NG の理由にならない
 
@@ -3405,10 +3417,10 @@ class TestCheckExcludesDeferredAndWaived(KarteTestCase):
             round="2", finding_ids=["F-307-02"], root_cause="waiver-window",
             targets=["a/b.py::f"],
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self._close(1, DIFF)
         code, _out, err = self._run(cli.cmd_check, round="2")
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("F-307-01", err)
 
     def test_closing_every_attempt_is_still_required(self):
@@ -3416,9 +3428,9 @@ class TestCheckExcludesDeferredAndWaived(KarteTestCase):
         code, _out, err = self._append(
             finding_ids=["F-307-01"], root_cause="attrs-overwrite", targets=["a/b.py::f"]
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         code, _out, err = self._run(cli.cmd_check, round="1")
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("未クローズ", err)
 
 
@@ -3445,17 +3457,17 @@ class TestDispositionExclusionIsASingleJudgment(KarteTestCase):
 
     def _payload(self):
         code, out, err = self._run(cli.cmd_status, json=True)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         return json.loads(out)
 
     def _seed(self, fields):
         """F-307-01＝常に診断が要る錨、F-307-02＝検査対象。錨だけを診断してクローズする。"""
         code, _out, err = self._ingest(1, ("new", HARMFUL), ("new", fields))
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         code, _out, err = self._append(
             finding_ids=["F-307-01"], root_cause="attrs-overwrite", targets=["a/b.py::f"]
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self._close(1, DIFF)
 
     def test_check_and_status_agree_on_every_disposition(self):
@@ -3473,7 +3485,7 @@ class TestDispositionExclusionIsASingleJudgment(KarteTestCase):
                     "status の blocking_findings が期待と違う",
                 )
                 self.assertEqual(
-                    check_code != cli.EXIT_OK,
+                    check_code != exit_codes.EXIT_OK,
                     needs_remediation,
                     f"check が status と食い違う（check={check_code} / err={check_err}）",
                 )
@@ -3576,7 +3588,7 @@ class TestStallDetectionExcludesDeferredAndWaived(KarteTestCase):
 
     def _payload(self):
         code, out, err = self._run(cli.cmd_status, json=True)
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         return json.loads(out)
 
     def _three_rounds(self, *findings):
@@ -3586,7 +3598,7 @@ class TestStallDetectionExcludesDeferredAndWaived(KarteTestCase):
                 for index, fields in enumerate(findings)
             ]
             code, _out, err = self._ingest(round_no, *titles)
-            self.assertEqual(code, cli.EXIT_OK, err)
+            self.assertEqual(code, exit_codes.EXIT_OK, err)
 
     def test_deferred_finding_is_not_stalled_and_does_not_escalate(self):
         self._three_rounds(DEFERRED)
@@ -3651,7 +3663,7 @@ class TestDocChangeKind(KarteTestCase):
         code, out, err = self._append(
             change_kind="doc", root_cause="stale-doc", targets=["karte/README.md"]
         )
-        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(code, exit_codes.EXIT_OK, err)
         self.assertIn("change_kind: doc", out)
         self.assertEqual(self._karte().attempt(1).change_kind, "doc")
 
@@ -3747,6 +3759,141 @@ class TestReadmeDocumentsTheJudgmentRules(unittest.TestCase):
         for kind in model.CHANGE_KINDS:
             with self.subTest(change_kind=kind):
                 self.assertIn(f"| `{kind}` |", self.README)
+
+
+class TestIngestReviewReadsThePointerInsideTheLock(KarteTestCase):
+    """L-6: 次ラウンドの導出（進行ポインタの読み取り）はロックの内側で行う。
+
+    外で読むと、並行 ingest が先に台帳を進めたあとで古いポインタ値から同じラウンドを選び、
+    「単調増加」の検査で落ちる。ロックを握っている間に別の ingest を完了させ、待っていた側が
+    **ロック取得後の**ポインタから次ラウンドを選ぶことを固定する。
+    """
+
+    def test_waiting_ingest_derives_its_round_after_acquiring_the_lock(self):
+        self.assertEqual(exit_codes.EXIT_OK, self._ingest(1, ("new", HARMFUL))[0])
+        source = self._write_report("review-late.md", _report(("F-307-01", HARMFUL)))
+        results = []
+        worker = threading.Thread(
+            target=lambda: results.append(
+                cli.cmd_ingest_review(self._ns(issue=None, round=None, source=source))
+            )
+        )
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            with paths.writer_lock(self.root):
+                worker.start()
+                time.sleep(0.3)  # 待ち側がロックで止まっていること（旧実装はここまでに round を決め終える）
+                self.assertTrue(worker.is_alive())
+                racing = ingest_review.ingest_locked(
+                    self.root, self.issue, 2, _report(("F-307-01", HARMFUL))
+                )
+            worker.join(10)
+        self.assertEqual(exit_codes.EXIT_OK, racing)
+        self.assertEqual([exit_codes.EXIT_OK], results)
+        self.assertEqual(
+            3, json.loads(self._active_path().read_text(encoding="utf-8"))["round"]
+        )
+
+
+class TestBuiltinWritersWriteInsideTheLock(KarteTestCase):
+    """F-696-06: 組み込みの書込み verb は、台帳を書く瞬間に共有 writer lock を握っている。
+
+    ``.locked`` 属性（宣言）が True でも、実際にラッパーが lock を取っていなければ意味がない。
+    書込み関数の呼び出し時点で別の file description から flock を試し、取れないことを確かめる。
+    """
+
+    def _held_at_write(self, call):
+        observed = []
+
+        def probe(real):
+            def wrapper(*args, **kwargs):
+                observed.append(writer_lock_is_held(self.root))
+                return real(*args, **kwargs)
+
+            return wrapper
+
+        with mock.patch.object(paths, "append_text", probe(paths.append_text)), mock.patch.object(
+            paths, "write_text_atomic", probe(paths.write_text_atomic)
+        ):
+            self.assertEqual(exit_codes.EXIT_OK, call()[0])
+        return observed
+
+    def test_ingest_review_writes_inside_the_lock(self):
+        observed = self._held_at_write(lambda: self._ingest(1, ("new", HARMFUL)))
+        self.assertTrue(observed)
+        self.assertTrue(all(observed))
+
+    def test_append_writes_inside_the_lock(self):
+        self._ingest(1, ("new", HARMFUL))
+        observed = self._held_at_write(self._append)
+        self.assertEqual([True], observed)
+
+    def test_close_attempt_writes_inside_the_lock(self):
+        self._ingest(1, ("new", HARMFUL))
+        self._append()
+        diff = "diff --git a/p.py b/p.py\n--- a/p.py\n+++ b/p.py\n@@ -1,1 +1,2 @@ def f():\n+    x\n"
+        observed = self._held_at_write(lambda: self._close(1, diff, outcome="fixed"))
+        self.assertEqual([True], observed)
+
+
+class TestIngestReviewStdinReadDoesNotHoldTheLock(KarteTestCase):
+    """F-696-01: 閉じない標準入力を待つ ``ingest-review --from -`` が他の書込みを止めない。
+
+    本文の読取がロックの内側にあると、標準入力が閉じない間ずっと排他ロックを握り、
+    ``append`` / ``close-attempt`` / 別の ``ingest-review`` が全てブロックされる。
+    """
+
+    def test_append_completes_while_ingest_waits_on_an_unclosed_stdin(self):
+        self.assertEqual(exit_codes.EXIT_OK, self._ingest(1, ("new", HARMFUL))[0])
+        read_fd, write_fd = os.pipe()
+        pipe_in = os.fdopen(read_fd, "r", encoding="utf-8")
+        ingest_results, append_results = [], []
+        ingest = threading.Thread(
+            target=lambda: ingest_results.append(
+                cli.cmd_ingest_review(self._ns(issue=None, round="2", source="-"))
+            )
+        )
+        append = threading.Thread(target=lambda: append_results.append(self._append()))
+        with mock.patch.object(sys, "stdin", pipe_in):
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                ingest.start()
+                time.sleep(0.3)  # ingest が閉じない stdin の read で待っていること
+                self.assertTrue(ingest.is_alive())
+                append.start()
+                append.join(5)
+                blocked = append.is_alive()
+                os.write(write_fd, _report(("F-307-01", HARMFUL)).encode("utf-8"))
+                os.close(write_fd)
+                ingest.join(10)
+                append.join(10)
+        pipe_in.close()
+        self.assertFalse(blocked, "stdin 待ちの ingest-review が排他ロックを握って append を止めた")
+        self.assertEqual([exit_codes.EXIT_OK], [code for code, _o, _e in append_results])
+        self.assertEqual([exit_codes.EXIT_OK], ingest_results)
+
+
+class TestUnencodableArgvTextIsRefused(KarteTestCase):
+    """F-696-13（同種の漏れ）：argv の不正バイトは lone surrogate として検証を通り、書込みで失敗していた。
+
+    ``UnicodeEncodeError`` も ``ValueError`` 系で終了コード契約の外へ漏れる。台帳は変えず EXIT_ERROR。
+    """
+
+    BAD = "bad\udcff"
+
+    def test_append_with_an_unencodable_diagnosis_is_exit_error_and_writes_nothing(self):
+        self._ingest(1, ("new", HARMFUL))
+        before = self._karte_text()
+        code, _out, err = self._append(diagnosis=self.BAD)
+        self.assertEqual(exit_codes.EXIT_ERROR, code, err)
+        self.assertEqual(before, self._karte_text())
+
+    def test_close_attempt_with_an_unencodable_note_is_exit_error_and_writes_nothing(self):
+        self._ingest(1, ("new", HARMFUL))
+        self._append()
+        before = self._karte_text()
+        diff = "--- a/a/b.py\n+++ b/a/b.py\n@@ -1 +1 @@ def f():\n-x\n+y\n"
+        code, _out, err = self._close(1, diff, note=self.BAD)
+        self.assertEqual(exit_codes.EXIT_ERROR, code, err)
+        self.assertEqual(before, self._karte_text())
 
 
 if __name__ == "__main__":
