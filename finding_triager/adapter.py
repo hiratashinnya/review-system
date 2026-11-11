@@ -32,7 +32,7 @@ def propose(raw: bytes, signature: str, key: bytes, expected: dict, assessments:
     for original, assessment in zip(review["findings"], assessments):
         facts = policy_input(original, assessment, review["phase"], ref)
         proposals.append({"finding_id": original["finding_id"],
-                          "reviewer": {k: original[k] for k in ("harm", "scope", "severity")},
+                          "reviewer": dict(original),
                           "triager": assessment, "policy_input": facts,
                           "result": suggest(policy, facts)})
     return {"schema": "finding-triage/v1", "producer": "finding-triager", "role": "finding-triager",

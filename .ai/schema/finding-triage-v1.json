@@ -83,11 +83,14 @@
           },
           "reviewer": {
             "type": "object",
-            "additionalProperties": false,
+            "additionalProperties": true,
             "required": [
               "harm",
               "scope",
-              "severity"
+              "severity",
+              "finding_id",
+              "harm_detail",
+              "evidence"
             ],
             "properties": {
               "harm": {
@@ -108,6 +111,18 @@
                   "major",
                   "blocker"
                 ]
+              },
+              "finding_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "harm_detail": {
+                "type": "string",
+                "minLength": 1
+              },
+              "evidence": {
+                "type": "string",
+                "minLength": 1
               }
             }
           },

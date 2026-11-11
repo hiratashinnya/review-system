@@ -13,7 +13,8 @@ class FindingTriagerTest(unittest.TestCase):
         self.expected = {"issue": 783, "phase": "review", "round": 1, "run_id": "run",
                          "target_key": "target", "input_digest": "a" * 64, "snapshot_oid": "b" * 40}
         review = {**self.expected, "producer": "pr-reviewer", "findings": [
-            {"finding_id": "F-1", "harm": "real", "scope": "in", "severity": "major"}]}
+            {"finding_id": "F-1", "harm": "real", "scope": "in", "severity": "major",
+             "harm_detail": "data loss", "evidence": "review evidence", "summary": "finding"}]}
         self.raw = json.dumps(review).encode()
         self.signature = hmac.new(self.key, self.raw, hashlib.sha256).hexdigest()
         facts = dict.fromkeys(FIELDS, False)
@@ -34,11 +35,22 @@ class FindingTriagerTest(unittest.TestCase):
         proposal = propose(self.raw, self.signature, self.key, self.expected, [self.assessment])["proposals"][0]
         self.assertEqual(proposal["result"]["candidate"], "owner-review")
         self.assertEqual(proposal["reviewer"]["scope"], "in")
+        self.assertEqual(proposal["reviewer"]["harm_detail"], "data loss")
+        self.assertEqual(proposal["reviewer"]["evidence"], "review evidence")
+        self.assertEqual(proposal["reviewer"]["summary"], "finding")
         self.assertEqual(proposal["triager"]["scope"], "out")
         self.assessment["scope"] = "in"
         self.assessment["facts"]["ac_relation_verified"] = False
         proposal = propose(self.raw, self.signature, self.key, self.expected, [self.assessment])["proposals"][0]
         self.assertEqual(proposal["result"]["candidate"], "owner-review")
+
+    def test_missing_reviewer_rationale_is_rejected(self):
+        review = json.loads(self.raw)
+        del review["findings"][0]["evidence"]
+        raw = json.dumps(review).encode()
+        signature = hmac.new(self.key, raw, hashlib.sha256).hexdigest()
+        with self.assertRaises(ValueError):
+            propose(raw, signature, self.key, self.expected, [self.assessment])
 
     def test_rejects_untrusted_inputs(self):
         for raw, signature, expected in ((self.raw + b" ", self.signature, self.expected),

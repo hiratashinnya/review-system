@@ -44,4 +44,7 @@ def verify_review(raw: bytes, signature: str, key: bytes, expected: dict) -> dic
     if any(f.get("harm") not in ("real", "none") or f.get("scope") not in ("in", "out")
            or f.get("severity") not in ("minor", "major", "blocker") for f in findings):
         raise ValueError("invalid review judgments")
+    if any(not isinstance(f.get(k), str) or not f[k].strip()
+           for f in findings for k in ("harm_detail", "evidence")):
+        raise ValueError("missing reviewer rationale")
     return data
