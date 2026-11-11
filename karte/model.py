@@ -539,7 +539,7 @@ def is_same_finding(summary_a: str, locus_a, summary_b: str, locus_b) -> bool:
       * locus が**交差**し、かつ要約の文字 n-gram Jaccard 係数が閾値以上
         （言い換え・付記つきの再掲）。
 
-    locus の交差を必須にしているのは、同じ箇所への**別の**指摘（例「docstring が古い」）を
+    類似度による判定で locus の交差を必須にしているのは、別の箇所への指摘（例「docstring が古い」）を
     誤って同一視しないため——文字 n-gram だけで判定を回すと、短い要約同士が偶然似ただけで
     再発番と誤検出し、レビューアが正当な新規指摘を挙げられなくなる。
 
