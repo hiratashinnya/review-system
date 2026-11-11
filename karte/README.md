@@ -26,8 +26,8 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
 - **`ingest-review` では必須**。欠落は取り込みごと拒否する（`harm` 欄欠落と同じ扱い）。
   任意キーにすると書かれないため。
 - **レビューアの申告であって確定ではない**。ただし**覆せるのはオーナーだけ**であり、`disposition` と
-  同じくオーナー専権である。主文脈は覆しの判断主体ではなく、オーナーが決めた値を取り込みレポートへ
-  転記する担い手にすぎない（正本＝`.ai/skills/issue-pipeline/SKILL.md` ②-c。機械側がこれを
+  同じくオーナー専権である。主文脈は覆しの判断主体ではなく、オーナーが決めた値を記録する
+  担い手にすぎない（正本＝`.ai/skills/issue-pipeline/SKILL.md` ②-c。機械側がこれを
   検証していないことは下記「既知の限界」）。
 - **`scope: out` は実害判定・記録・verdict のいずれの免除にもならない。** スコープの内外は
   「誰がいつ直すか」の話であって「実害があるか」の話ではない（判定軸を混ぜない）。
@@ -52,13 +52,12 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
 - `waived` に許可者と理由を要求するのは、`.claude/rules/03-operational.md`
   「『対応不要』を AI が独断で書かない」に対する **記録の強制**（許可者と理由を書かずに
   `waived` を通せなくする）。**オーナー判断そのものの機械強制ではない**——下記「既知の限界」。
-- 宣言した `disposition` に属さない付随キー（例：`deferred` なのに `waived_by`）は拒否する。
-  取り違えて古い方針を現行の方針と誤読するのを防ぐため。
-- 値は毎ラウンドのレポートで上書きされる。**書き忘れると未決定へ倒れて `clean` を妨げる**
-  （fail-close 側）。だれがそれを書くか（＝毎ラウンドの再掲を誰が担うか）は
-  `.ai/skills/issue-pipeline/SKILL.md` ②-c を正本とする（**主文脈**が、オーナーの決定を
-  次ラウンドの取り込みレポートへ書き足してから `ingest-review` する。レビュー担当は
-  `disposition` を書かない契約）。
+- `decide` と非保護モードの `ingest-review` は、宣言した `disposition` に属さない付随キー
+  （例：`deferred` なのに `waived_by`）を拒否する。取り違えて古い方針を現行の方針と誤読するのを
+  防ぐため。保護モードの取り込みは専権キーを無視して警告する。
+- 非保護モードでは値は毎ラウンドのレポートで上書きされる。**書き忘れると未決定へ倒れて `clean` を妨げる**
+  （fail-close 側）。主文脈がオーナーの決定をレポートへ転記する。保護モードでは台帳の値を保持し、
+  主文脈が `decide` で決定を記録する（下記「`ingest-reviewer` / `decide` / `activate`」）。
 
 ### `clean` の解除力は `harm: real` にだけ与える（オーナー確定・2026-09-07）
 
@@ -75,21 +74,21 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
 
 ### 既知の限界（多層防御の一枚であって sandbox ではない）
 
-**保護水準は `disposition` 系と `scope` で 1 段違う。** 前者は記録だけを強制し、後者は記録すら
-強制していない。次の 2 つを混ぜて読まない。
+**非保護モードの保護水準は `disposition` 系と `scope` で 1 段違う。** 前者は記録だけを強制し、
+後者は記録すら強制していない。保護モードの申告原本とオーナー確定の印は後述する。
 
 #### `disposition` 系（`waived` / `deferred`）——記録は強制、オーナー判断は非強制
 
 - `waived_by` / `waived_reason` は自由記述のスカラであり、**書いた主体がオーナー本人かを
   機械側は区別しない**。`ingest-review` を実行するのは主文脈（AI）であり、
   `.claude/hooks/agent-command-gate.sh` と `.codex/hooks/agent-command-gate.sh` の
-  `KARTE_ALLOWED_SUBCOMMANDS` が締め出しているのは是正当事者ロール（`issue-fixer` 等）だけである。
+  ロール別許可表が `ingest-review` を当事者ロールから締め出す。
 - `deferred_to` は形式（`#123` / `123` / URL）だけを検査し、**指す Issue が実在するかは
   検証しない**。
 - **したがってこの 2 つについて強制しているのは記録であって、オーナー判断ではない。**
   この結び（「強制しているのは記録」）は `disposition` 系にだけ掛かる。
 
-#### `scope` の覆し——記録の強制すら無い
+#### 非保護モードの `scope` の覆し——記録の強制すら無い
 
 - **`scope` の覆しがオーナーの判断であることを機械側は検証していない**（Issue #531）。
   台帳は取り込まれた `scope` の値を受け取るだけで、それが誰の判断かも、レビューアの元の申告と
@@ -104,14 +103,174 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
   `pr-reviewer` は各ラウンドで新しい finding を起票できる（ブロック見出しが
   `### F-<issue>-<seq> または new`＝`.ai/agents/pr-reviewer.md`）ため、**round 3 で初出した
   finding にも round 1 とまったく同じ窓が開く**。
-  - **台帳に前ラウンドの記録がある finding**は、その記録済み `scope` との差分として覆しを
-    検出しうる（Issue #523 のスコープ。覆しに `override_ref`＝`feedback_ledger` の台帳エントリ
-    参照を要求する変更）。
-  - **初出ラウンド**を塞ぐには、レビューアの申告が**主文脈の手を経ずに改変不能な一次記録として
-    残る**必要があり、それは Issue #375（`pr-reviewer` の finding のファイルハンドオフ化）が
-    扱う構造である。
-  - したがって現時点で `scope` の覆しをオーナーへ一本化しているのは**運用規律（契約）**であり、
-    機械強制は #375 → #523 の順で段階的に追加される。
+  - **Issue #375 がこの窓を塞ぐ**。Claude Code の `pr-reviewer` は handoff ファイルから
+    `ingest-reviewer` で取り込み、Codex を使う場合は信頼された外側の `codex_worktree_exec` が
+    保存済み出力をそのまま同じ verb へ渡す。申告 scope の原本が初出ラウンドから
+    `tmp/_karte/issue-<N>.declared-scope.jsonl`（追記専用）に残る。`decide --scope` の印がある
+    finding はオーナーの値を保持し、今回の申告と異なれば取り込み出力に列挙する。
+  - 覆しに `override_ref`＝`feedback_ledger` の台帳エントリ参照を要求する変更は Issue #523 のスコープ。
+  - `codex_worktree_exec` は Codex 本体の read-only 権限を変えず、取り込みをラッパー側で実行する。
+    Codex の `pr-reviewer` 自身に karte の書込権限は与えない。
+
+### `ingest-reviewer` / `decide` / `activate`（Issue #375）
+
+- **`ingest-reviewer --from tmp/_handoff/pr-reviewer--<key>.md [--round <R>]`**：`pr-reviewer` の
+  finding を取り込む専用 verb。Claude Code は本人が実行し、Codex 実行時は外側ラッパーが Codex の
+  出力ファイルを変更せず handoff へ保存して実行する。ID 重複・未知 ID・harm/scope 必須・distinct_from を検証し、
+  保護モードの共通規則と次の制約を適用する。
+  - `--issue` は受けない。Issue は進行ポインタで決まる。round は省略時に「ポインタの round ＋ 1」だが、
+    通常は `--round` を省略し、ポインタの次 round を使う。明示値は台帳の最新 round と同じ場合に限り
+    受け付ける。後退・飛び越しは拒否し、別 Issue の台帳へ書く経路は作らない。台帳に当該 round が既に
+    入った後の再実行の可否は `--round` の指定と handoff の内容による（条件と回復は下記
+    「進行ポインタの書込みが台帳より後に失敗した窓」）。
+  - `--from` は `<repo-root>/tmp/_handoff/pr-reviewer--<英数._->.md` の通常ファイルだけ
+    （`..`・symlink 構成要素・別ディレクトリ・別名を拒否。規則は `karte/handoff_path.py` に 1 箇所で、
+    Write フックと共有）。
+  - 処置方針はオーナー専権であり、レポート中の `disposition` / `deferred_to` / `waived_by` /
+    `waived_reason` は finding ブロック内なら空値も含め無視して警告する。前書きの専権キー行は無視せず拒否する。
+    台帳の値は保持する。
+  - 保護モードの取り込みごとに、申告レポートで再掲されたかにかかわらず、オーナー印を台帳の全 finding へ
+    再適用する。印がない finding の scope は新しい申告で更新する。
+    申告の原本は台帳より先に追記する。
+  - **台帳の書込みが失敗した窓（F-375-22）**：原本を台帳より先に作る順序は意図的で、逆順（台帳→原本）にすると
+    原本のない台帳だけが更新された無保護の round が残る。代償として、原本の作成後に台帳の書込みが失敗する
+    （ENOSPC・読取専用ファイルシステム・競合）と、台帳にその round が無いまま原本（その round の申告を含む）
+    だけが残る。取り込みは拒否（fail-close）で終わり、進行ポインタは進まず期待値も消費されない。
+    この状態では、原本が追記専用で消えないため、待機取消（期待値なしの `activate`）でも従来動作には戻らず、
+    主文脈の `ingest-review` は保護モード（新規 finding の追記専用）になる。回復は同じ handoff で
+    `ingest-reviewer` を再実行する（期待値が残り、台帳の最新 round は進んでいないので同じ round として
+    受理され、原本の同一記録は重複しない）。この回復が効くのは、台帳に当該 round がまだ無いからである
+    （`### new` の finding も、再実行で同じ ID を採番し直せる）。`decide` は `disposition` と `scope` しか更新できず、
+    round 1 でこの窓に入った場合は台帳自体が無いので失敗する。回復の代わりには使えない。
+  - **進行ポインタの書込みが台帳より後に失敗した窓**：`ingest_locked` は台帳を書いた後でポインタを進める。
+    ポインタの書込みだけが失敗すると、台帳には当該 round の finding が入ったまま、ポインタは前の round に残り、
+    期待値も消費されない（取り込みはエラーで終わる）。再実行の可否は `--round` の指定と handoff の内容で変わる。
+    - `--round` を省略すると、ポインタの次 round が台帳の最新と同じになり、handoff の内容によらず
+      「round は単調増加」で拒否される。
+    - 台帳の最新 round を `--round` で明示すると、`### new`（または次に採番できる明示 ID）で
+      台帳に入った未解消 finding と同一の指摘（summary の正規化文字列が完全一致すれば locus を問わず、
+      それ以外は locus が交差し summary の類似度が閾値以上）を再発番する handoff は、
+      「ID 再発番を検出」で拒否される（`ingest_accept.collect_accepted`）。**既存 ID の再掲だけの handoff は
+      同一 round 許可（`allow_same_round`）を通って成功しうる**が、同じ round の再取り込みは台帳の状態遷移を
+      壊しうるので回復手段として選ばない。
+    - **回復はいずれの場合も再実行を使わない。** 主文脈が `python3 -m karte render --issue <N>` で
+      当該 round が台帳に入っていることを確かめ、`activate --issue <N>`（次のレビューなら期待値の 5 引数つき）で
+      ポインタを台帳の最新 round へ向け直す。この回復はポインタと期待値だけを直し、台帳の finding は変えない。
+- **`activate --issue <N> [--run-id R --target-key K --snapshot-oid OID --input-digest D --phase P]`**
+  （主文脈専用）：進行ポインタを対象 Issue へ向ける（round は取り込み済みの最新、台帳が無ければ 0）。
+  初回の `ingest-reviewer` の前に実行する。5 つの envelope 引数は**全部同時に**与え、review handoff の期待値として
+  ポインタへ記録する（下記「review handoff の共通 envelope」）。1 つも与えなければ期待値なし（レビューア待ちの解除）。
+  `--repair-declared-scope` は envelope 引数のいずれとも同時指定できず、一部だけの指定も拒否する。
+  **`activate` はどちらの形でも申告 scope の原本を作らない**。原本を作るのは、検証を通ったレビューア本人の
+  取り込み（`ingest-reviewer`）だけで、原本は 1 件以上の申告があるときにだけ作られる。finding ブロックが 0 件の
+  レポートは `model.parse_review` が原本の作成より前に拒否するので、申告 0 件で空の原本が残ることはない
+  （0 件の初回レビューを取り込めない件は別 Issue #801）。ただし上記の台帳書込み失敗の窓（F-375-22）では、
+  取り込みが成功していなくても原本が残りうる。
+  待ちの間は、進行ポインタに残る期待値を守るため、主文脈の旧 `ingest-review` はどの Issue 宛でも拒否する
+  （他 Issue 宛・round 1 を含む・F-375-03/49）。原本が無くても保護は途切れない。待機中の Issue の
+  `ingest-reviewer` を待つか、`karte activate --issue <待機中の Issue>`（期待値なし）で待ちを取り消す。
+  レビューア取り込み前に取り消した場合は原本が無く、
+  主文脈の `ingest-review` は従来動作に戻る（退避経路を追記専用にしない・F-375-10）。レビューアが既に取り込んで
+  原本がある Issue（F-375-22 の窓で原本だけが残った Issue を含む）では、待ちを取り消しても原本は消えず
+  保護モードが残る（オーナー確定の scope を守るため）。
+  `run_id` / `target_key` は handoff ヘッダへそのまま往復できる値（英数字で始まる 128 文字以内の
+  英数字と `. _ : / @ + # -`）に限り、空白・`-->` を含む値は `activate` が拒否する（F-375-12）。
+- **review handoff の共通 envelope（Issue #375・#371 契約）**：handoff 先頭の 1 行
+  `<!-- handoff issue=N round=R schema=review-handoff/v1 schema_version=1 producer=pr-reviewer phase=P
+  artifact_type=ReviewReport run_id=X target_key=Y input_digest=<sha256> snapshot_oid=<40hex> status=ready -->`
+  が #371 の共通項目（schema version・producer・phase・issue・run_id・target_key・input digest・snapshot OID・
+  artifact type・status・next expected artifact＝review では常に空）を持つ。review 固有の 9 項目 finding は
+  本文（payload）のまま。`ingest-reviewer` は申告を、**主文脈が `activate` でポインタへ記録した期待値**
+  （Codex 経路では承認済み binding の `expected` と検証済み `artifact_digest` から作ったヘッダ）へ完全に束縛し、
+  別 run・別 target・古い snapshot・別 digest・別 phase・未知／重複／欠落キー・`status` が `ready` 以外は
+  取り込まない（共通語彙の実装は標準ライブラリだけの `karte/review_envelope.py`。`issue_envelope.review_envelope` は再公開で、
+  束縛キーが `issue_envelope.handoff.BINDINGS` と一致することは単体テストが検査する）。期待値は**取り込み成功で消える 1 回限り**
+  なので、取り込み済み handoff の再利用も拒否される。期待値の無い取り込みも拒否（fail-close）。
+  期待値は進行ポインタの 1 枠だけに保持するため、残っている間は他 Issue 宛も含め主文脈の `ingest-review` を
+  拒否する（round 1 でも期待値とレビューアの申告原本を守る）。申告原本のない scope（主文脈取り込み由来）を
+  レビューア申告が置換したときは取り込み結果に
+  `申告原本のない scope をレビューア申告で置換: <ID>（旧→新）` と出す（検出）。
+- **再掲漏れの終了コード（F-375-05）**：保護モードは再掲漏れを警告つきで引き継ぐ。このうち**レビューアが過去に
+  申告した（原本がある）是正対象の未解消 finding**（`needs_remediation`）が今回の `ingest-reviewer` 出力に
+  再掲されていないときは、台帳は書き込み済み・未解消のまま引き継ぐが、**終了コード 5（`EXIT_INCOMPLETE`）**で
+  返し、標準エラーに `未完了: 再掲漏れ <ID>`、標準出力の最後に `未完了（取り込み済み）: …` を出す。出力の欠落
+  （切り詰め等）を終了コード 0 の完了にしないため。Codex wrapper は 5 を取り込み失敗
+  （`CODEX_REVIEW_INGEST_FAILED`・終了コード 2）と区別し、`CODEX_REVIEW_INGEST_INCOMPLETE`（終了コード 5）として
+  「取り込み済み・未完了（round は記録済み・期待値は消費済み）」を返す。同じ handoff を再取り込みせず、主文脈が
+  `activate` で期待値を記録し直して再レビューする（F-375-11）。主文脈が足した finding・申し送り／処置不要と決まった finding の不在、
+  主文脈専用の追記専用モードは対象外（警告のみ・終了コード 0）。再掲漏れは解消ではなく、取り込み済みの round を
+  やり直さず、次のレビューで `status: open|resolved` を明示して再掲させる。
+  5 の定義は `karte/exit_codes.py`、`cli.py` のモジュール docstring の終了コード一覧にも載せている。
+  Codex wrapper の終了コード一覧（5 は `pr-reviewer` 専用の予約値）は `codex_worktree_exec/README.md`「終了コード」。
+- **`decide --finding <ID> [--disposition … --deferred-to … --waived-by … --waived-reason …] [--scope in|out]`**
+  （主文脈専用）：オーナー決定を台帳へ直接記録する。`disposition` の付随キー規則は `ingest-review` と同じ。
+- **保護モード**：`ingest-reviewer` は常に、申告原本がある Issue（レビューア本人の最初の取り込みが作る）の
+  主文脈専用 `ingest-review` も保護モードで動く。両経路で台帳の `disposition` 系とオーナー確定済み `scope` を保持し、専権キーを
+  無視して警告する。前ラウンドの未解消 finding の再掲が漏れた場合は変更せず未解消のまま引き継ぎ、
+  ID を警告する。解消は `status: resolved` の明示宣言だけである。警告は標準エラーに `警告: …`、
+  取り込み結果の標準出力にも対象キー・行と引き継いだ ID を出す。
+  保護モードの主文脈 `ingest-review` は新規 finding の追記専用である。既存 ID を再掲すると全件拒否し、
+  台帳・原本・進行ポインタを書かない。既存の未解消 finding を省略した場合は引き継いで警告する。
+  レビューア本人の `ingest-reviewer` は既存 ID を再掲できる。
+  主文脈の `ingest-review` は従来どおり `--issue` / `--round` / `--from` を受け、handoff パス・
+  ヘッダ・進行ポインタによる入力制約を課さない。新規 finding はレポートの scope で追加し、
+  disposition は未決とする。主文脈による追加はレビューアの申告ではないので申告原本に記録しない。
+  原本が壊れている場合は拒否する（終了コード 4）。原本がまだ無い場合の `ingest-review` は
+  非保護モードであり、従来どおり専権キーを上書きし、再掲漏れを K-06 で拒否する。
+  Codex の agent-command gate は `pr-reviewer` に karte verb を許可しない。Codex 経路では
+  `codex_worktree_exec` の外側が同じ検証・取り込みを実行する。
+- **handoff ヘッダ**：レポートの先頭（最初の `### ` より前）に `<!-- handoff issue=<N> round=<R> -->` の
+  1 行が必須。進行ポインタから決まる取り込み先の Issue と取り込み先の round（`--round` 省略時はポインタの次の round、
+  明示時はその値。`check_header` は解決後の round と照合する）に一致しないもの（ヘッダ無し・別 Issue・
+  古い／再利用した handoff）は取り込まない（`### new` だけのレポートで別 Issue へ書く取り違えを防ぐ）。
+- **Codex 起動手順**：既存の承認済み工程レビューは、trusted caller が primary checkout から
+  `python3 -m issue_start.readonly_workspace --source <primary> --approval-file tmp/<approval>.json --role pr-reviewer -C <登録済みlinked worktree> --prompt-file tmp/<prompt>.md --output-file tmp/<未作成output>.md --binding-file tmp/<承認済みbinding>.json --model <model> --reasoning-effort <effort>` を実行する。
+  readonly入口が承認・binding・入力を検査して linked worktree から executor を起動する。D5 により executor の `-C` と cwd の Git toplevel は一致しなければならず、primary checkout から `codex_worktree_exec` を直接起動する形は拒否される。
+  prompt/output/binding は呼び出し側が既存契約に従って用意し、output は未作成の一意なパスを使う。一般 PR レビューで
+  承認済み artifact binding を用意する方法は確認できていないため、信頼検査を緩めず起動を停止する。Codex 非ゼロ終了、空出力、進行ポインタ不在・
+  Issue/最新 round 不一致、ヘッダ不一致、取り込み失敗では run を完了扱いにしない。正常終了後、wrapper は
+  ポインタの Issue と次 round からヘッダを決め、Codex 本文は加工せず、目印行が無ければ先頭に付けて primary checkout の handoff へ保存し、
+  `ingest-reviewer` を実行する。呼び出し側へは `取り込み済み: <path> (issue-N round R)` の1行と、取り込み出力の警告行だけを返す（判定の要約は含めない）。
+- **オーナー確定の印**：`decide --scope` は申告 scope の原本に `by: owner` の印を足してから
+  台帳の scope を更新する。印の保存後に台帳書込みが失敗した場合は、印を保存済みと再適用手順をエラーに表示する。
+  次の `decide` または保護モードの取り込みで台帳へ反映する。保護モードの取り込みは毎回、再掲の有無にかかわらず
+  オーナー印を台帳の全 finding へ適用する。印の保存自体が失敗した場合は台帳を更新しない。
+  印のある finding の scope は保護モードが上書きしない（レビューアの申告は
+  原本として記録するだけ。保持した finding ID は取り込み出力に列挙される）。印の無い finding では、
+  台帳の値が `ingest-review` 由来でもレビューアの申告が正当な訂正として反映される。
+- 申告 scope の原本（`tmp/_karte/issue-<N>.declared-scope.jsonl`）への追記は、既存の全行を検証したうえで
+  全体を一時ファイル経由で置換する（途中までの行を作らない）。一時ファイルと置換後の親ディレクトリを
+  fsync して置換を永続化し、電源断による長さ0・切り詰めを防ぐ（バックアップ公開時も同様に同期する）。壊れていれば `ingest-reviewer` は
+  復旧手順を示して拒否し、主文脈が `python3 -m karte activate --issue <N> --repair-declared-scope` で
+  原本だけを修復する。このオプションは envelope 引数と同時指定できない。進行ポインタを動かさず、壊れた行だけを除く（元は `.bak`、
+  `.bak.1`、`.bak.2` … と世代を分けて残し、上書きしない）。
+  自動修復できるのは原本全体を UTF-8 として読める場合に限る。不正な UTF-8 は拒否し、
+  原本を変更せず、バックアップも生成しない。
+  バックアップの保存後に原本の書込みが失敗した場合（symlink の検出など）は拒否されるが、
+  本処理は保存済みのバックアップを削除しない。
+  申告 scope の読取り・追記・修復は `tmp/_karte` をディレクトリ記述子で固定して行い、
+  置き場の差替えを検査で検出した場合は拒否する。この保護は scope 原本とそのバックアップに
+  限り、writer lock・カルテ本体・進行ポインタまで同じディレクトリを使うことは保証しない。
+  修復の最終置換直前に置き場が差し替わると、置換後の検査で拒否しても、固定済みの元ディレクトリ
+  内の原本は更新済みの場合がある。一時ファイルやバックアップが別途差し替えられていなければ、
+  読取り時の元データを保存したバックアップは残る。
+  同じディレクトリへ非協調に書き込める主体が一時ファイルや原本・バックアップを差し替える場合、
+  原本・バックアップの整合性は保証しない。例えば一時ファイルを symlink に差し替えられると、
+  バックアップ自体が symlink となり元データが保存されないことがある。これは sandbox やアクセス権
+  による隔離の代替ではない。
+  `pr-reviewer` はこの verb も原本も触れない。
+- `--round` 省略時の round は進行ポインタの `round`（0＝未取込。欠落・非 ASCII 数字・負数・Issue 不一致は拒否）＋1 で、ロックの内側で決める。
+  台帳が無い Issue の `activate` は round 0 を書くため、その直後に主文脈の `ingest-review` で
+  `--round` を省略すると round 1 として取り込む。`ingest-reviewer` も round 0 を自動導出に使う。
+  明示した `--round 0` は拒否する。
+  保護モードの `ingest-review` は最新 round の明示で同じ round に追記できる。
+  ポインタが遅れて省略値が台帳の最新 round と一致した場合も同じ round への追記になる。小さい round は
+  拒否し、省略値が次 round なら次 round を使う。範囲外指摘の追記には最新 round を明示する。
+  オーナー確定の印で覆しを判定するため、台帳書込みの失敗後に同じラウンドを再試行しても、
+  レビューアの新しい scope をオーナーの覆しと誤判定しない。
+- `decide` / `activate` / `ingest-review` はどのロールの許可集合にも入れない
+  （`agent-command-gate.sh` の `KARTE_SUBCOMMANDS_BY_ROLE`）。`issue-fixer` の許可 verb は従来どおり
+  `render`/`append`/`close-attempt`/`check`/`status`。
 
 カルテの改ざん防止（`karte/model.py` の「改ざん防止の機械的裏付けと既知の限界」）と同じく、
 静的検査で閉じきれない面はプロンプト規律・レビュー分離・GitHub 側の保護と併用して塞ぐ
@@ -262,10 +421,11 @@ python3 -m karte check [--issue <N>] [--round <R>]
 
 `issue-implementer` / `issue-fixer` がハンドオフに書く `out_of_scope_findings` も、finding と
 同じキー（`harm`/`harm_detail`/`severity`/`scope: out`/`locus`/`summary`/`evidence`/
-`expected`/`recheck`）を揃える。主文脈がそれを finding ブロックへ写して `ingest-review` する
-（`pr-reviewer` だけ直しても半分しか塞がらない）。**取り込みの実行は主文脈**で、是正当事者には
+`expected`/`recheck`）を揃える。主文脈がそれを finding ブロックへ写して `ingest-review` する。
+保護モードでは最新 round を `--round` で明示して追記し、レビューアの申告原本には記録しない。
+**取り込みの実行は主文脈**で、是正当事者には
 `ingest-review` を許さない（`.claude/hooks/agent-command-gate.sh` と
-`.codex/hooks/agent-command-gate.sh` の `KARTE_ALLOWED_SUBCOMMANDS`）。
+`.codex/hooks/agent-command-gate.sh` のロール別許可表）。
 
 ## `harm_detail` の内容 lint（Issue #511）
 
@@ -301,7 +461,7 @@ expected に書いて**返す」と指示していた。Issue #511 は契約側�
   別 Issue にすべき等の**見立てはどの欄にも書かない**——レビュー担当の申告は `scope: out` まで
   である（`.ai/agents/pr-reviewer.md`）。`expected` は「期待する観測可能な状態」を書く欄であり、
   見立ての退避先ではない。
-- **適用範囲は新規の `ingest-review` だけ**。既存カルテを読む側（`karte/model.py` の
+- **適用範囲は新規の `ingest-review` / `ingest-reviewer`**。既存カルテを読む側（`karte/model.py` の
   `parse`）には掛けない——`tmp/` は版管理外だが、進行中の Issue の台帳が読めなくなると
   是正ループが止まる（`scope` 必須化と同じ移行方針）。
 
@@ -382,7 +542,10 @@ touched-set 自体が空（`--base` を誤って空 diff になったケース�
 ## 終了コード
 
 `dsv2` に合わせる：`0` OK ／ `2` 未検出 ／ `3` 類似飽和（`append` 拒否）／
-`4` 前提違反・検証失敗（fail-close）。
+`4` 前提違反・検証失敗（fail-close）。加えて `5`（`EXIT_INCOMPLETE`・定義は `karte/exit_codes.py`）は
+`ingest-reviewer` が台帳へ**取り込み済み**だが、過去に申告した是正対象の未解消 finding の再掲漏れがあり
+完了扱いにしない印（失敗ではない。台帳は書き込み済みで期待値も消費済み・Issue #375）。
+主文脈専用の保護モードの `ingest-review` は再掲漏れを警告するだけで、終了コード 5 の対象外である。
 
 次の入力は例外（traceback の終了コード 1）ではなく `4` で拒否する（上の 4 種に収まる）：
 
@@ -399,5 +562,6 @@ touched-set 自体が空（`--base` を誤って空 diff になったケース�
   （検査は `fullmatch`・正規表現の末尾は `\Z`）。`render` の見出しに出す `round` も、`append` の補完と同じ
   読み方（`pointer_completion.recorded_round`）で検証し、整数でない値は `4`（subagent の文脈へ注入される本文に
   検証前の値を出さない）。ポインタが別 Issue を指す・`round` が 0/欠落のときは見出しに出さない。
-- **ロック内で拒否された `ingest-review`** は `4` を返し台帳・ポインタは書かないが、新規 repo でも
-  `tmp/_karte/` と `.writer.lock` は残る（何も作らずに拒否できるのはロック前の引数・ポインタ・本文の検証だけ）。
+- **ロック内で拒否された `ingest-review`／`ingest-reviewer`** は共通経路 `ingest_locked` で、どちらも
+  `4` を返し台帳・ポインタは書かないが、新規 repo でも `tmp/_karte/` と `.writer.lock` は残る。
+  何も作らずに拒否できるのは、ロック前に行う引数・ポインタ・本文の検証だけである。

@@ -24,7 +24,7 @@ def resolve_issue(args, repo_root) -> int:
     return paths.validate_issue(active["issue"])
 
 
-def resolve_round(args, repo_root, issue: int, missing_hint: MissingRoundHint) -> ResolvedRound:
+def resolve_round(args, repo_root, issue: int, missing_hint: MissingRoundHint, *, pointer_minimum=1) -> ResolvedRound:
     """``--round`` を検証して返す。省略時は進行ポインタの ``round``（最後に取り込んだラウンド）。
 
     戻り値の ``explicit`` で明示か補完かを区別する。ポインタが無い・壊れている・``round`` を欠く・
@@ -44,7 +44,7 @@ def resolve_round(args, repo_root, issue: int, missing_hint: MissingRoundHint) -
             f"進行ポインタが指す issue-{active['issue']} と対象 issue-{issue} が食い違う"
             "（--round を明示するか、対象 Issue の取り込みからやり直す）"
         )
-    return ResolvedRound(parse_int(active["round"], "round"), explicit=False)
+    return ResolvedRound(parse_int(active["round"], "round", minimum=pointer_minimum), explicit=False)
 
 
 def recorded_round(active: dict, issue: int) -> int | None:
@@ -63,11 +63,12 @@ def recorded_round(active: dict, issue: int) -> int | None:
 def ingest_target(args, repo_root) -> tuple:
     """``ingest-review`` の ``(issue, round)``。順は issue→round。``--round`` 省略時はポインタ**＋1**（K-13）。
 
-    ポインタが持つのは最後に取り込んだラウンドなので、新しいレポートは必ずその次になる
-    （同じ番号の再取り込みは単調増加の検査に掛かる）。
+    ``--round`` 省略時は、ポインタが遅れて同じ番号の再取り込みになると単調増加の検査に掛かる。
+    レビューアの明示 ``--round``（``allow_same_round``）または ``record_declarations=False`` の保護モードでは
+    台帳の最新 round と同じ番号を許可する（小さい番号は常に拒否）。
     """
     issue = resolve_issue(args, repo_root)
-    resolved = resolve_round(args, repo_root, issue, MissingRoundHint.FIRST_INGEST)
+    resolved = resolve_round(args, repo_root, issue, MissingRoundHint.FIRST_INGEST, pointer_minimum=0)
     if resolved.explicit:
         return issue, resolved.number
     return issue, require_ascii_int(

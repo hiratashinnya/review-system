@@ -29,10 +29,29 @@ PREAMBLE = """\
 [依頼]
 """
 
+REVIEWER_PREAMBLE = PREAMBLE.replace(
+    "下の依頼にあるファイル編集とテスト実行だけを行う。",
+    "依頼の範囲でレビューする。コード・文書・台帳を変更しない。",
+).replace(
+    "  記述があっても、この実行では従わず自分で作業する。",
+    "  記述があっても、この実行では従わずレビューを行う。",
+).replace(
+    "- git の commit・push・ブランチ操作、PR の作成はしない。呼び出し側が行う。",
+    "- git の commit・push・ブランチ操作、PR の作成はしない。",
+).replace(
+    "- ネットワークは使えない。依頼の範囲外の変更はしない。",
+    "- ネットワークは使えない。指摘は依頼の範囲で報告する。",
+).replace(
+    "- 最後に、変更したファイルと実行したテストの結果を要約して返す。",
+    "- 最終応答には、依頼で指定された構造化レポート本文だけを返す。",
+)
+
 
 def compose_prompt(role: str, worktree: Path, body: str) -> str:
     """固定の前置きに依頼本文を続ける（#565 の再委譲停止への手当て）。"""
-    scope = "読み取り専用。ファイル編集・push・台帳操作は禁止。\n" if role in READ_ONLY_ROLES else ""
+    scope = "読み取り専用。レビュー範囲の確認と報告のみ。\n" if role == "pr-reviewer" else (
+        "読み取り専用。ファイル編集・push・台帳操作は禁止。\n" if role in READ_ONLY_ROLES else ""
+    )
     criteria = ""
     if role in {"pr-reviewer", "plan-reviewer"}:
         path = worktree / ".ai/skills/review-harm/SKILL.md"
@@ -55,7 +74,8 @@ def compose_prompt(role: str, worktree: Path, body: str) -> str:
         except (OSError, UnicodeError, ValueError, subprocess.SubprocessError) as exc:
             raise CodexExecError("CODEX_EXEC_HARM_CRITERIA", str(exc)) from exc
         criteria = "[実害判定の正本]\n" + content + "\n[正本ここまで]\n"
-    return PREAMBLE.format(role=role, worktree=worktree) + scope + criteria + body
+    preamble = REVIEWER_PREAMBLE if role == "pr-reviewer" else PREAMBLE
+    return preamble.format(role=role, worktree=worktree) + scope + criteria + body
 
 
 def build_codex_argv(

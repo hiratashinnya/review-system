@@ -433,12 +433,12 @@ subagent 側の同種対策は、起動できる17エージェントすべてに
 「注入ブロックへの優先規定」節、または同等の規定を持つ節が担う。**節名はエージェントごとに異なる**
 ため、対応を下表にまとめる。
 `.claude/agents/` には18ファイルあるが、`doc-system-v2-authoring.md` は `*-author` が参照する共有ポインタで
-直接起動しないため、起動できるエージェントは17(write 権限あり10＋write 権限なし7。下表の合計と一致する)。
+直接起動しないため、起動できるエージェントは17(write 権限あり11＋write 権限なし6。下表の合計と一致する)。
 ただし**注入への向き合い方は write 権限の有無で分かれる**(詳細は `.claude/rules/05-skills-agents.md`「戻り値のハンドオフ規約」):
 
-- **write 権限あり(10)**: 注入の `<artifact_policy>` に**合わせる**。戻り値項目を
-  `tmp/_handoff/<agent>--<key>.yaml` に書き、チャットにはパスと1行要約だけ返す。矛盾しないので無効化しない。
-- **write 権限なし(7)**: ファイルに書けず注入の前提が成立しないため、`<artifact_policy>` を**無効化**して
+- **write 権限あり(11)**: 戻り値を handoff に書き、チャットにはパスと1行要約を返す。
+  `pr-reviewer` は限定された Markdown レポートへの Write と判定の返却に従う。
+- **write 権限なし(6)**: ファイルに書けず注入の前提が成立しないため、`<artifact_policy>` を**無効化**して
   従来どおりチャットへ全文返す。
 
 どちらのグループも `<session_continuity>` は共通で無効化する。
@@ -451,13 +451,13 @@ subagent 側の同種対策は、起動できる17エージェントすべてに
 | 「Claude Code 固有の実行規約」内の項 | `requirements-author` / `spec-author` / `verification-author` / `structured-analysis` | `spec-inspector` |
 | 「Claude Code 固有の実行契約」内の項 | `analysis-author` / `design-author` / `doc-system-config-operator` | `authoring-fanout` |
 | 「Claude Code 固有の反映経路」内の項 | `reconciliation` | — |
-| 「context-mode 固有の規律」内の項 | `issue-implementer` / `issue-fixer` | `pr-reviewer` |
+| 「context-mode 固有の規律」内の項 | `issue-implementer` / `issue-fixer` / `pr-reviewer` | — |
 
 - `reconciliation` は「Claude Code 固有の反映経路」節で、共通本文のハンドオフ契約を優先する。
-- `spec-inspector` / `pr-reviewer` / `authoring-fanout` の規定が `<artifact_policy>` を明示的に無効化する
+- `spec-inspector` / `authoring-fanout` の規定が `<artifact_policy>` を明示的に無効化する
   書き方になっているかは Issue #583 の対象。本表は節名の対応だけを記録する。
 - 節名・数を変えたら本表も合わせる。`tests/unit/test_governance_sync.py` の
-  `test_all_seven_read_only_roles_declare_injection_precedence` が write 権限なし7件の規定の存在を検査する。
+  `test_all_six_read_only_roles_declare_injection_precedence` が規定の存在を検査する。
 
 `ctx_*` は**一律禁止ではなくエージェント単位で選定**する(方針と根拠は `.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」)。
 以下は現行方針で、判断時点は項目ごとに異なる(実行系＝2026-08-09時点、検索系の付与先追加＝2026-09-27〜28時点。
@@ -616,7 +616,7 @@ nag であり、かつ発火条件が「編集対象の realpath が正本集合
 
 # karte 判定の直接通知フック(PostToolUse・karte-notify.sh・Issue #512)
 
-`karte ingest-review` / `karte close-attempt` の実行直後に `karte status --json` の判定を
+`karte ingest-review` / `ingest-reviewer` / `decide` / `close-attempt` の実行直後に `karte status --json` の判定を
 **AI の要約を経ずに** `systemMessage` でオーナーのチャットへ直送する。背景・意味内容の
 正本は `.ai/skills/issue-pipeline/SKILL.md`「karte 判定の報告分担」、Claude Code 固有の
 契約は `.claude/skills/issue-pipeline/SKILL.md`「karte 判定の直接通知（Claude Code 固有）」。
@@ -625,7 +625,7 @@ nag であり、かつ発火条件が「編集対象の realpath が正本集合
 
 | ファイル | 役割 |
 |---|---|
-| `karte-notify.sh` | `PostToolUse(Bash\|ctx_execute\|ctx_batch_execute)` フックハンドラ。stdin を一度だけ読み、トリガー語（`ingest-review`/`close-attempt`）を含まない入力は python を起動せず無出力 `exit 0` で返す（F-512-07・下記）。トリガー語を含む場合だけ `karte_notify.hook` を起動する。 |
+| `karte-notify.sh` | `PostToolUse(Bash\|ctx_execute\|ctx_batch_execute)` フックハンドラ。stdin を一度だけ読み、トリガー語（`ingest-review`/`close-attempt`/`decide`）を含まない入力は python を起動せず無出力 `exit 0` で返す（`ingest-reviewer` は `ingest-review` に含まれる）。Codex wrapper の `codex_worktree_exec` / `issue_start.readonly_workspace` に `--role pr-reviewer` を指定した呼出しでも発火する。トリガー語を含む場合だけ `karte_notify.hook` を起動する。 |
 | `karte_notify/hook.py::run` | 実体。`tool_name`/`tool_input` からコマンド文字列を抽出し、`karte status --json` を起動して判定を `notify.decide` に通し、通知が必要なら `{"systemMessage": ...}` を stdout へ出す。 |
 | `karte_notify/trigger.py` | 通知の契機になる karte verb の実行を tool 呼び出しから検出する（`TRIGGER_RE`・`extract_commands`・`detect_trigger`・`issue_from_command`）。 |
 | `karte_notify/notify.py` | 判定ロジック（何を・いつ通知するか）と本文組み立て（`_render_message`）・既読スナップショット I/O。`hook.py` から分離しているのは `issue_start.subagent_hooks` と同じ「薄い起動口＋判定 python モジュール」の構成。 |
@@ -651,10 +651,13 @@ F-431-07・飽和 Attempt 3,5)を本文から再現できないため。
 
 ## stdin 事前フィルタ(パフォーマンス最適化・F-512-07)
 
-`karte-notify.sh` は shell 側で stdin を一度だけ読み、`ingest-review`/`close-attempt` の
-部分文字列を含まない場合は python を起動せず `exit 0` する。python 側の `trigger.TRIGGER_RE`
-はこの2語のいずれかを部分文字列として要求するため、shell 側で不在と判定した入力は python 側
-でも必ず不一致になる(偽陰性を生まない安全な事前フィルタ)。対象外の Bash/ctx 呼び出し(大半)
+`karte-notify.sh` は shell 側で stdin を一度だけ読み、`ingest-review`（`ingest-reviewer` を含む）/
+`close-attempt`/`decide` と `karte` を共に含まない入力では python を起動せず `exit 0` する。また、
+Codex wrapper の `codex_worktree_exec` / `issue_start.readonly_workspace` を含む呼出しでは python を起動し、
+Python 側で `--role pr-reviewer` を確認する。karte 経路では `TRIGGER_RE` が `karte` と verb の間の複数空白・
+タブを許すため、shell 側も連結語ではなく 2 語を独立に AND で見る。Python 側の karte 判定も同じ3語
+(ingest-review・close-attempt・decide)を要求するため、shell 側で不在と判定した入力は python 側でも不一致となる
+(偽陰性を生まない安全な事前フィルタ)。対象外の Bash/ctx 呼び出し(大半)
 ごとに python インタプリタを起動するコストを削るだけの最適化であり、判定ロジック自体は
 python 側に一本化したまま複製しない。
 
@@ -667,6 +670,8 @@ python 側に一本化したまま複製しない。
 
 `karte status` 自体の手動実行(`python3 -m karte status --issue <N>`)は本フックの検出対象外
 (手動実行は毎回全件を出す・Issue #512 Acceptance criteria)。
+
+通知判定は未引用の単語先頭 `#` をコメントとして扱い、空白に加えて `;`・`&`・`|`・`(`・`)` の直後もコメント開始位置として扱う。引用符の状態は改行をまたいで引き継ぐ。単純な `<<EOF`・`<<'EOF'`・`<<-EOF` 形式ではヒアドキュメント本文を引用判定から除外するが、複雑な複数行コマンドや `git commit -m "…"` のような引数を含む場合は、まれに誤検知・取りこぼしが残る。通知は前回から差分があるときだけ出るため、実害は小さい。
 
 ---
 
@@ -700,8 +705,11 @@ python 側に一本化したまま複製しない。
 初回1aのnew-branchと後続1b/2a/2bのadopt-branchを両PFのcommand hookへ接続する。
 初回ac-designerはIssue-start、新工程の後続著作はphase bindingとworktree isolationを使う。
 read-onlyの調査・plan-reviewer・pr-reviewer・adviserは所有台帳を作らず、直接Write/Edit/NotebookEditも
-`phase-tool-gate.sh`（`python3 -P -m issue_start.phase_tool_gate`）で拒否する。shell/MCP経由でも既存command gateのロール別権限を維持する。
-任意再委譲、review台帳書込、merge、read-onlyのpushは許可しない。
+`phase-tool-gate.sh`（`python3 -P -m issue_start.phase_tool_gate`）で拒否する。例外は`pr-reviewer`のWriteだけで、
+`tmp/_handoff/pr-reviewer--<key>.md`（`karte/handoff_path.py`の規則。realpath・symlink・`..`・
+ファイル名を検査し、検査不能は拒否）の新規ファイルのみ通す（既存は拒否し、新しい key で書く・Issue #375）。
+shell/MCP経由でも既存command gateのロール別権限を維持する。
+任意再委譲、直接の review 台帳書込、merge、read-onlyのpushは許可しない。`pr-reviewer` の `ingest-reviewer` は例外として許可する。
 worktree継承は `FBK-20261017-工程別worktreeへ同一branchを継承する` に従い、各作者専用worktreeへ同branch/remote exact OIDを継承する。
 前roleの完了receipt、終了・push、collect/release完了を照合し、使用中worktreeは奪取しない。
 工程live実測は #652 で追跡する。D1 origin/main profile pin、D5 cwd一致、agy無効を維持する。

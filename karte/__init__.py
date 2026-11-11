@@ -20,15 +20,13 @@
   ならない）。``ingest-review`` は ``--from -`` で stdin を読め、``render`` / ``check`` /
   ``status`` は ``--issue``（``check`` は ``--round`` も）を進行ポインタから補完できるので、
   フック（SubagentStop / SubagentStart / PostToolUse）が人手の中継なしに直接呼べる。
-  ``status`` は PostToolUse フックが ``pr-reviewer`` 呼び出し完了直後に実行して
-  エスカレーション判定をコンテキストへ注入する（K-15。ただし PostToolUse はツール呼び出しを
-  ブロックできないため、役割は「判定を必ず実行し可視化する」まで）。
+  ``status`` は PostToolUse フックが台帳更新などの対象コマンドを検出した後にも実行し、
+  エスカレーション判定をオーナーへ通知する。PostToolUse はツール呼び出しをブロックできず、
+  このフックは可視化のみを担う（Issue #512）。
 
 構成:
-  * :mod:`karte.paths`      — カルテ置き場のパス解決とガード（実体解決・repo-root 配下・symlink/``..``
-    拒否・fail-close）の facade。実装は内部の ``path_*``（様式は ``dsv2/cleantmp.py``）。
-  * :mod:`karte.model`      — カルテ書式（``## Findings`` / ``### Attempt k`` / ``### Result k``）の
-    データモデル・パーサ・シリアライザ・バリデータ（``harm_detail`` の内容 lint を含む）。
+  * :mod:`karte.paths`      — カルテ置き場のパス解決とガード（実体解決・repo-root 配下・symlink/``..`` 拒否・fail-close）の facade。実装は ``path_*``。
+  * :mod:`karte.model`      — カルテ書式（``## Findings`` / ``### Attempt k`` / ``### Result k``）のデータモデル・パーサ・シリアライザ・バリデータ。
   * :mod:`karte.allowlist`  — その内容 lint の既知 false positive を理由付きで抑制する
     allowlist（``(issue, term, harm_detail)`` の全文一致・``reason`` 必須・Issue #511）。
   * :mod:`karte.similarity` — 類似判定（宣言信号＋実測 touched-set 信号の OR）と転換指令の生成。
@@ -43,11 +41,12 @@
     ``prepare`` を使う verb は ``func(args, repo_root, prepared)`` の **3 引数**。登録 verb も ``locked`` 宣言必須。
   * ``karte.ingest_*`` — ``ingest-review`` の段: ``ingest_review``（本体）／``ingest_accept``
     ／``ingest_checks``／``ingest_apply``／``ingest_report``／``ingest_types``（段間の結果型）。
-  * :mod:`karte.cli`        — 6 verb（``ingest-review`` / ``render`` / ``append`` / ``close-attempt`` /
-    ``check`` / ``status``）・``build_parser``・``main``。verb は ``func(args, repo_root)``（``ingest-review`` だけ第 3 引数 ``report_text``）。
+  * :mod:`karte.cli`        — 基本 verb（``ingest-review`` / ``render`` / ``append`` / ``close-attempt`` /
+    ``check`` / ``status``）・``build_parser``・``main``。``extra_registrars`` で別モジュールの verb を足せる。
+  * :mod:`karte.reviewer_cli` — ``ingest-reviewer``（レビューア本人の取り込み）と verb の登録、
+    :mod:`karte.owner_cli` — 主文脈専用の ``activate`` / ``decide``（Issue #375）。
 
 標準ライブラリのみ（外部依存なし）。
-
 スコープ外指摘を別経路にしない（Issue #495）:
   「スコープ外」と分類された指摘が finding の列に入らないと、実害判定（``harm``）・カルテ記録・
   ``status`` の verdict をまとめて迂回でき、実害ありの指摘が未処置のまま ``clean`` を通過する

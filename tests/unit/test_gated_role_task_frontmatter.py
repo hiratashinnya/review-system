@@ -27,12 +27,8 @@ GATED_ROLE_AGENT_FILES = {
     "pr-reviewer": ROOT / ".claude/agents/pr-reviewer.md",
 }
 
-# ロールごとの非 Task 期待ツール集合（`pr-reviewer` は Write/Edit を持たず、implementer/fixer と
-# 厳密には異なる＝F-510-09 で3ロール化した際に単一集合の完全一致検査から per-role 集合へ変更した）。
-# Issue #535: GATED_ROLES には Grep/Glob が実効配布されないため、3ロールとも frontmatter から
-# 外す。ctx_search/ctx_index の扱いはロールで異なる——issue-fixer/issue-implementer は本 Issue で
-# 新規付与（Grep/Glob の代替経路）、pr-reviewer は本 Issue 以前から既に付与済みで、本 Issue では
-# Grep/Glob の削除のみを行う。
+# pr-reviewer の Write は handoff 限定で Edit は無い。
+# Grep/Glob の代替として各ロールに ctx_search/ctx_index を付与する（Issue #535）。
 EXPECTED_NON_TASK_TOOLS = {
     "issue-implementer": {
         "Read", "Write", "Edit", "Bash",
@@ -49,7 +45,7 @@ EXPECTED_NON_TASK_TOOLS = {
         "mcp__plugin_context-mode_context-mode__ctx_index",
     },
     "pr-reviewer": {
-        "Read", "Bash",
+        "Read", "Write", "Bash",  # Write は handoff 限定（フックで制限・Issue #375）
         "mcp__plugin_context-mode_context-mode__ctx_search",
         "mcp__plugin_context-mode_context-mode__ctx_index",
         "mcp__plugin_context-mode_context-mode__ctx_batch_execute",

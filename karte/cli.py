@@ -44,8 +44,8 @@ verb:
                      コンテキストへ注入する」自動可視化は未配線のまま、Issue #512 が対応する
                      AC を移譲し**別の設計**で実装した——届け先を AI のコンテキスト
                      （``additionalContext``）ではなく**オーナーのチャット**（``systemMessage``）
-                     にし、トリガーも ``pr-reviewer`` 呼び出し後ではなく ``ingest-review``/
-                     ``close-attempt`` 実行直後にした（実体は :mod:`karte_notify`・
+                     にし、``ingest-review`` / ``ingest-reviewer`` / ``decide`` / ``close-attempt`` や
+                     Codex reviewer wrapper の実行を検出する（実体は :mod:`karte_notify`・
                      ``.claude/hooks/karte-notify.sh``）。理由は、AI のコンテキストへ注入する
                      だけでは「機械判定が AI の要約を経て歪む」経路（実例＝PR #509／Issue #431：
                      ``escalate: yes`` を主文脈が独自解釈して丸めた）を防げないため。この
@@ -56,6 +56,7 @@ verb:
 
 終了コード（``dsv2`` に合わせる）:
   0 OK ／ 2 未検出 ／ 3 類似飽和（append 拒否）／ 4 前提違反・検証失敗（fail-close）。
+  5 取り込み済み・未完了（EXIT_INCOMPLETE・レビューアの再掲漏れ。台帳は書込み済みで失敗ではない）。
   読み込む入力（レポート本文のファイル・標準入力、台帳、進行ポインタ、``--diff-file``）が UTF-8 として
   読めないときも 4（traceback の終了コード 1 にしない・Issue #696 F-696-13）。
 
@@ -64,7 +65,7 @@ verb:
   ラウンド番号の唯一の情報源が進行ポインタになる。``--issue`` は全 verb で、``--round`` は
   ``ingest-review`` / ``append`` / ``check`` で省略でき、省略時はポインタから補完する。
   補完する値は verb で違う——``ingest-review`` は「最後に取り込んだラウンド **＋1**」
-  （新しいレビューは必ず次のラウンド）、``append`` / ``check`` は「最後に取り込んだ
+  （``--round`` 省略時の補完値）、``append`` / ``check`` は「最後に取り込んだ
   ラウンド **そのまま**」（いま是正中のラウンドを対象にする）。
   **``ingest-review`` / ``check`` はポインタが無い・壊れている・必要なキーを欠く場合は
   補完せず EXIT_ERROR**（fail-close）——壊れたポインタを「無い」と同じに扱うと、
@@ -1019,7 +1020,7 @@ def build_parser(extra_registrars=()) -> argparse.ArgumentParser:
     add_issue(ingest)
     ingest.add_argument(
         "--round",
-        help="レビューのラウンド番号（単調増加。省略時は tmp/_karte/active.json の次のラウンド）",
+        help="レビューのラウンド番号（原則単調増加、保護モードは最新と同値も可。省略時は tmp/_karte/active.json の次）",
     )
     ingest.add_argument(
         "--from",

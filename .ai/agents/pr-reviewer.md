@@ -29,8 +29,8 @@ same-repo OPEN PRのremote exact OID、最新fixerの終了・回収・解放済
 2a入力は合格済みVD/CP、単一work unit、UT-TD/UT-TC、Red実行証拠、snapshot/入力digest。
 本体実装前にテスト設計だけを審査し、ACとの対応、正常/境界/失敗の必要ケース、
 期待値の独立性、Redが未実装によること、収集/環境失敗でないことを確認する。
-2aではPRの存在を前提にせず、既存書式の構造化findingをcapture先へ返す。
-主文脈がIssue単位1本のkarteへ連番roundで取り込み、capture方式本体は #375 に委ねる。
+2aではPRの存在を前提にせず、2bと同じ書式の構造化findingを返す。
+Issue単位1本のkarteへ連番roundで取り込む方法は、下記の取り込みの記述に従う。
 2a合格は2bレビューを代替しない。2bでは従来のPR差分取得とCI確認をすべて維持する。
 編集・push、テスト修正、owner判断は行わず、不一致・STOP・未決承認なら先へ進めない。
 チャット戻り値はcaptureされたartifact絶対パスと1行要約だけとする。
@@ -55,7 +55,7 @@ same-repo OPEN PRのremote exact OID、最新fixerの終了・回収・解放済
 
 レビュー checklist として、[プロジェクト共通 guidance の「コード構築原則（Issue #539）」](../guidance/common.md#コード構築原則issue-539) を差分と実体へ適用する。
 
-レビュー指摘は、自由記述ではなく次の形式で1指摘1ブロックにする。呼び出し元はこれを `python3 -m karte ingest-review --issue <N> --round <R> --from <path>` に渡す（本ロール自身はこのコマンドを実行しない——取り込みは呼び出し元の責務）。
+レビュー指摘は、自由記述ではなく次の形式で1指摘1ブロックにする。Claude Code が直接レビューする場合、本ロール自身が全文を主チェックアウトの絶対パス `tmp/_handoff/pr-reviewer--<key>.md` の新規ファイルへ書き（既存ファイルは上書きせず、新しい key を使う）、`python3 -m karte ingest-reviewer --from <path>` で取り込む。先頭には dispatch prompt が渡す共通 envelope 入りヘッダ 1 行（`<!-- handoff issue=… round=… schema=… run_id=… … -->`・主文脈の `karte activate` が出力したもの）を一字も変えずに置く。finding の9項目は本文（payload）として従来どおり。取り込みは、主文脈が記録した期待値（run_id・target_key・snapshot_oid・input_digest・phase）と一致しない（別 run・古い snapshot の handoff・期待値なし）と拒否される。この場合は STOP して呼び出し元へ報告する。前ラウンドで自分が申告した是正対象の未解消 finding を再掲しないと、台帳へ引き継がれたうえで終了コード 5（未完了）になる。再実行せず、再掲していない ID を報告して STOP する。毎ラウンド、未解消の自分の finding は `status: open|resolved` を明示して再掲する。`--issue` は指定せず、`--round` は通常省略する。明示値は台帳最新 round と同じ場合に限り受け付けられるが、ポインタ書込み失敗時は再取り込みせず主文脈へ報告する。回復は主文脈が `karte render --issue <N>` で当該 round の記録を確認してから `activate` でポインタを向け直す（`karte/README.md`「進行ポインタの書込みが台帳より後に失敗した窓」）。Codex 経由の承認済み工程レビューでは、trusted caller が `issue_start.readonly_workspace` から `codex_worktree_exec --role pr-reviewer` を linked worktree で起動する。Codex は構造化レポート本文だけを出力し、handoff 作成・karte 実行をしない。正常終了後に外側 wrapper が出力を handoff へ保存して `ingest-reviewer` で取り込む。wrapper が進行ポインタと承認済み binding（run_id・target_key・snapshot_oid・artifact digest）からヘッダと取り込み先を決めるため、Codex は Issue/round/envelope を決めない。Claude Code 直接経路は handoff path・判定・1行要約を返し、Codex wrapper 経路は `取り込み済み: <handoff path> (issue-N round R)` の1行と警告行を返す。Issue は進行ポインタから決め、承認済み入力の `expected.issue` と照合する。bindingのない一般 PR review の起動条件は未確認として STOP する。`disposition` 系のキーは空値も無視され警告され、台帳の値を変更しない。
 
 ### F-<issue>-<seq> または new
 harm: real | none
@@ -91,7 +91,7 @@ distinct_from: F-<issue>-<seq>（必要な場合だけ）
 
 未解消の指摘を再掲するときは前回と同じ finding ID を使う。前ラウンドで未解消だった finding は解消していても全件を再掲し、解消したものだけ status: resolved と明記する。不在を解消と見なさない。
 
-呼び出し元へ次の4部を省略せず返す。
+書込経路を持たない実行環境では、呼び出し元へ次の4部を省略せず返す。Claude Code では上記の handoff に全指摘を記録し、チャットには `HANDOFF: <path>`、判定、1行要約だけを返す。
 
 1. レビュー判定：clean / 要修正 / STOP（オーナー判断要請）と理由。
 2. 上記書式の指摘レポート。

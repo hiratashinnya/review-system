@@ -132,12 +132,12 @@
       "sha256": "5c5b459cdfaf32aa4c1b8f6a2dc5d2ca60bb3ddaa760bf1c7da5f77af1ec252b"
     },
     "karte/cli.py": {
-      "line_count": 1100,
-      "sha256": "fd93c5ced04b176284a3851712e96a8d952deb869733c13a7fff2363cffbe055"
+      "line_count": 1101,
+      "sha256": "06b9eb6dd4369774ba1179904c8e3a2892cd9980555447058a05e4cc92d2ffb2"
     },
     "karte/model.py": {
       "line_count": 1297,
-      "sha256": "7282e031c2c7ab0e27b76139ef869539fb0cc44b6f5cd13fcade6f0cd5ff2b3a"
+      "sha256": "a4bf05d570722e10b551c2fa92a6feeac8fadd13cddd1638688ce3fb20f5aff6"
     },
     "karte/similarity.py": {
       "line_count": 241,
@@ -149,7 +149,7 @@
     },
     "karte_notify/hook.py": {
       "line_count": 175,
-      "sha256": "bda64c970502da3cadf8ca8ac8e50c6e40e96b0a816a0bfd5b55d1661652448f"
+      "sha256": "a31b2ee49bd9d4eb1373b4af10af1cdd7a306875417e208a51d0cb13858b24ba"
     },
     "karte_notify/notify.py": {
       "line_count": 270,
