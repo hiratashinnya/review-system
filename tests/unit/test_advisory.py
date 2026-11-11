@@ -61,6 +61,31 @@ class AdvisoryTests(unittest.TestCase):
         self.assertEqual(main(["--root", str(self.root), "list",
                                "--today", "2026-12-11"]), 0)
 
+    def test_show_checksum_matches_visible_snapshot_during_concurrent_update(self):
+        from advisory.cli import execute
+        from advisory.cli_parser import parser
+        from advisory.catalog import read_raw
+
+        key, first = self.create()
+
+        def read_then_advance(root):
+            earlier = read_raw(root)
+            modify(self.root, "main", key, first, "amend",
+                   reason="concurrent writer", changes={"evidence": "concurrent"})
+            return earlier
+
+        with mock.patch("advisory.cli.read_raw", side_effect=read_then_advance):
+            status, response = execute(parser().parse_args([
+                "--root", str(self.root), "show", "--id", key]))
+        self.assertEqual(status, 0)
+        self.assertEqual(response["entry"]["evidence"], "observed")
+        self.assertEqual(response["sha256"], first)
+        self.assertNotEqual(sha(record_path(self.root, key).read_bytes()), first)
+        with self.assertRaisesRegex(ValueError, "lost update"):
+            modify(self.root, "main", key, response["sha256"], "amend",
+                   reason="stale view", changes={"evidence": "overwritten"})
+        self.assertEqual(load_catalog(self.root)[key]["evidence"], "concurrent")
+
     def test_forbid_non_main_writer(self):
         with mock.patch.dict(os.environ, {"ADVISORY_CALLER_ROLE": "pr-reviewer"}):
             with self.assertRaisesRegex(ValueError, "main-thread"):
