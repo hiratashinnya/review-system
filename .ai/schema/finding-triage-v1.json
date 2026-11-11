@@ -51,7 +51,9 @@
       "additionalProperties": false,
       "required": [
         "review_sha256",
-        "policy_sha256"
+        "policy_sha256",
+        "context_sha256",
+        "capture_sha256"
       ],
       "properties": {
         "review_sha256": {
@@ -59,6 +61,14 @@
           "pattern": "^[0-9a-f]{64}$"
         },
         "policy_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "context_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "capture_sha256": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
         }
