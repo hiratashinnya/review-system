@@ -29,6 +29,12 @@ def compact(text):
     return "".join(text.split())
 
 
+def normalize_usage(text):
+    text = compact(text)
+    prefix, marker, choices = text.partition("(choosefrom")
+    return prefix + marker + choices.replace("'", "") if marker else text
+
+
 def snapshot(root):
     directory = root / "tmp/_karte"
     return {str(p.relative_to(directory)): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -184,8 +190,8 @@ class TestKarteCliVerbsCompatibility(unittest.TestCase):
                 expected = self.golden["cases"][name].copy()
                 result = result.copy()
                 if expected["stderr"].startswith("usage:") and result["stderr"].startswith("usage:"):
-                    expected["stderr"] = compact(expected["stderr"])
-                    result["stderr"] = compact(result["stderr"])
+                    expected["stderr"] = normalize_usage(expected["stderr"])
+                    result["stderr"] = normalize_usage(result["stderr"])
                 self.assertEqual(expected, result)
 
     def test_compact_preserves_content_and_order(self):

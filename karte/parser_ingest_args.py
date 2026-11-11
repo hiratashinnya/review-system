@@ -7,7 +7,7 @@ def register_ingest(subparsers, add_issue):
     add_issue(ingest)
     ingest.add_argument(
         "--round",
-        help="レビューのラウンド番号（単調増加。省略時は tmp/_karte/active.json の次のラウンド）",
+        help="レビューのラウンド番号（原則単調増加、保護モードは最新と同値も可。省略時は tmp/_karte/active.json の次）",
     )
     ingest.add_argument(
         "--from",
