@@ -4,6 +4,7 @@ import re
 
 SECTIONS = ("module_lines", "comment_blocks", "mixed_class_files")
 KEYS = {"schema_version", "source", *SECTIONS}
+SOURCE = "Issue #539 measured repository state"
 HASH = re.compile(r"[0-9a-f]{64}\Z")
 COMMENT = re.compile(r".+\.py\|[0-9a-f]{16}\Z")
 
@@ -52,7 +53,7 @@ def parse_baseline(raw):
         raise ValueError(f'invalid baseline JSON: {exc}') from exc
     if (not isinstance(data, dict) or set(data) != KEYS
             or type(data['schema_version']) is not int or data['schema_version'] != 2
-            or not isinstance(data['source'], str) or not data['source']):
+            or data['source'] != SOURCE):
         raise ValueError('invalid baseline metadata')
     for section in SECTIONS:
         entries = data[section]

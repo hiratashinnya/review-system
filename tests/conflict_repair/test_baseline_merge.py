@@ -6,7 +6,7 @@ from conflict_repair.baseline_merge import merge_baselines
 
 
 def baseline():
-    return {'schema_version': 2, 'source': 'test', 'module_lines': {},
+    return {'schema_version': 2, 'source': 'Issue #539 measured repository state', 'module_lines': {},
             'comment_blocks': {}, 'mixed_class_files': {}}
 
 
@@ -54,6 +54,10 @@ class BaselineMergeTests(unittest.TestCase):
             alter(bad)
             with self.assertRaises(ValueError):
                 merge(old, old, bad)
+        unknown = copy.deepcopy(old)
+        unknown['source'] = 'unknown'
+        with self.assertRaisesRegex(ValueError, 'metadata'):
+            merge(unknown, unknown, unknown)
         with self.assertRaises(ValueError):
             merge_baselines('{"source":1,"source":2}', '{}', '{}')
 
