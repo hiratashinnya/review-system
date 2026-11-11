@@ -25,11 +25,11 @@ def regular_path(root, relative, missing=False):
         raise ValueError(f'通常ファイルではありません: {relative}')
 
 
-def regenerate(repo, merge_result):
+def regenerate(repo, merge_result, resolved=False):
     unresolved = git.conflicts(repo)
     if unresolved - TARGETS.keys():
         raise ValueError(f'登録外の競合: {sorted(unresolved)}')
-    if merge_result.returncode and not unresolved:
+    if merge_result.returncode and not unresolved and not resolved:
         raise ValueError('git merge に失敗')
     inputs = {COMMON_SOURCE, PRINCIPLES_SOURCE, *TARGETS.values()}
     for path in inputs:

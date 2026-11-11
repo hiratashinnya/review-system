@@ -3,6 +3,7 @@ import tempfile
 from pathlib import Path
 
 from . import git
+from .baseline_repair import resolve, verify
 from .eligibility import classify
 from .governance import governance_status
 from .repair import regenerate
@@ -27,7 +28,15 @@ def evaluate(api, source, number, repository, default):
         repo = Path(temp) / 'work'
         merge = git.prepare(source, repo, base_oid, head_oid)
         result['governance 同期'] = governance_status(repo)
-        if not regenerate(repo, merge):
+        if merge.returncode not in (0, 1):
+            raise ValueError('git merge に失敗')
+        baseline = resolve(repo, base_oid, head_oid)
+        repaired_baseline = bool(baseline and baseline.pop('conflicted'))
+        guidance = regenerate(repo, merge, resolved=True) if repaired_baseline else regenerate(repo, merge)
+        if baseline and (guidance or repaired_baseline):
+            verify(repo, baseline.pop('merged'))
+            result.update(baseline)
+        if not guidance and not repaired_baseline:
             result['判定'] = '生成物は整合、修復不要'
             return result
         new_oid = git.commit(repo)

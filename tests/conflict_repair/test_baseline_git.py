@@ -1,0 +1,54 @@
+import json
+
+from maintainability_lint.scanner import build_baseline
+from conflict_repair.runner import evaluate
+from .test_runner import API, RunnerTest, cmd, save
+
+
+class BaselineGitTest(RunnerTest):
+    def setup_baseline(self, *, guidance=False, new_debt=False):
+        cmd(self.repo, 'switch', 'main')
+        for name in ('a.py', 'b.py'):
+            (self.repo / name).write_text('# one\n# two\n# three\n# four\n')
+        self.baseline_path = self.repo / 'maintainability_lint/baseline.json'
+        self.baseline_path.parent.mkdir()
+        self.write_baseline(build_baseline(self.repo))
+        save(self.repo, 'baseline')
+        cmd(self.repo, 'branch', '-f', 'feature', 'main')
+        cmd(self.repo, 'switch', 'feature')
+        (self.repo / 'b.py').unlink()
+        self.write_baseline(build_baseline(self.repo))
+        if guidance:
+            (self.repo / 'AGENTS.md').write_text('head drift\n')
+        if new_debt:
+            (self.repo / 'new.py').write_text('# one\n# two\n# three\n# four\n')
+        head = save(self.repo, 'head')
+        cmd(self.repo, 'switch', 'main')
+        (self.repo / 'a.py').unlink()
+        self.write_baseline(build_baseline(self.repo))
+        if guidance:
+            (self.repo / 'AGENTS.md').write_text('base drift\n')
+        base = save(self.repo, 'base')
+        bare = self.repo.parent / 'remote.git'
+        cmd(self.repo.parent, 'clone', '--bare', str(self.repo), str(bare))
+        cmd(self.repo, 'remote', 'add', 'origin', str(bare))
+        return API(bare, base, head)
+
+    def write_baseline(self, data):
+        self.baseline_path.write_text(json.dumps(data, sort_keys=True) + '\n')
+
+    def test_independent_deletions_and_guidance_push_then_noop(self):
+        api = self.setup_baseline(guidance=True)
+        result = evaluate(api, self.repo, 1, 'owner/repo', 'main')
+        self.assertTrue(result['push'])
+        self.assertEqual(len(result['baseline 変更キー']['comment_blocks']['削除']), 1)
+        data = json.loads(cmd(api.bare, 'show', 'feature:maintainability_lint/baseline.json'))
+        self.assertEqual(data['comment_blocks'], {})
+        api.head = result['修復後 OID']
+        self.assertFalse(evaluate(api, self.repo, 1, 'owner/repo', 'main')['push'])
+
+    def test_unregistered_debt_does_not_push(self):
+        api = self.setup_baseline(new_debt=True)
+        with self.assertRaisesRegex(ValueError, '違反集合が不一致'):
+            evaluate(api, self.repo, 1, 'owner/repo', 'main')
+        self.assertEqual(api.branch_oid('feature'), api.head)
