@@ -8,7 +8,7 @@ from pathlib import Path
 from .audit import seal_last_event
 from .catalog import check_catalog, load_catalog
 from .gitbase import base_for_write, compare_to_base
-from .paths import directory, record_path, writer_lock
+from .paths import WRITER_TEMP_PREFIX, directory, record_path, writer_lock
 from .records import validate_record
 from .serialization import render
 
@@ -53,7 +53,7 @@ def save(root: Path, entry: dict, *, expected_sha256: str | None,
         temporary = None
         try:
             with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8",
-                     prefix=".advisory-", dir=directory(root), delete=False) as out:
+                     prefix=WRITER_TEMP_PREFIX, dir=directory(root), delete=False) as out:
                 temporary = out.name
                 out.write(body)
                 out.flush()
