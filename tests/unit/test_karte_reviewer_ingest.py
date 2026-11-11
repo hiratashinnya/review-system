@@ -414,7 +414,7 @@ class TestIngestReviewerHardening(ReviewerIngestCase):
 
         with mock.patch.object(os, "stat", side_effect=stat_error):
             with self.assertRaisesRegex(KartePathError, "検査できない"):
-                scope_records.is_regular_or_missing(ledger)
+                scope_records.has_regular_file(ledger)
 
     def _assert_scope_replacement_is_rejected(self, operation, kind):
         if kind == "fifo" and not hasattr(os, "mkfifo"):
