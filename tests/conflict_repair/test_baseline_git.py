@@ -6,7 +6,7 @@ from .test_runner import API, RunnerTest, cmd, save
 
 
 class BaselineGitTest(RunnerTest):
-    def setup_baseline(self, *, guidance=False, new_debt=False):
+    def setup_baseline(self, *, guidance=False, new_debt=False, conflicting=False, payload=False):
         cmd(self.repo, 'switch', 'main')
         for name in ('a.py', 'b.py'):
             (self.repo / name).write_text('# one\n# two\n# three\n# four\n')
@@ -17,7 +17,12 @@ class BaselineGitTest(RunnerTest):
         cmd(self.repo, 'branch', '-f', 'feature', 'main')
         cmd(self.repo, 'switch', 'feature')
         (self.repo / 'b.py').unlink()
-        self.write_baseline(build_baseline(self.repo))
+        head_baseline = build_baseline(self.repo)
+        if conflicting:
+            head_baseline['comment_blocks']['shared.py|' + 'a' * 16] = 1
+        self.write_baseline(head_baseline)
+        if payload:
+            (self.repo / 'payload.py').write_text("raise RuntimeError('PR code executed')\n")
         if guidance:
             (self.repo / 'AGENTS.md').write_text('head drift\n')
         if new_debt:
@@ -25,7 +30,10 @@ class BaselineGitTest(RunnerTest):
         head = save(self.repo, 'head')
         cmd(self.repo, 'switch', 'main')
         (self.repo / 'a.py').unlink()
-        self.write_baseline(build_baseline(self.repo))
+        base_baseline = build_baseline(self.repo)
+        if conflicting:
+            base_baseline['comment_blocks']['shared.py|' + 'a' * 16] = 2
+        self.write_baseline(base_baseline)
         if guidance:
             (self.repo / 'AGENTS.md').write_text('base drift\n')
         base = save(self.repo, 'base')
@@ -52,3 +60,13 @@ class BaselineGitTest(RunnerTest):
         with self.assertRaisesRegex(ValueError, '違反集合が不一致'):
             evaluate(api, self.repo, 1, 'owner/repo', 'main')
         self.assertEqual(api.branch_oid('feature'), api.head)
+
+    def test_conflicting_key_does_not_push(self):
+        api = self.setup_baseline(conflicting=True)
+        with self.assertRaisesRegex(ValueError, 'baseline conflict'):
+            evaluate(api, self.repo, 1, 'owner/repo', 'main')
+        self.assertEqual(api.branch_oid('feature'), api.head)
+
+    def test_pr_python_is_not_executed(self):
+        api = self.setup_baseline(payload=True)
+        self.assertTrue(evaluate(api, self.repo, 1, 'owner/repo', 'main')['push'])
