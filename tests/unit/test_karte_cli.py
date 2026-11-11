@@ -40,6 +40,7 @@ from karte import (
     paths,
     pointer_completion,
     repo_roots,
+    review_block,
     similarity,
     touched,
 )
@@ -886,8 +887,8 @@ class TestFindingSchemaIsDeclaredConsistently(unittest.TestCase):
     def test_key_enumerations_match_the_parser(self):
         required = set(
             re.findall(
-                r'_require_(?:enum|nonempty)\(block,\s*"([a-z_]+)"',
-                inspect.getsource(model.parse_review),
+                r'require_(?:enum|nonempty)\(block,\s*"([a-z_]+)"',
+                inspect.getsource(review_block.review_finding_from_block),
             )
         )
         self.assertTrue(required, "parse_review から必須キーを抽出できていない")

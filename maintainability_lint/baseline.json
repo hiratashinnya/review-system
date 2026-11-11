@@ -27,16 +27,6 @@
     "issue_start/worktree_ledger.py|09c0c483bbb9b752": 1,
     "karte/cli.py|57b1a37f983c7336": 1,
     "karte/cli.py|d87fcc8e5318e874": 1,
-    "karte/model.py|170b9a65e7d9ef73": 1,
-    "karte/model.py|1d9305ee49f03ed5": 1,
-    "karte/model.py|3219607d98ae1adf": 1,
-    "karte/model.py|39966b09aabb07a2": 1,
-    "karte/model.py|40c4b8476f255586": 1,
-    "karte/model.py|46dc59814d4f2ad2": 1,
-    "karte/model.py|6d574250da10ffea": 1,
-    "karte/model.py|b61b5edb5d280e53": 1,
-    "karte/model.py|e1cbd9df9da10e08": 1,
-    "karte/model.py|e22fd7599d44f325": 1,
     "project_status_sync/model.py|43d8fd6ab29f2cf1": 1
   },
   "mixed_class_files": {
@@ -136,8 +126,8 @@
       "sha256": "06b9eb6dd4369774ba1179904c8e3a2892cd9980555447058a05e4cc92d2ffb2"
     },
     "karte/model.py": {
-      "line_count": 1297,
-      "sha256": "a4bf05d570722e10b551c2fa92a6feeac8fadd13cddd1638688ce3fb20f5aff6"
+      "line_count": 635,
+      "sha256": "0ca5fdc686cf8fec6f085b09dcd4f9c001c1f060390f2c51353e75f6d20e5202"
     },
     "karte/similarity.py": {
       "line_count": 241,
