@@ -33,3 +33,5 @@ DEFERRED_TO_RE = re.compile(r"^(?:#?[1-9][0-9]*|https?://[^\s]+/issues/[1-9][0-9
 
 FORBIDDEN_VALUE_CHARS = ("\n", "\r", "\0")
 FORBIDDEN_LIST_ITEM_CHARS = (",", "[", "]")
+
+FORMAT_VERSION = 1
