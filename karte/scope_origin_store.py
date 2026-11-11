@@ -25,9 +25,10 @@ def read_events(issue, repo_root):
     for line in (text or '').splitlines():
         try:
             event = json.loads(line)
-            if (not isinstance(event, dict) or set(event) != {'tx', 'phase', 'entries'}
+            if (not isinstance(event, dict) or set(event) != {'tx', 'phase', 'round', 'entries'}
                     or not isinstance(event['tx'], str) or not event['tx']
                     or event['phase'] not in ('pending', 'committed')
+                    or type(event['round']) is not int or event['round'] < 1
                     or not isinstance(event['entries'], list)):
                 raise ValueError('invalid event')
             for entry in event['entries']:

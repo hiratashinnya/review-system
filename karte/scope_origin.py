@@ -5,16 +5,19 @@ import secrets
 from . import scope_origin_store, scope_records
 
 
-def begin(issue, repo_root, accepted, source):
+def begin(issue, repo_root, accepted, source, round_no):
     entries = [{'id': e.finding_id, 'scope': e.item.scope, 'source': source, 'new': e.is_new}
                for e in accepted]
-    event = {'tx': secrets.token_hex(16), 'phase': 'pending', 'entries': entries}
+    event = {'tx': secrets.token_hex(16), 'phase': 'pending', 'round': round_no, 'entries': entries}
     scope_origin_store.append_event(issue, repo_root, event)
     return event
 
 
 def commit(issue, repo_root, event):
-    scope_origin_store.append_event(issue, repo_root, {**event, 'phase': 'committed'})
+    try:
+        scope_origin_store.append_event(issue, repo_root, {**event, 'phase': 'committed'})
+    except OSError as exc:
+        raise OSError('台帳は保存済みだが scope 出所の確定に失敗。再取り込みせず render で確認し activate で回復する') from exc
 
 
 def first_writers(issue, repo_root):
@@ -32,9 +35,15 @@ def first_writers(issue, repo_root):
 
 
 def reviewer_declarations(issue, repo_root):
-    """ID -> reviewer の申告履歴。存在しない ID は未証明として扱う。"""
+    """台帳への反映が確認できた reviewer 申告のみ返す。"""
     result = {}
-    for _line, (round_no, finding_id, scope, by) in scope_records.read_records(issue, repo_root):
-        if not by:
-            result.setdefault(finding_id, []).append((round_no, scope))
+    records = {(r, fid, scope) for _, (r, fid, scope, by) in scope_records.read_records(issue, repo_root) if not by}
+    events = scope_origin_store.read_events(issue, repo_root)
+    for i, event in enumerate(events):
+        if event['phase'] != 'pending' or i + 1 >= len(events) or events[i + 1] != {**event, 'phase': 'committed'}:
+            continue
+        for entry in event['entries']:
+            declaration = (event['round'], entry['id'], entry['scope'])
+            if entry['source'] == 'reviewer' and declaration in records:
+                result.setdefault(entry['id'], []).append((event['round'], entry['scope']))
     return result

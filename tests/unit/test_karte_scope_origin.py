@@ -59,6 +59,30 @@ class TestScopeOrigin(ReviewerIngestCase):
                          scope_origin.first_writers(self.issue, self.root))
         self.assertNotIn('F-375-02', scope_origin.reviewer_declarations(self.issue, self.root))
 
+    def test_failed_reviewer_write_does_not_attest_declaration(self):
+        self._activate()
+        with mock.patch.object(paths, 'write_text_atomic', side_effect=OSError('injected')):
+            self.assertEqual(cli.EXIT_ERROR, self._ingest(_report(scope='out'))[0])
+        self.assertEqual({}, scope_origin.reviewer_declarations(self.issue, self.root))
+        self.assertEqual(0, self._ingest(_report(scope='in'))[0])
+        self.assertEqual({'F-375-01': [(1, 'in')]}, scope_origin.reviewer_declarations(self.issue, self.root))
+
+    def test_commit_failure_reports_saved_ledger_and_unknown_origin(self):
+        self._run(owner_cli.cmd_activate, issue=str(self.issue))
+        append = scope_origin_store.append_event
+        def fail_commit(issue, root, event):
+            if event['phase'] == 'committed':
+                raise OSError('injected')
+            return append(issue, root, event)
+        with mock.patch.object(scope_origin_store, 'append_event', side_effect=fail_commit):
+            code, out, err = self._legacy_ingest(1, _report())
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn('台帳は保存済み', err)
+        self.assertEqual('in', self._finding('F-375-01').scope)
+        self.assertEqual({'F-375-01': 'unknown'}, scope_origin.first_writers(self.issue, self.root))
+        self.assertEqual(cli.EXIT_ERROR, self._legacy_ingest(1, _report())[0])
+        self.assertEqual(0, self._run(owner_cli.cmd_activate, issue=str(self.issue))[0])
+
 
 if __name__ == '__main__':
     unittest.main()

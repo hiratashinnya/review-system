@@ -83,7 +83,7 @@ def ingest_locked(repo_root, issue, round_no, report_text, policy=None, *, allow
             if finding.id in policy.owner_scopes:
                 finding.scope = policy.owner_scopes[finding.id]
     karte.findings.sort(key=lambda item: item.seq)
-    origin = scope_origin.begin(issue, repo_root, collected.accepted, "reviewer" if policy and policy.record_declarations else "main")
+    origin = scope_origin.begin(issue, repo_root, collected.accepted, "reviewer" if policy and policy.record_declarations else "main", round_no)
     if policy:
         policy.persist(round_no)  # 台帳より先に原本を残す
     paths.write_text_atomic(path, model.dumps(karte))
