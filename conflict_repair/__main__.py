@@ -22,8 +22,9 @@ def main():
             results.append(evaluate(api, Path(os.environ['GITHUB_WORKSPACE']), number,
                                     repository, default))
         except Exception as exc:
-            results.append({'pr': number, '判定': f'失敗: {exc}', 'push': False,
-                            'CI': '未検証'})
+            results.append(getattr(exc, 'repair_result',
+                                   {'pr': number, '判定': f'失敗: {exc}',
+                                    'push': False, 'CI': '未検証'}))
     report = '\n'.join(f'- {json.dumps(row, ensure_ascii=False)}' for row in results)
     print(report)
     with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as output:

@@ -11,7 +11,7 @@ class BaselineGitTest(RunnerTest):
         for name in ('a.py', 'b.py'):
             (self.repo / name).write_text('# one\n# two\n# three\n# four\n')
         self.baseline_path = self.repo / 'maintainability_lint/baseline.json'
-        self.baseline_path.parent.mkdir()
+        self.baseline_path.parent.mkdir(exist_ok=True)
         self.write_baseline(build_baseline(self.repo))
         save(self.repo, 'baseline')
         cmd(self.repo, 'branch', '-f', 'feature', 'main')
@@ -57,8 +57,13 @@ class BaselineGitTest(RunnerTest):
 
     def test_unregistered_debt_does_not_push(self):
         api = self.setup_baseline(new_debt=True)
-        with self.assertRaisesRegex(ValueError, '違反集合が不一致'):
+        with self.assertRaisesRegex(ValueError, '違反集合が不一致') as raised:
             evaluate(api, self.repo, 1, 'owner/repo', 'main')
+        report = raised.exception.repair_result
+        self.assertEqual((report['base OID'], report['head OID']), (api.base, api.head))
+        self.assertEqual(len(report['merge-base OID']), 1)
+        self.assertIn('関連 PR', report)
+        self.assertFalse(report['push'])
         self.assertEqual(api.branch_oid('feature'), api.head)
 
     def test_conflicting_key_does_not_push(self):
@@ -70,3 +75,18 @@ class BaselineGitTest(RunnerTest):
     def test_pr_python_is_not_executed(self):
         api = self.setup_baseline(payload=True)
         self.assertTrue(evaluate(api, self.repo, 1, 'owner/repo', 'main')['push'])
+
+    def test_guidance_conflict_with_unchanged_baseline_and_new_debt_stops(self):
+        api = self.setup_remote()
+        cmd(self.repo, 'switch', 'feature')
+        (self.repo / 'new.py').write_text('# one\n# two\n# three\n# four\n')
+        api.head = save(self.repo, 'unregistered debt')
+        cmd(self.repo, 'push', 'origin', 'feature')
+        with self.assertRaisesRegex(ValueError, '違反集合が不一致') as raised:
+            evaluate(api, self.repo, 1, 'owner/repo', 'main')
+        report = raised.exception.repair_result
+        self.assertEqual((report['base OID'], report['head OID']), (api.base, api.head))
+        self.assertEqual(len(report['merge-base OID']), 1)
+        self.assertIn('関連 PR', report)
+        self.assertFalse(report['push'])
+        self.assertEqual(api.branch_oid('feature'), api.head)

@@ -41,6 +41,11 @@ def resolve(repo, base, head):
     return {'merge-base OID': ancestor, 'baseline 変更キー': changes, 'merged': merged, 'conflicted': conflicted}
 
 
+def read_worktree(repo):
+    regular_path(repo, PATH)
+    return parse_baseline((repo / PATH).read_bytes())
+
+
 def verify(repo, merged):
     actual = build_baseline(repo)
     if any(actual[section] != merged[section] for section in SECTIONS):
