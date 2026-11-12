@@ -64,3 +64,43 @@ class BaselineMergeTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class SectionMergeTests(unittest.TestCase):
+    def test_distinct_changes_preserve_complete_values(self):
+        old = baseline()
+        old['module_lines'] = {'a.py': {'line_count': 101, 'sha256': 'a' * 64}}
+        old['comment_blocks'] = {'a.py|' + 'b' * 16: 1}
+        old['mixed_class_files'] = {'a.py': {'data': ['OldData'], 'logic': ['OldLogic'], 'sha256': 'c' * 64}}
+        main, head = copy.deepcopy(old), copy.deepcopy(old)
+        main['module_lines']['a.py'] = {'line_count': 102, 'sha256': 'd' * 64}
+        head['comment_blocks']['a.py|' + 'b' * 16] = 2
+        head['mixed_class_files']['a.py'] = {'data': ['NewData', 'Second'], 'logic': ['NewLogic'], 'sha256': 'e' * 64}
+        result = merge(old, main, head)
+        self.assertEqual(result['module_lines'], main['module_lines'])
+        self.assertEqual(result['comment_blocks'], head['comment_blocks'])
+        self.assertEqual(result['mixed_class_files'], head['mixed_class_files'])
+
+    def test_schema_and_entry_shapes_rejected_on_either_side(self):
+        old = baseline()
+        bad_values = [
+            ('schema_version', True), ('source', 'unknown'), ('comment_blocks', []),
+            ('mixed_class_files', {'a.py': {'data': ['D'], 'logic': [], 'sha256': 'a' * 64}}),
+            ('module_lines', {'a.py': {'line_count': 101, 'sha256': 'invalid'}}),
+        ]
+        for key, value in bad_values:
+            for side in (1, 2):
+                with self.subTest(key=key, side=side):
+                    versions = [copy.deepcopy(old) for _ in range(3)]
+                    versions[side][key] = value
+                    with self.assertRaises(ValueError):
+                        merge(*versions)
+
+    def test_same_key_divergent_updates_fail(self):
+        old = baseline()
+        key = 'a.py|' + 'a' * 16
+        old['comment_blocks'][key] = 1
+        main, head = copy.deepcopy(old), copy.deepcopy(old)
+        main['comment_blocks'][key] = 2
+        head['comment_blocks'][key] = 3
+        with self.assertRaisesRegex(ValueError, 'baseline conflict'):
+            merge(old, main, head)
