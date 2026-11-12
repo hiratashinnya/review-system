@@ -341,24 +341,24 @@ snapshot一致を要求するため、receipt側で後段source差分を再承�
 承認外source変更は拒否する。同一Issueのcanonical envelopeもcommit済みであることを要求する。
 これは承認済み差分の受け渡しであり、新しい承認権限や自動承認は作らない。
 
-未追跡通常source・追加TCはnative/Codexの全工程入力検査とread-only準備の両作業面で拒否する。
-未追跡の例外は `tmp/` 配下の通常ファイル（`.json` / `.md` / `.yaml` / `.yml` / `.txt` / `.log`）による
-工程入力・prompt・handoff・結果、下記の生成元検証を通る `__pycache__/` の `.pyc`、
-既存feedback writer lockと `tmp/_worktree/ledger.json.lock`、Gitが登録した別linked worktree自身だけである。
-symlinkは例外にしない。
-compiled cacheは現在HEADの通常 `.py` sourceと作業面bytesの一致を先に要求し、同sourceを
-現在Pythonの標準compilerでcompileしたcode bytesとcache内容を読取比較する。cacheをdecode・実行しない。
-現在runtimeのcache tagとoptimize 0/1/2だけを対象とし、code filenameはworktree内sourceの絶対path、
-root相対path、`./` を付けたroot相対pathに限定する。文字列intern有無による標準marshal表現差だけを許す。
-timestamp/checked-hash/unchecked-hashの標準headerを受けても、headerだけでsource由来とは見なさない。
-通常Pythonの標準cache生成は許可するが、別source・未commit/変更済source・現在の期待code bytesと異なる旧cache・別runtime・
-未対応compiler形式のcacheは拒否する。必要な場合はtrusted callerが現在の承認sourceから標準再生成してから起動する。
-検査はread-onlyであり、cacheの自動削除・書換えやreadonly roleへの再生成権限追加はしない。
-HEAD sourceの読取は1回の未追跡検査内でsource毎にまとめ、次の検査では再読する。永続cacheや新しい台帳は作らない。
-この検査が保証するのはtrusted入口で開始した検査以後に渡す作業面の入力である。検査Python自身や
-hookが起動前に読み込むcode/cacheの完全性は既存trusted入口の前提であり、後から遡って保証したとは扱わない。
-binding・approval・raw Issue・promptも未commitなら `tmp/` に置く。`tmp/` 内の追加Python sourceも拒否する。
-`source_changes` にpath/digestを追加しても未追跡通常sourceは許可せず、従来どおりHEAD bytesの一致を要求する。
+未追跡通常source・追加TCはnative/Codexの全工程とread-only準備の両作業面で拒否する。
+`git ls-files --others -z` を使い、gitignoreやclone固有excludeは承認根拠にしない。
+tmpの従来のデータ拡張子に加え、exact pathのlockだけを許可する：
+`.ai/feedback/.writer.lock`、`.claude/scheduled_tasks.lock`、`tmp/_worktree/ledger.json.lock`、
+`tmp/_karte/.writer.lock`、`issue_start/adr/.write.lock`、`issue_start/adr/.file-issue.lock`。
+通常ファイルかつ非symlinkが必要で、ワイルドカード・ディレクトリ単位の例外を追加しない。
+
+孤児 `__pycache__/*.pyc` は対応sourceが作業面・HEAD・indexに存在しない場合だけ例外とする。
+sourceのあるcacheは従来どおり現在のHEAD bytesと標準compiler出力のcode bytesまで照合する。
+stale cacheと別runtime cacheは拒否し、trusted callerが
+`python3 -m codex_worktree_exec.cache_prune --apply` で明示回復する（既定dry-run）。
+対象はGit未追跡の `__pycache__/*.pyc` 通常ファイルだけで検査自体はread-only。
+
+違反は最初の1件で打ち切らず、分類別件数・代表path・回復方法を集約報告する。
+coverage出力はcoverage-html手順により作業面外に隔離する。
+`.serena/`、承認外tmp拡張子、その他生成物はignoreで通さず、内容を確認して作業面外に移す。
+通常sourceとTCは引き続き拒否。profile pin（D1）・D5・project trust・read-only profile・
+既存source_changesの承認条件を変えない。
 
 native著作工程の進行承認JSONは、既存のrecipient/run/Issue/target/snapshot/context/reviewsに加え
 `dispatch_target = {repository, branch_name, expected_oid}` を必須にする（JSON object）。
@@ -383,4 +383,4 @@ trusted callerは2a著作者、2a独立pr-reviewer、2b実装者とPR reviewer�
 
 2a独立review receiptには既存のartifact/path/digest/context等に加え `work_unit` を必須とし、TestDesign・今回のphase承認へ一致させる。1a/1b等のreceiptにはこの欄を加えない。2bの既存CP bindingには `expected.test_design={artifact, artifact_digest}` の短い消費参照だけを追加する。Codex単独入力とnative入力は同じ `work_unit_binding` でCP/TDのbytes・単位・run/Issue/target/snapshotを照合し、nativeは消費参照と2a receiptのartifact/digestも完全一致させる。別の承認台帳は作らず、owner承認や独立レビューをこの参照から生成しない。同run/target内の別unit、unit欠落、CP外unit、別TDのレビューは拒否する。
 
-本是正は同一PR内の2.0遷移の補完であり、共通guidanceに従い再bumpしない。新profileのlive未実測とD1/D5等の境界は既存契約どおりである。
+本節は検査対象分類と回復の現行実装説明である。既存の正式な2.0承認形式・profile pin・D5・project trust・read-only profileは変更しない。

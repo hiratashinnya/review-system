@@ -1,35 +1,27 @@
 # coverage HTML レポート生成
 
-`coverage` ライブラリ＋`unittest discover` で `review_system` パッケージのカバレッジを計測し、`htmlcov/index.html` を生成する。
-
-設定ファイル：`.coveragerc`（プロジェクトルート）。計測対象は `review_system/` のみ。
-
-> **coverage の実行経路は `uv run --with coverage` に限定する**：`coverage` はグローバル環境にも
-> venv にも事前インストールせず、`uv run --with coverage <command>` の使い捨て環境経由でのみ実行する。
-> **pip 等での事前導入・グローバルインストールは禁止**（環境を汚さず、導入可否を判断する余地自体を
-> 無くすため）。`uv` 自体が使えない（未インストール・ネットワーク到達不可等）場合は、代替として
-> pip 等で自動導入せず、その場で停止して uv 未導入である旨をオーナーに打ち上げる（導入可否・
-> 導入方法はオーナー判断）。PF固有の実行制約は各PF wrapperに置く。
+coverage・HTML・bytecode はsource検査に混入しないようcheckout外に生成する。
+coverageインストールは `uv run --with coverage` に限定し、uv不在ならpipへフォールバックせず停止する。
 
 ## 手順
 
-1. **テスト実行＋計測**
+1. 作業面外の出力先とinterpreterを固定する。
    ```bash
-   uv run --with coverage coverage run -m unittest discover -s tests -p "test_*.py"
+   export COVERAGE_OUTPUT_DIR="$(mktemp -d "\${TMPDIR:-/tmp}/review-system-coverage.XXXXXXXX")"
+   export COVERAGE_FILE="$COVERAGE_OUTPUT_DIR/.coverage"
+   export PYTHONDONTWRITEBYTECODE=1
+   export COVERAGE_PYTHON="$(command -v python3)"
    ```
-
-2. **HTML レポート生成**
+2. 同一interpreterで計測、HTML生成、表示する。
    ```bash
-   uv run --with coverage coverage html
+   uv run --python "$COVERAGE_PYTHON" --with coverage coverage run -m unittest discover -s tests -t . -p "test_*.py"
+   uv run --python "$COVERAGE_PYTHON" --with coverage coverage html -d "$COVERAGE_OUTPUT_DIR/htmlcov"
+   uv run --python "$COVERAGE_PYTHON" --with coverage coverage report
    ```
-   出力先：`htmlcov/index.html`（`.gitignore` 対象のため未追跡）
+3. 同じcommit・interpreterで環境変数を解除し、`"$COVERAGE_PYTHON" -m unittest discover -s tests -t . -p "test_*.py"` の失敗test id集合と比較する。差がある場合は未完了として扱う。
 
-3. **ターミナルサマリー表示**
-   ```bash
-   uv run --with coverage coverage report
-   ```
-
-## done 条件
-- [ ] 全テストが PASS（失敗があれば原因をユーザーに報告してから続行）
-- [ ] `htmlcov/index.html` が生成されている
-- [ ] カバレッジサマリーをチャットに表示済み
+## done条件
+- [ ] coverageと通常unittestの失敗test id集合が一致
+- [ ] `$COVERAGE_OUTPUT_DIR/htmlcov/index.html` が生成済み
+- [ ] checkout内に `.coverage`、`htmlcov/`、新しい `__pycache__` が残らない
+- [ ] サマリーと作業面外レポートパスを報告済み
