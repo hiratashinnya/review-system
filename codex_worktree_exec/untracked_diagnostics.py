@@ -6,6 +6,7 @@ HINTS = {
     "foreign_cache": "Trusted caller: python3 -m codex_worktree_exec.cache_prune --apply",
     "stale_cache": "Trusted caller: python3 -m codex_worktree_exec.cache_prune --apply",
     "unsafe_cache": "Inspect source/cache; trusted caller may run cache_prune --apply",
+    "unsupported_cache_format": "Trusted caller: inspect and move .pyo outside checkout; cache_prune handles .pyc only",
     "coverage_output": "Move coverage output outside the checkout",
     "tool_state": "Move external tool state outside the checkout; ignore is not approval",
     "unapproved_tmp": "Review and move the unapproved tmp file outside the checkout",

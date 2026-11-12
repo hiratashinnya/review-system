@@ -7,7 +7,8 @@ coverageインストールは `uv run --with coverage` に限定し、uv不在�
 
 1. 作業面外の出力先とinterpreterを固定する。
    ```bash
-   export COVERAGE_OUTPUT_DIR="$(mktemp -d "\${TMPDIR:-/tmp}/review-system-coverage.XXXXXXXX")"
+   COVERAGE_OUTPUT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/review-system-coverage.XXXXXXXX")" || exit 1
+   export COVERAGE_OUTPUT_DIR
    export COVERAGE_FILE="$COVERAGE_OUTPUT_DIR/.coverage"
    export PYTHONDONTWRITEBYTECODE=1
    export COVERAGE_PYTHON="$(command -v python3)"

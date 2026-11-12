@@ -59,7 +59,7 @@ class UntrackedRecoveryTests(unittest.TestCase):
         git(self.root, "add", "ordinary.py")
         git(self.root, "commit", "-qm", "source")
         valid = Path(py_compile.compile(str(source), doraise=True))
-        valid.with_name("ordinary.cpython-313.pyc").write_bytes(valid.read_bytes())
+        valid.with_name("ordinary.unsupported.pyc").write_bytes(valid.read_bytes())
         source.write_text("value = 2\n")
         git(self.root, "add", "ordinary.py")
         git(self.root, "commit", "-qm", "new source")
@@ -83,9 +83,14 @@ class UntrackedRecoveryTests(unittest.TestCase):
     def test_prune_requires_apply_and_keeps_other_files(self):
         cache = self.place("pkg/__pycache__/orphan.cpython-313.pyc")
         other = self.place("pkg/other.pyc")
+        legacy = self.place("pkg/__pycache__/orphan.cpython-313.pyo")
         self.assertEqual(candidates(self.root), [cache])
         self.assertEqual(prune(["--worktree", str(self.root)]), 0)
         self.assertTrue(cache.exists())
         self.assertEqual(prune(["--worktree", str(self.root), "--apply"]), 0)
         self.assertFalse(cache.exists())
         self.assertTrue(other.exists())
+        self.assertTrue(legacy.exists())
+        with self.assertRaisesRegex(ValueError, "unsupported_cache_format count=1") as caught:
+            verify_untracked_sources(self.root)
+        self.assertIn("move .pyo outside checkout", str(caught.exception))

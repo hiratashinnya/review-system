@@ -353,6 +353,8 @@ sourceのあるcacheは従来どおり現在のHEAD bytesと標準compiler出力
 stale cacheと別runtime cacheは拒否し、trusted callerが
 `python3 -m codex_worktree_exec.cache_prune --apply` で明示回復する（既定dry-run）。
 対象はGit未追跡の `__pycache__/*.pyc` 通常ファイルだけで検査自体はread-only。
+旧形式の `.pyo` は非対応cacheとして拒否し、trusted caller が内容を確認して作業面外へ退避する。
+`cache_prune --apply` は `.pyo` を削除しないため、その回復案を提示しない。
 
 違反は最初の1件で打ち切らず、分類別件数・代表path・回復方法を集約報告する。
 coverage出力はcoverage-html手順により作業面外に隔離する。

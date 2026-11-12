@@ -41,7 +41,9 @@ def classify_untracked(root: Path, name: str, source_cache: dict) -> str | None:
     parts = Path(name).parts
     if parts and parts[0] == "tmp" and path.suffix in TMP_DATA:
         return None
-    if "__pycache__" in parts and path.suffix in {".pyc", ".pyo"}:
+    if "__pycache__" in parts and path.suffix == ".pyo":
+        return "unsupported_cache_format"
+    if "__pycache__" in parts and path.suffix == ".pyc":
         if orphan_cache(path, root):
             return None
         try:
