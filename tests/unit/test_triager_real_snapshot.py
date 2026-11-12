@@ -39,10 +39,10 @@ recheck: run
             digest = hashlib.sha256((root / 'code.py').read_bytes()).hexdigest()
             approval = {'issue': 783, 'run_id': 'r', 'target_key': 'k', 'snapshot_oid': snapshot,
                         'input_digest': 'b' * 64, 'source_changes': {'code.py': digest},
-                        'approval_context': 'approved', 'materials': {
+                        'approval_context': 'approved', 'triage_phase': 'review', 'materials': {
                             'verification_design': {'content': 'VD'}, 'solution_planning': {'content': 'CP'}}}
             key, capture_key = b'k' * 32, b'x' * 32
-            captured = capture_existing(body, reviewer, approval, head, key)
+            captured = capture_existing(body, reviewer, approval, head, key, 'review', 1)
             with patch('codex_worktree_exec.triage_binding_capture.github_evidence',
                        return_value={'issue_body': 'AC', 'change': 'diff'}):
                 binding = binding_from_capture(*captured, root, key, pr=1, phase='review', round_no=1)

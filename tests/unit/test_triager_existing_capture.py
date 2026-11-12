@@ -25,15 +25,20 @@ recheck: run test
 '''
         with tempfile.TemporaryDirectory() as name:
             root = Path(name); (root / 'tmp').mkdir()
-            req = SimpleNamespace(role='pr-reviewer', output_file=Path('tmp/review.md'))
+            req = SimpleNamespace(role='pr-reviewer', output_file=Path('tmp/review.md'), binding_file=Path('tmp/binding.json'))
             approval = {'issue': 783, 'run_id': 'r', 'target_key': 'k', 'snapshot_oid': 'a' * 40,
-                        'input_digest': 'b' * 64, 'source_changes': {}, 'approval_context': 'approved',
+                        'input_digest': 'b' * 64, 'source_changes': {}, 'approval_context': 'approved', 'triage_phase': 'review',
                         'materials': {'verification_design': {'content': 'VD'},
                                       'solution_planning': {'content': 'CP'}}}
             calls = []
             def execute(args, cwd):
                 calls.append(args); (cwd / req.output_file).write_bytes(body); return 0
-            with patch('issue_start.triage_existing_capture.approved_materials', return_value=approval), \
+            with patch('issue_start.triage_existing_capture.paths.main_worktree_root', return_value=root), \
+                 patch('issue_start.triage_existing_capture.capture_target', return_value=(783, 1, 2)), \
+                 patch('issue_start.triage_existing_capture.progress_target', return_value=(783, 3)), \
+                 patch('issue_start.triage_existing_capture.review_envelope_of', return_value={'phase': 'implementation'}), \
+                 patch('issue_start.triage_existing_capture.review_expectation.require', return_value={'phase': 'implementation'}), \
+                 patch('issue_start.triage_existing_capture.approved_materials', return_value=approval), \
                  patch('issue_start.triage_existing_capture._head', return_value='c' * 40), \
                  patch('codex_worktree_exec.triage_binding_capture.github_evidence',
                        return_value={'issue_body': 'AC', 'change': 'diff'}) as github:
@@ -52,13 +57,61 @@ recheck: run test
     def test_changed_approval_prevents_capture(self):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name); (root / 'tmp').mkdir()
-            req = SimpleNamespace(role='pr-reviewer', output_file=Path('tmp/review.md'))
+            req = SimpleNamespace(role='pr-reviewer', output_file=Path('tmp/review.md'), binding_file=Path('tmp/binding.json'))
             def execute(args, cwd):
                 (cwd / req.output_file).write_text('review'); return 0
-            with patch('issue_start.triage_existing_capture.approved_materials', side_effect=[{'a': 1}, {'a': 2}]), \
+            with patch('issue_start.triage_existing_capture.paths.main_worktree_root', return_value=root), \
+                 patch('issue_start.triage_existing_capture.capture_target', return_value=(783, 1, 2)), \
+                 patch('issue_start.triage_existing_capture.progress_target', return_value=(783, 3)), \
+                 patch('issue_start.triage_existing_capture.review_envelope_of', return_value={'phase': 'implementation'}), \
+                 patch('issue_start.triage_existing_capture.review_expectation.require', return_value={'phase': 'implementation'}), \
+                 patch('issue_start.triage_existing_capture.approved_materials', side_effect=[{'issue': 783, 'triage_phase': 'review'}, {'issue': 783, 'triage_phase': 'other'}]), \
                  patch('issue_start.triage_existing_capture._head', return_value='c' * 40):
                 with self.assertRaisesRegex(ValueError, 'changed'):
-                    execute_with_capture(req, [], root, {}, b'k' * 32, 3, 'review', 1, 'tmp/triage.json', execute)
+                    execute_with_capture(req, [], root, {}, b'k' * 32, 3, 'review', 2, 'tmp/triage.json', execute)
+            self.assertFalse((root / 'tmp/triage.json').exists())
+
+    def test_rejects_wrong_phase_round_and_non_implementation_before_review(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name); (root / 'tmp').mkdir()
+            req = SimpleNamespace(role='pr-reviewer', output_file=Path('tmp/review.md'),
+                                  binding_file=Path('tmp/binding.json'))
+            approval = {'issue': 783, 'triage_phase': 'review'}
+            with patch('issue_start.triage_existing_capture.paths.main_worktree_root', return_value=root), \
+                 patch('issue_start.triage_existing_capture.capture_target', return_value=(783, 1, 2)), \
+                 patch('issue_start.triage_existing_capture.review_envelope_of', return_value={'phase': 'implementation'}) as envelope, \
+                 patch('issue_start.triage_existing_capture.review_expectation.require', return_value={'phase': 'implementation'}), \
+                 patch('issue_start.triage_existing_capture.approved_materials', return_value=approval), \
+                 patch('issue_start.triage_existing_capture._head', return_value='c' * 40):
+                for phase, round_no, native in [('review', 9, 'implementation'),
+                                                ('remediation_review', 2, 'implementation'),
+                                                ('review', 2, 'test_design')]:
+                    envelope.return_value = {'phase': native}
+                    calls = []
+                    with self.subTest(phase=phase, round=round_no, native=native), self.assertRaisesRegex(ValueError, 'phase or review round'):
+                        execute_with_capture(req, [], root, {}, b'k' * 32, 3, phase, round_no,
+                                             'tmp/triage.json', lambda *args, **kwargs: calls.append(True))
+                    self.assertEqual(calls, [])
+                    self.assertFalse((root / 'tmp/triage.json').exists())
+
+    def test_changed_ingestion_round_rejects_capture(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name); (root / 'tmp').mkdir()
+            req = SimpleNamespace(role='pr-reviewer', output_file=Path('tmp/review.md'),
+                                  binding_file=Path('tmp/binding.json'))
+            approval = {'issue': 783, 'triage_phase': 'review'}
+            def execute(args, cwd):
+                (cwd / req.output_file).write_text('review')
+                return 0
+            with patch('issue_start.triage_existing_capture.paths.main_worktree_root', return_value=root), \
+                 patch('issue_start.triage_existing_capture.capture_target', return_value=(783, 1, 2)), \
+                 patch('issue_start.triage_existing_capture.progress_target', return_value=(783, 10)), \
+                 patch('issue_start.triage_existing_capture.review_envelope_of', return_value={'phase': 'implementation'}), \
+                 patch('issue_start.triage_existing_capture.review_expectation.require', return_value={'phase': 'implementation'}), \
+                 patch('issue_start.triage_existing_capture.approved_materials', return_value=approval), \
+                 patch('issue_start.triage_existing_capture._head', return_value='c' * 40):
+                with self.assertRaisesRegex(ValueError, 'not ingested at expected round'):
+                    execute_with_capture(req, [], root, {}, b'k' * 32, 3, 'review', 2, 'tmp/triage.json', execute)
             self.assertFalse((root / 'tmp/triage.json').exists())
 
     def test_readonly_entrypoint_passes_existing_reviewer_to_capture(self):

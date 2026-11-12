@@ -32,6 +32,9 @@ def verify_binding_capture(binding, key):
     review = json.loads(binding["review"])
     approval = receipt["approval"]
     if (receipt["schema"] != "finding-triage-review-capture/v1" or receipt["producer"] != "pr-reviewer"
+            or receipt.get("source") != "ingested-review"
+            or receipt.get("phase") != review["phase"] or approval.get("triage_phase") != review["phase"]
+            or type(receipt.get("round")) is not int or receipt.get("round") != review["round"]
             or receipt["worktree"] != binding["reviewer_worktree"]
             or receipt["review_oid"] != review["review_oid"]
             or receipt["review_sha256"] != hashlib.sha256(body).hexdigest()

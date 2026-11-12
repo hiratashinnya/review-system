@@ -3,6 +3,9 @@ import json
 import subprocess
 from pathlib import Path
 
+from karte import paths, review_expectation
+from codex_worktree_exec.review_binding import review_envelope_of
+from codex_worktree_exec.review_target import capture_target, progress_target
 from codex_worktree_exec.prompt_files import resolve_output_target
 from codex_worktree_exec.triage_binding_capture import binding_from_capture
 from codex_worktree_exec.triage_review_capture import capture_existing
@@ -22,6 +25,13 @@ def execute_with_capture(request, args, root, marker, key, pr, phase, round_no, 
     if target.exists() or review_output.exists() or target == review_output:
         raise ValueError("capture and review outputs must be new and distinct")
     before = approved_materials(root, marker)
+    main_root = paths.main_worktree_root(root)
+    target_issue, _, target_round = capture_target(main_root, before["issue"])
+    envelope = review_envelope_of(root, request.binding_file)
+    if (phase != before.get("triage_phase") or phase not in ("review", "remediation_review")
+            or type(round_no) is not int or round_no != target_round or envelope["phase"] != "implementation"
+            or review_expectation.require(main_root, target_issue) != envelope):
+        raise ValueError("triage phase or review round mismatch")
     oid = _head(root)
     status = execute(args, cwd=root)
     if status:
@@ -30,9 +40,11 @@ def execute_with_capture(request, args, root, marker, key, pr, phase, round_no, 
         raise ValueError("normal reviewer output missing")
     body = review_output.read_bytes()
     after = approved_materials(root, marker)
+    if progress_target(main_root) != (target_issue, target_round + 1):
+        raise ValueError("review was not ingested at expected round")
     if before != after or oid != _head(root):
         raise ValueError("review approval or HEAD changed during execution")
-    captured = capture_existing(body, root, before, oid, key)
+    captured = capture_existing(body, root, before, oid, key, phase, target_round)
     binding = binding_from_capture(*captured, root, key, pr=pr, phase=phase, round_no=round_no)
     with target.open("x", encoding="utf-8") as stream:
         json.dump(binding, stream, ensure_ascii=False)

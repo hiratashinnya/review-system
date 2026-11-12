@@ -60,13 +60,17 @@ def capture_reviewer(request, cwd, marker, environ, codex, key):
     return body, raw, hmac.new(key, DOMAIN + raw, hashlib.sha256).hexdigest()
 
 
-def capture_existing(body, worktree, approval, review_oid, key):
+def capture_existing(body, worktree, approval, review_oid, key, phase, round_no):
     """Attest bytes observed immediately after the trusted normal reviewer run."""
     if not isinstance(body, bytes) or not body.strip() or not isinstance(key, bytes) or len(key) < 32:
         raise ValueError("reviewer output and trusted key required")
     body.decode("utf-8")
+    if (phase not in ("review", "remediation_review") or approval.get("triage_phase") != phase
+            or type(round_no) is not int or round_no < 1):
+        raise ValueError("review capture phase or round mismatch")
     receipt = {"schema": "finding-triage-review-capture/v1", "producer": "pr-reviewer",
                "worktree": str(worktree), "review_oid": review_oid,
+               "source": "ingested-review", "phase": phase, "round": round_no,
                "review_sha256": hashlib.sha256(body).hexdigest(), "approval": approval}
     raw = json.dumps(receipt, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
     return body, raw, hmac.new(key, DOMAIN + raw, hashlib.sha256).hexdigest()

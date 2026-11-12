@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from codex_worktree_exec.triage_binding_capture import capture_binding
+from codex_worktree_exec.triage_binding_capture import binding_from_capture
 from codex_worktree_exec.triage_review_capture import DOMAIN
 from finding_triager.adapter import prepare
 from codex_worktree_exec.triage_binding_verify import verify_binding_capture, sign_binding
@@ -27,19 +27,17 @@ expected: preserved
 recheck: run test
 '''
         approval = {'issue': 783, 'run_id': 'r', 'target_key': 'k', 'snapshot_oid': 'a' * 40,
-                    'input_digest': 'b' * 64, 'source_changes': None, 'approval_context': 'owner-approved',
+                    'input_digest': 'b' * 64, 'source_changes': None, 'approval_context': 'owner-approved', 'triage_phase': 'review',
                     'materials': {'verification_design': {'content': 'VD'},
                                   'solution_planning': {'content': 'CP'}}}
         key = b'k' * 32
-        receipt = json.dumps({'schema': 'finding-triage-review-capture/v1', 'producer': 'pr-reviewer', 'review_sha256': hashlib.sha256(body).hexdigest(),
+        receipt = json.dumps({'schema': 'finding-triage-review-capture/v1', 'producer': 'pr-reviewer', 'source': 'ingested-review', 'phase': 'review', 'round': 1, 'review_sha256': hashlib.sha256(body).hexdigest(),
                               'worktree': '/reviewer', 'review_oid': 'c' * 40, 'approval': approval}).encode()
         mac = hmac.new(key, DOMAIN + receipt, hashlib.sha256).hexdigest()
         github = {'issue_body': 'Issue AC', 'change': 'actual diff'}
         with tempfile.TemporaryDirectory() as name, \
-             patch('codex_worktree_exec.triage_binding_capture.capture_reviewer', return_value=(body, receipt, mac)), \
              patch('codex_worktree_exec.triage_binding_capture.github_evidence', return_value=github) as source:
-            binding = capture_binding(SimpleNamespace(), Path(name), {}, {}, 'codex', key,
-                                      pr=1, phase='review', round_no=1)
+            binding = binding_from_capture(body, receipt, mac, Path(name), key, pr=1, phase='review', round_no=1)
             verify_binding_capture(binding, key)
             altered = dict(binding, reviewer_output='fabricated')
             altered['binding_signature'] = sign_binding({k: v for k, v in altered.items() if k != 'binding_signature'}, key)
@@ -52,10 +50,10 @@ recheck: run test
             self.assertIn('actual diff', prompt)
             self.assertIn('Issue AC', prompt)
             changed = bytearray(receipt); changed[-2] ^= 1
-            with patch('codex_worktree_exec.triage_binding_capture.capture_reviewer', return_value=(body, bytes(changed), mac)):
-                with self.assertRaisesRegex(ValueError, 'signature mismatch'):
-                    capture_binding(SimpleNamespace(), Path(name), {}, {}, 'codex', key,
-                                    pr=1, phase='review', round_no=1)
+            with self.assertRaisesRegex(ValueError, 'signature mismatch'):
+                binding_from_capture(body, bytes(changed), mac, Path(name), key, pr=1, phase='review', round_no=1)
+            with self.assertRaisesRegex(ValueError, 'phase or round mismatch'):
+                binding_from_capture(body, receipt, mac, Path(name), key, pr=1, phase='review', round_no=9)
 
     def test_signed_capture_reaches_triager_and_tamper_cannot_launch(self):
         from codex_worktree_exec.errors import CodexExecError
@@ -77,17 +75,15 @@ recheck: run test
             root = Path(name); (root / 'tmp').mkdir()
             reviewer = root / 'reviewer'; reviewer.mkdir()
             approval = {'issue': 783, 'run_id': 'r', 'target_key': 'k', 'snapshot_oid': 'a' * 40,
-                        'input_digest': 'b' * 64, 'source_changes': None, 'approval_context': 'owner-approved',
+                        'input_digest': 'b' * 64, 'source_changes': None, 'approval_context': 'owner-approved', 'triage_phase': 'review',
                         'materials': {'verification_design': {'content': 'VD'},
                                       'solution_planning': {'content': 'CP'}}}
-            receipt = json.dumps({'schema': 'finding-triage-review-capture/v1', 'producer': 'pr-reviewer',
+            receipt = json.dumps({'schema': 'finding-triage-review-capture/v1', 'producer': 'pr-reviewer', 'source': 'ingested-review', 'phase': 'review', 'round': 1,
                                   'review_sha256': hashlib.sha256(body).hexdigest(),
                                   'worktree': str(reviewer), 'review_oid': 'c' * 40, 'approval': approval}).encode()
             mac = hmac.new(key, DOMAIN + receipt, hashlib.sha256).hexdigest()
-            with patch('codex_worktree_exec.triage_binding_capture.capture_reviewer', return_value=(body, receipt, mac)), \
-                 patch('codex_worktree_exec.triage_binding_capture.github_evidence', return_value={'issue_body': 'AC', 'change': 'diff'}):
-                binding = capture_binding(SimpleNamespace(), root, {}, {}, 'codex', key,
-                                          pr=1, phase='review', round_no=1)
+            with patch('codex_worktree_exec.triage_binding_capture.github_evidence', return_value={'issue_body': 'AC', 'change': 'diff'}):
+                binding = binding_from_capture(body, receipt, mac, root, key, pr=1, phase='review', round_no=1)
             binding_path = root / 'tmp/binding.json'
             binding_path.write_text(json.dumps(binding))
             req = SimpleNamespace(binding_file=Path('tmp/binding.json'), output_file=Path('tmp/out.json'),

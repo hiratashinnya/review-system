@@ -7,16 +7,8 @@ from dataclasses import asdict
 
 from finding_triager.github_evidence import github_evidence
 from karte.review_report import parse_review
-from .triage_review_capture import DOMAIN, capture_reviewer
+from .triage_review_capture import DOMAIN
 from .triage_binding_verify import sign_binding
-
-
-def capture_binding(request, cwd, marker, environ, codex, key, *, pr, phase, round_no):
-    """Trusted caller chooses PR, triage phase and round; no arbitrary review is accepted."""
-    if phase not in ("review", "remediation_review") or type(round_no) is not int or round_no < 1:
-        raise ValueError("invalid triage phase or round")
-    body, receipt_raw, signature = capture_reviewer(request, cwd, marker, environ, codex, key)
-    return binding_from_capture(body, receipt_raw, signature, cwd, key, pr=pr, phase=phase, round_no=round_no)
 
 
 def binding_from_capture(body, receipt_raw, signature, cwd, key, *, pr, phase, round_no):
@@ -25,6 +17,10 @@ def binding_from_capture(body, receipt_raw, signature, cwd, key, *, pr, phase, r
     if not hmac.compare_digest(hmac.new(key, DOMAIN + receipt_raw, hashlib.sha256).hexdigest(), signature):
         raise ValueError("review capture signature mismatch")
     receipt = json.loads(receipt_raw)
+    if (receipt.get("source") != "ingested-review" or receipt.get("phase") != phase
+            or receipt.get("approval", {}).get("triage_phase") != phase
+            or receipt.get("round") != round_no):
+        raise ValueError("review capture phase or round mismatch")
     if receipt["review_sha256"] != hashlib.sha256(body).hexdigest():
         raise ValueError("review output changed")
     approval = receipt["approval"]
