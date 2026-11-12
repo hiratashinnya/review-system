@@ -12,6 +12,10 @@ COMMENT = re.compile(r".+\.py\|[0-9a-f]{16}\Z")
 def _object(pairs):
     result = {}
     for key, value in pairs:
+        try:
+            key.encode('utf-8')
+        except UnicodeEncodeError as exc:
+            raise ValueError('baseline key contains invalid Unicode') from exc
         if key in result:
             raise ValueError(f"duplicate key: {key}")
         result[key] = value

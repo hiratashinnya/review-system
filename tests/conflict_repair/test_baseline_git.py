@@ -407,3 +407,18 @@ class BaselineGitTest(RunnerTest):
         self.assertEqual(len(evidence['各版の変更キー']['main']['comment_blocks']['削除']), 1)
         self.assertFalse(report['push'])
         self.assertEqual(api.branch_oid('feature'), api.head)
+
+    def test_invalid_unicode_key_does_not_break_summary_or_push(self):
+        api = self.setup_baseline()
+        def invalid_key():
+            data = json.loads(self.baseline_path.read_text())
+            data['comment_blocks']['bad\ud800.py|' + 'a' * 16] = 1
+            self.write_baseline(data)
+        self.add_head_commit(api, invalid_key)
+        report = self.summary_result(api)
+        evidence = report['baseline 3版の証跡']
+        self.assertEqual(evidence['状態'], '未統合')
+        self.assertIn('invalid Unicode', evidence['解析エラー']['head'])
+        self.assertEqual(len(evidence['各版の変更キー']['main']['comment_blocks']['削除']), 1)
+        self.assertFalse(report['push'])
+        self.assertEqual(api.branch_oid('feature'), api.head)
