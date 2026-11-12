@@ -38,6 +38,7 @@ class TriagerDispatchTest(unittest.TestCase):
             self.review_key, self.raw, hashlib.sha256).hexdigest(), 'expected': self.expected,
             'context': self.context.decode(), 'context_digest': self.digest,
             'reviewer_worktree': str(self.reviewer)}
+        self.binding.update(receipt='', receipt_signature='', reviewer_output='', binding_signature='')
         self.req = SimpleNamespace(binding_file=Path('tmp/binding.json'), output_file=Path('tmp/out.json'),
                                    role='finding-triager', model='model', reasoning_effort='high', timeout_seconds=30)
         self.env = {'TRIAGER_REVIEW_KEY': self.review_key.hex(), 'TRIAGER_CAPTURE_KEY': self.capture_key.hex()}
@@ -59,11 +60,20 @@ class TriagerDispatchTest(unittest.TestCase):
         def git(argv, **kwargs):
             stdout = ("worktree " + str(self.reviewer) + "\nworktree " + str(self.root / "other") + "\n") if "worktree" in argv else "b" * 40
             return SimpleNamespace(stdout=stdout)
-        with patch('codex_worktree_exec.triager_dispatch.verify_source_snapshot'), \
+        with patch('codex_worktree_exec.triager_dispatch.verify_binding_capture'), \
+             patch('codex_worktree_exec.triager_dispatch.verify_source_snapshot'), \
              patch('codex_worktree_exec.triager_dispatch.subprocess.run', side_effect=git), \
              patch('codex_worktree_exec.triager_dispatch.run_codex', side_effect=run) as execute:
             result = dispatch(self.req, self.root, self.root, self.env, 'codex')
         return result, execute
+
+    def test_unverified_origin_never_launches_or_writes(self):
+        self.write_binding()
+        with patch("codex_worktree_exec.triager_dispatch.run_codex") as execute:
+            with self.assertRaises(CodexExecError):
+                dispatch(self.req, self.root, self.root, self.env, "codex")
+        execute.assert_not_called()
+        self.assertFalse((self.root / self.req.output_file).exists())
 
     def test_host_captures_and_authenticates_output(self):
         result, execute = self.launch(); self.assertEqual(result, 0); execute.assert_called_once()

@@ -14,6 +14,7 @@ from .invocation import build_codex_argv
 from .launcher import run_codex
 from .prompt_files import resolve_output_target
 from .source_snapshot import verify_source_snapshot
+from .triage_binding_verify import EXTRA, verify_binding_capture
 
 
 def validate_binding(request, cwd, worktree, environ):
@@ -26,7 +27,7 @@ def validate_binding(request, cwd, worktree, environ):
     if not path.is_relative_to(worktree / "tmp") or not path.is_file():
         raise ValueError("binding must be in worktree tmp")
     binding = json.loads(path.read_bytes())
-    fields = {"review", "review_signature", "expected", "context", "context_digest", "reviewer_worktree"}
+    fields = {"review", "review_signature", "expected", "context", "context_digest", "reviewer_worktree"} | EXTRA
     if not isinstance(binding, dict) or set(binding) != fields:
         raise ValueError("invalid triager binding fields")
     reviewer = Path(binding["reviewer_worktree"]).resolve(strict=True)
@@ -41,6 +42,7 @@ def validate_binding(request, cwd, worktree, environ):
         raise ValueError("triager snapshot mismatch")
     verify_source_snapshot(worktree, expected["snapshot_oid"], expected["issue"])
     keys = [bytes.fromhex(environ[name]) for name in ("TRIAGER_REVIEW_KEY", "TRIAGER_CAPTURE_KEY")]
+    verify_binding_capture(binding, keys[0])
     raw, context = binding["review"].encode(), binding["context"].encode()
     prompt, review = prepare(raw, binding["review_signature"], keys[0], expected,
                              context, binding["context_digest"])
