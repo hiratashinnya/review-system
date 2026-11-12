@@ -353,12 +353,22 @@ sourceのあるcacheは従来どおり現在のHEAD bytesと標準compiler出力
 stale cacheと別runtime cacheは拒否し、trusted callerが
 `python3 -m codex_worktree_exec.cache_prune --apply` で明示回復する（既定dry-run）。
 対象はGit未追跡の `__pycache__/*.pyc` 通常ファイルだけで検査自体はread-only。
-旧形式の `.pyo` は非対応cacheとして拒否し、trusted caller が内容を確認して作業面外へ退避する。
+削除処置では同一ディレクトリへatomic renameで仮退避し、列挙時と同じinode・サイズ・mtime・modeである場合だけunlinkする。置換が検出されたら原本を戻すか保全先を示して停止する。
+旧形式の `.pyo` は非対応cacheとして拒否し、trusted caller が `untracked_recovery --apply` で原本を退避する。
 `cache_prune --apply` は `.pyo` を削除しないため、その回復案を提示しない。
 
 違反は最初の1件で打ち切らず、分類別件数・代表path・回復方法を集約報告する。
 coverage出力はcoverage-html手順により作業面外に隔離する。
-`.serena/`、承認外tmp拡張子、その他生成物はignoreで通さず、内容を確認して作業面外に移す。
+生成物はgitignoreを許可根拠にせず拒否する。trusted callerは
+`python3 -m codex_worktree_exec.untracked_recovery` でdry-run確認し、
+`python3 -m codex_worktree_exec.untracked_recovery --apply` の単一の処置で
+作業面外の `review-system-quarantine-*` に元のパス構造で保全できる。
+対象は旧runtime/stale/unsupported cache、.coverage/htmlcov、.serena、
+未承認tmp（`tmp/_adr-notify/*.root`、`tmp/pr-diffs/*.diff`、
+`tmp/_feedback/*.toml`、任意拡張子のtmp残骸等）。
+通常source・追加TC・symlinkは対象にせず拒否維持。下書きも無断で削除せず原本保全し、
+復元が必要なら保全先を確認して戻す。同一FS上のatomic renameで保全できない場合は停止し、
+外部の別FSへ無言コピー・削除しない。移動先はcheckout外の限定アクセス権の一時領域にする。
 通常sourceとTCは引き続き拒否。profile pin（D1）・D5・project trust・read-only profile・
 既存source_changesの承認条件を変えない。
 
