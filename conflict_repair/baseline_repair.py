@@ -23,7 +23,7 @@ def resolve(repo, base, head, result):
     if len(ancestors) != 1:
         raise ValueError('baseline merge-base が一意ではありません')
     ancestor = ancestors[0]
-    versions = [git.run(repo, 'show', f'{oid}:{PATH}').stdout
+    versions = [git.run(repo, 'show', f'{oid}:{PATH}', binary=True).stdout
                 for oid in (ancestor, base, head)]
     result['baseline 3版の証跡'] = describe(versions)
     merged = merge_baselines(*versions)

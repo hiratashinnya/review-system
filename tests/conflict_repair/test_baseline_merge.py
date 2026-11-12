@@ -60,6 +60,8 @@ class BaselineMergeTests(unittest.TestCase):
             merge(unknown, unknown, unknown)
         with self.assertRaises(ValueError):
             merge_baselines('{"source":1,"source":2}', '{}', '{}')
+        with self.assertRaises(ValueError):
+            merge_baselines(json.dumps(old).encode('utf-16'), json.dumps(old), json.dumps(old))
 
 
 if __name__ == '__main__':

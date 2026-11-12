@@ -48,7 +48,8 @@ def _entry(section, key, value):
 
 def parse_baseline(raw):
     try:
-        data = json.loads(raw, object_pairs_hook=_object)
+        text = raw.decode('utf-8') if isinstance(raw, bytes) else raw
+        data = json.loads(text, object_pairs_hook=_object)
     except (ValueError, UnicodeDecodeError) as exc:
         raise ValueError(f'invalid baseline JSON: {exc}') from exc
     if (not isinstance(data, dict) or set(data) != KEYS
