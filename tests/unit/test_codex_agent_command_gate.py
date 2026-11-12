@@ -1424,7 +1424,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             "issue-implementer": set(),
             "issue-fixer": {"render", "append", "close-attempt", "check", "status"},
             "issue-investigator": set(), "plan-reviewer": set(),
-            "pr-reviewer": set(), "adviser": set(),
+            "pr-reviewer": set(), "adviser": set(), "finding-triager": set(),
         }
         verbs = ("ingest-reviewer", "ingest-review", "decide", "activate", "render",
                  "append", "close-attempt", "check", "status")

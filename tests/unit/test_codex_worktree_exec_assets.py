@@ -5,6 +5,7 @@ import tomllib
 import unittest
 
 from codex_worktree_exec.roles import CODEX_EXEC_ROLES, WRITE_ROLES
+from codex_worktree_exec.invocation import profile_for_role
 from tests.unit.test_codex_native_merge_permissions import codex_denies, codex_forbidden_prefixes
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -38,7 +39,7 @@ class PermissionProfileTests(unittest.TestCase):
         profiles = permission_profiles()
         for role in sorted(CODEX_EXEC_ROLES):
             with self.subTest(role=role):
-                self.assertIn(role, profiles)
+                self.assertIn(profile_for_role(role), profiles)
         self.assertIn("pr-reviewer", profiles)
         self.assertNotIn("secure-default", CODEX_EXEC_ROLES)
 
@@ -50,7 +51,7 @@ class PermissionProfileTests(unittest.TestCase):
     def test_profiles_keep_workspace_limits_disable_network_and_deny_credentials(self):
         profiles = permission_profiles()
         for role in sorted(CODEX_EXEC_ROLES):
-            profile = profiles[role]
+            profile = profiles[profile_for_role(role)]
             with self.subTest(role=role):
                 self.assertEqual(profile["extends"], ":workspace" if role in WRITE_ROLES else ":read-only")
                 self.assertEqual(profile["network"], {
