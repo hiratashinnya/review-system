@@ -341,3 +341,43 @@ class BaselineGitTest(RunnerTest):
         with self.assertRaisesRegex(ValueError, 'metadata'):
             evaluate(api, self.repo, 1, 'owner/repo', 'main')
         self.assertEqual(api.branch_oid('feature'), api.head)
+
+    def summary_result(self, api):
+        import os
+        from unittest.mock import patch
+        from conflict_repair.__main__ import main
+        summary = self.repo.parent / 'summary.md'
+        env = {'GITHUB_REPOSITORY': 'owner/repo', 'GITHUB_REF': 'refs/heads/main',
+               'GITHUB_WORKSPACE': str(self.repo), 'GITHUB_STEP_SUMMARY': str(summary),
+               'INPUT_PR_NUMBER': '1'}
+        with patch.dict(os.environ, env), patch('conflict_repair.__main__.GitHub', return_value=api):
+            main()
+        row = next(line[2:] for line in summary.read_text().splitlines() if line.startswith('- '))
+        return json.loads(row)
+
+    def test_conflict_summary_records_both_sides_and_conflicting_key(self):
+        api = self.setup_baseline(conflicting=True)
+        report = self.summary_result(api)
+        evidence = report['baseline 3版の証跡']
+        key = 'shared.py|' + 'a' * 16
+        self.assertEqual(evidence['状態'], '未統合')
+        self.assertEqual(evidence['競合キー']['comment_blocks'], [key])
+        for side in ('main', 'head'):
+            changes = evidence['各版の変更キー'][side]['comment_blocks']
+            self.assertIn(key, changes['追加'])
+            self.assertEqual(len(changes['削除']), 1)
+        self.assertFalse(report['push'])
+        self.assertEqual(api.branch_oid('feature'), api.head)
+
+    def test_corrupt_summary_retains_valid_side_and_marks_unavailable(self):
+        api = self.setup_baseline()
+        self.add_head_commit(api, lambda: self.baseline_path.write_text('{not json}\n'))
+        report = self.summary_result(api)
+        evidence = report['baseline 3版の証跡']
+        self.assertEqual(evidence['状態'], '未統合')
+        self.assertIn('head', evidence['解析エラー'])
+        self.assertIsNone(evidence['各版の変更キー']['head'])
+        self.assertIsNone(evidence['競合キー'])
+        self.assertEqual(len(evidence['各版の変更キー']['main']['comment_blocks']['削除']), 1)
+        self.assertFalse(report['push'])
+        self.assertEqual(api.branch_oid('feature'), api.head)

@@ -4,6 +4,7 @@ import json
 from maintainability_lint.scanner import build_baseline, scan
 
 from . import git
+from .baseline_evidence import describe
 from .baseline_merge import merge_baselines
 from .baseline_schema import SECTIONS, parse_baseline
 from .repair import regular_path
@@ -11,7 +12,7 @@ from .repair import regular_path
 PATH = 'maintainability_lint/baseline.json'
 
 
-def resolve(repo, base, head):
+def resolve(repo, base, head, result):
     conflicted = PATH in git.conflicts(repo)
     changed = git.run(repo, 'diff', '--name-only', base, head, '--', PATH).stdout
     if not conflicted and not changed:
@@ -24,7 +25,9 @@ def resolve(repo, base, head):
     ancestor = ancestors[0]
     versions = [git.run(repo, 'show', f'{oid}:{PATH}').stdout
                 for oid in (ancestor, base, head)]
+    result['baseline 3版の証跡'] = describe(versions)
     merged = merge_baselines(*versions)
+    result['baseline 3版の証跡']['状態'] = '統合済み'
     regular_path(repo, PATH)
     if conflicted:
         (repo / PATH).write_text(json.dumps(merged, ensure_ascii=False, indent=2, sort_keys=True) + '\n', encoding='utf-8')

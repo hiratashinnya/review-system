@@ -33,7 +33,7 @@ def evaluate(api, source, number, repository, default):
             result['merge-base OID'] = git.run(repo, 'merge-base', '--all', base_oid, head_oid, check=False).stdout.splitlines()
             if merge.returncode not in (0, 1):
                 raise ValueError('git merge に失敗')
-            baseline = resolve(repo, base_oid, head_oid)
+            baseline = resolve(repo, base_oid, head_oid, result)
             repaired_baseline = bool(baseline and baseline.pop('conflicted'))
             merged = baseline.pop('merged') if baseline else None
             if baseline:
