@@ -6,7 +6,7 @@ import json
 import re
 
 PHASES = ("review", "remediation_review")
-BINDINGS = ("issue", "phase", "round", "run_id", "target_key", "input_digest", "snapshot_oid")
+BINDINGS = ("issue", "phase", "round", "run_id", "target_key", "input_digest", "snapshot_oid", "review_oid")
 
 
 def verify_review(raw: bytes, signature: str, key: bytes, expected: dict) -> dict:
@@ -28,7 +28,7 @@ def verify_review(raw: bytes, signature: str, key: bytes, expected: dict) -> dic
             or type(data["issue"]) is not int or data["issue"] < 1
             or type(data["round"]) is not int or data["round"] < 1):
         raise ValueError("invalid review envelope")
-    for field, length in (("input_digest", 64), ("snapshot_oid", 40), ("context_sha256", 64)):
+    for field, length in (("input_digest", 64), ("snapshot_oid", 40), ("review_oid", 40), ("context_sha256", 64)):
         if not isinstance(data[field], str) or not re.fullmatch(r"[0-9a-f]{%d}" % length, data[field]):
             raise ValueError("invalid " + field)
     for field in ("run_id", "target_key"):

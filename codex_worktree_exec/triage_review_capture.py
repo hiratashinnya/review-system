@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import json
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -32,6 +33,8 @@ def capture_reviewer(request, cwd, marker, environ, codex, key):
     verify_project_trusted(worktree, codex_home(environ))
     if request.binding_file is None or Path(marker["binding_file"]) != request.binding_file:
         raise ValueError("reviewer binding mismatch")
+    review_oid = subprocess.run(["git", "-C", str(worktree), "rev-parse", "HEAD"], check=True,
+                                capture_output=True, text=True).stdout.strip()
     before = approved_materials(worktree, marker)
     prompt = compose_prompt("pr-reviewer", worktree, read_prompt(request.prompt_file, cwd, worktree))
     with tempfile.TemporaryDirectory(prefix="triage-review-", dir=worktree / "tmp") as directory:
@@ -46,10 +49,24 @@ def capture_reviewer(request, cwd, marker, environ, codex, key):
             raise ValueError("reviewer output empty")
         body.decode("utf-8")
         after = approved_materials(worktree, marker)
-        if before != after:
+        final_oid = subprocess.run(["git", "-C", str(worktree), "rev-parse", "HEAD"], check=True,
+                                   capture_output=True, text=True).stdout.strip()
+        if before != after or review_oid != final_oid:
             raise ValueError("approval or materials changed during reviewer execution")
     receipt = {"schema": "finding-triage-review-capture/v1", "producer": "pr-reviewer",
-               "worktree": str(worktree), "review_sha256": hashlib.sha256(body).hexdigest(),
+               "worktree": str(worktree), "review_oid": review_oid, "review_sha256": hashlib.sha256(body).hexdigest(),
                "approval": before}
+    raw = json.dumps(receipt, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    return body, raw, hmac.new(key, DOMAIN + raw, hashlib.sha256).hexdigest()
+
+
+def capture_existing(body, worktree, approval, review_oid, key):
+    """Attest bytes observed immediately after the trusted normal reviewer run."""
+    if not isinstance(body, bytes) or not body.strip() or not isinstance(key, bytes) or len(key) < 32:
+        raise ValueError("reviewer output and trusted key required")
+    body.decode("utf-8")
+    receipt = {"schema": "finding-triage-review-capture/v1", "producer": "pr-reviewer",
+               "worktree": str(worktree), "review_oid": review_oid,
+               "review_sha256": hashlib.sha256(body).hexdigest(), "approval": approval}
     raw = json.dumps(receipt, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
     return body, raw, hmac.new(key, DOMAIN + raw, hashlib.sha256).hexdigest()

@@ -27,12 +27,12 @@ expected: preserved
 recheck: run test
 '''
         approval = {'issue': 783, 'run_id': 'r', 'target_key': 'k', 'snapshot_oid': 'a' * 40,
-                    'input_digest': 'b' * 64, 'approval_context': 'owner-approved',
+                    'input_digest': 'b' * 64, 'source_changes': None, 'approval_context': 'owner-approved',
                     'materials': {'verification_design': {'content': 'VD'},
                                   'solution_planning': {'content': 'CP'}}}
         key = b'k' * 32
         receipt = json.dumps({'schema': 'finding-triage-review-capture/v1', 'producer': 'pr-reviewer', 'review_sha256': hashlib.sha256(body).hexdigest(),
-                              'worktree': '/reviewer', 'approval': approval}).encode()
+                              'worktree': '/reviewer', 'review_oid': 'c' * 40, 'approval': approval}).encode()
         mac = hmac.new(key, DOMAIN + receipt, hashlib.sha256).hexdigest()
         github = {'issue_body': 'Issue AC', 'change': 'actual diff'}
         with tempfile.TemporaryDirectory() as name, \
@@ -45,7 +45,7 @@ recheck: run test
             altered['binding_signature'] = sign_binding({k: v for k, v in altered.items() if k != 'binding_signature'}, key)
             with self.assertRaisesRegex(ValueError, 'capture mismatch'):
                 verify_binding_capture(altered, key)
-            source.assert_called_once_with(Path(name), 783, 1, 'a' * 40)
+            source.assert_called_once_with(Path(name), 783, 1, 'c' * 40)
             prompt, review = prepare(binding['review'].encode(), binding['review_signature'], key,
                                      binding['expected'], binding['context'].encode(), binding['context_digest'])
             self.assertEqual(review['findings'][0]['finding_id'], 'F-783-01')
@@ -77,12 +77,12 @@ recheck: run test
             root = Path(name); (root / 'tmp').mkdir()
             reviewer = root / 'reviewer'; reviewer.mkdir()
             approval = {'issue': 783, 'run_id': 'r', 'target_key': 'k', 'snapshot_oid': 'a' * 40,
-                        'input_digest': 'b' * 64, 'approval_context': 'owner-approved',
+                        'input_digest': 'b' * 64, 'source_changes': None, 'approval_context': 'owner-approved',
                         'materials': {'verification_design': {'content': 'VD'},
                                       'solution_planning': {'content': 'CP'}}}
             receipt = json.dumps({'schema': 'finding-triage-review-capture/v1', 'producer': 'pr-reviewer',
                                   'review_sha256': hashlib.sha256(body).hexdigest(),
-                                  'worktree': str(reviewer), 'approval': approval}).encode()
+                                  'worktree': str(reviewer), 'review_oid': 'c' * 40, 'approval': approval}).encode()
             mac = hmac.new(key, DOMAIN + receipt, hashlib.sha256).hexdigest()
             with patch('codex_worktree_exec.triage_binding_capture.capture_reviewer', return_value=(body, receipt, mac)), \
                  patch('codex_worktree_exec.triage_binding_capture.github_evidence', return_value={'issue_body': 'AC', 'change': 'diff'}):
@@ -97,7 +97,7 @@ recheck: run test
             assessments = [{'finding_id': 'F-783-01', 'harm': 'real', 'scope': 'in',
                             'evidence': dict.fromkeys(('ac', 'vd_cp', 'design', 'change'), 'reason'), 'facts': facts}]
             def git(argv, **kwargs):
-                text = 'worktree ' + str(reviewer) + '\n' if 'worktree' in argv else 'a' * 40
+                text = 'worktree ' + str(reviewer) + '\n' if 'worktree' in argv else 'c' * 40
                 return SimpleNamespace(stdout=text)
             def run(argv, prompt, **kwargs):
                 Path(argv[argv.index('--output-last-message') + 1]).write_text(json.dumps(assessments))

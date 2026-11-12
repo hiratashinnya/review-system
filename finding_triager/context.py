@@ -18,10 +18,10 @@ def verify_context(raw: bytes, expected_digest: str, review: dict) -> dict:
         context = json.loads(raw)
     except (ValueError, UnicodeDecodeError) as exc:
         raise ValueError("invalid context JSON") from exc
-    fields = {"issue", "snapshot_oid", "input_digest", "approval_ref", "documents"}
+    fields = {"issue", "snapshot_oid", "review_oid", "input_digest", "approval_ref", "documents"}
     if not isinstance(context, dict) or set(context) != fields:
         raise ValueError("invalid context envelope")
-    if any(context[k] != review[k] for k in ("issue", "snapshot_oid", "input_digest")):
+    if any(context[k] != review[k] for k in ("issue", "snapshot_oid", "review_oid", "input_digest")):
         raise ValueError("context target mismatch")
     if not isinstance(context["approval_ref"], str) or not context["approval_ref"].strip():
         raise ValueError("missing approved design reference")

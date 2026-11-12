@@ -1,6 +1,7 @@
 """trusted主文脈がread-only Codex実行を既存linked作業面へ固定する入口。"""
 import argparse
 import json
+import os
 import subprocess
 from pathlib import Path
 from codex_worktree_exec.arguments import parse_request
@@ -68,6 +69,10 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--source", required=True, type=Path)
     parser.add_argument("--approval-file", required=True)
+    parser.add_argument("--triage-pr", type=int)
+    parser.add_argument("--triage-phase", choices=("review", "remediation_review"))
+    parser.add_argument("--triage-round", type=int)
+    parser.add_argument("--triage-output")
     options, executor_args = parser.parse_known_args(argv)
     request = parse_request(executor_args)
     if request.binding_file is None:
@@ -75,6 +80,13 @@ def main(argv=None):
     marker = dict(binding_file=str(request.binding_file), approval_file=options.approval_file)
     target = prepare_readonly_workspace(options.source, request.worktree, request.role,
                                         marker, request.prompt_file)
+    triage = (options.triage_pr, options.triage_phase, options.triage_round, options.triage_output)
+    if any(value is not None for value in triage):
+        if any(value is None for value in triage) or options.triage_pr < 1 or options.triage_round < 1:
+            raise ValueError("complete triage capture options required")
+        from .triage_existing_capture import execute_with_capture
+        key = bytes.fromhex(os.environ["TRIAGER_REVIEW_KEY"])
+        return execute_with_capture(request, executor_args, target, marker, key, *triage, execute)
     return execute(executor_args, cwd=target)
 
 

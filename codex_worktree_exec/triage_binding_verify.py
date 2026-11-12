@@ -33,6 +33,7 @@ def verify_binding_capture(binding, key):
     approval = receipt["approval"]
     if (receipt["schema"] != "finding-triage-review-capture/v1" or receipt["producer"] != "pr-reviewer"
             or receipt["worktree"] != binding["reviewer_worktree"]
+            or receipt["review_oid"] != review["review_oid"]
             or receipt["review_sha256"] != hashlib.sha256(body).hexdigest()
             or any(approval[k] != review[k] for k in ("issue", "run_id", "target_key", "snapshot_oid", "input_digest"))):
         raise ValueError("reviewer capture mismatch")

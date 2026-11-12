@@ -38,11 +38,12 @@ def validate_binding(request, cwd, worktree, environ):
         raise ValueError("reviewer must be a distinct registered worktree")
     expected = binding["expected"]
     if subprocess.run(["git", "-C", str(worktree), "rev-parse", "HEAD"], check=True,
-                      capture_output=True, text=True).stdout.strip() != expected["snapshot_oid"]:
+                      capture_output=True, text=True).stdout.strip() != expected["review_oid"]:
         raise ValueError("triager snapshot mismatch")
-    verify_source_snapshot(worktree, expected["snapshot_oid"], expected["issue"])
     keys = [bytes.fromhex(environ[name]) for name in ("TRIAGER_REVIEW_KEY", "TRIAGER_CAPTURE_KEY")]
-    verify_binding_capture(binding, keys[0])
+    receipt = verify_binding_capture(binding, keys[0])
+    verify_source_snapshot(worktree, expected["snapshot_oid"], expected["issue"],
+                           receipt["approval"]["source_changes"])
     raw, context = binding["review"].encode(), binding["context"].encode()
     prompt, review = prepare(raw, binding["review_signature"], keys[0], expected,
                              context, binding["context_digest"])

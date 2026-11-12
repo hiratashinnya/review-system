@@ -28,6 +28,7 @@ class ReviewerCaptureTest(unittest.TestCase):
                  patch('codex_worktree_exec.triage_review_capture.verify_profile_pinned'), \
                  patch('codex_worktree_exec.triage_review_capture.verify_project_trusted'), \
                  patch('codex_worktree_exec.triage_review_capture.codex_home'), \
+                 patch('codex_worktree_exec.triage_review_capture.subprocess.run', return_value=SimpleNamespace(stdout='c' * 40)), \
                  patch('codex_worktree_exec.triage_review_capture.approved_materials', return_value=material) as approved, \
                  patch('codex_worktree_exec.triage_review_capture.read_prompt', return_value='prompt'), \
                  patch('codex_worktree_exec.triage_review_capture.compose_prompt', return_value='prompt'), \

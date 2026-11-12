@@ -12,8 +12,8 @@ class FindingTriagerTest(unittest.TestCase):
         self.key = b"x" * 32
         self.capture_key = b"y" * 32
         self.expected = {"issue": 783, "phase": "review", "round": 1, "run_id": "run",
-                         "target_key": "target", "input_digest": "a" * 64, "snapshot_oid": "b" * 40}
-        context = {"issue": 783, "snapshot_oid": "b" * 40, "input_digest": "a" * 64,
+                         "target_key": "target", "input_digest": "a" * 64, "snapshot_oid": "b" * 40, "review_oid": "c" * 40}
+        context = {"issue": 783, "snapshot_oid": "b" * 40, "review_oid": "c" * 40, "input_digest": "a" * 64,
                    "approval_ref": "approved-design-1", "documents": dict.fromkeys(
                        ("ac", "vd_cp", "design", "change"), "source evidence")}
         self.context = json.dumps(context).encode()

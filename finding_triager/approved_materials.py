@@ -40,4 +40,5 @@ def approved_materials(root: Path, marker: dict) -> dict:
     return {"issue": approval["issue"], "run_id": approval["run_id"],
             "target_key": approval["target_key"], "snapshot_oid": approval["snapshot_oid"],
             "approval_context": approval["context_id"], "input_digest": binding["artifact_digest"],
+            "source_changes": expected.get("source_changes"),
             "materials": materials}

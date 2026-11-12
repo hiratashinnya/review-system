@@ -16,6 +16,12 @@ def capture_binding(request, cwd, marker, environ, codex, key, *, pr, phase, rou
     if phase not in ("review", "remediation_review") or type(round_no) is not int or round_no < 1:
         raise ValueError("invalid triage phase or round")
     body, receipt_raw, signature = capture_reviewer(request, cwd, marker, environ, codex, key)
+    return binding_from_capture(body, receipt_raw, signature, cwd, key, pr=pr, phase=phase, round_no=round_no)
+
+
+def binding_from_capture(body, receipt_raw, signature, cwd, key, *, pr, phase, round_no):
+    if phase not in ("review", "remediation_review") or type(round_no) is not int or round_no < 1:
+        raise ValueError("invalid triage phase or round")
     if not hmac.compare_digest(hmac.new(key, DOMAIN + receipt_raw, hashlib.sha256).hexdigest(), signature):
         raise ValueError("review capture signature mismatch")
     receipt = json.loads(receipt_raw)
@@ -23,13 +29,15 @@ def capture_binding(request, cwd, marker, environ, codex, key, *, pr, phase, rou
         raise ValueError("review output changed")
     approval = receipt["approval"]
     expected = {k: approval[k] for k in ("issue", "run_id", "target_key", "snapshot_oid")}
-    expected.update(phase=phase, round=round_no, input_digest=approval["input_digest"])
-    github = github_evidence(cwd, expected["issue"], pr, expected["snapshot_oid"])
+    expected.update(phase=phase, round=round_no, input_digest=approval["input_digest"],
+                    review_oid=receipt["review_oid"])
+    github = github_evidence(cwd, expected["issue"], pr, expected["review_oid"])
     material = approval["materials"]
     vd, cp = material["verification_design"], material["solution_planning"]
     documents = {"ac": github["issue_body"], "vd_cp": vd["content"] + "\n" + cp["content"],
                  "design": cp["content"], "change": github["change"] or "(empty PR diff)"}
     context = {"issue": expected["issue"], "snapshot_oid": expected["snapshot_oid"],
+               "review_oid": expected["review_oid"],
                "input_digest": expected["input_digest"], "approval_ref": approval["approval_context"],
                "documents": documents}
     context_raw = json.dumps(context, ensure_ascii=False, sort_keys=True).encode()

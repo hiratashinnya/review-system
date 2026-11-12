@@ -287,6 +287,10 @@
           }
         }
       }
+    },
+    "review_oid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
     }
   },
   "required": [
@@ -302,6 +306,7 @@
     "snapshot_oid",
     "policy_version",
     "provenance",
-    "proposals"
+    "proposals",
+    "review_oid"
   ]
 }
