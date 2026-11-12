@@ -24,12 +24,16 @@ class TriagerDispatchTest(unittest.TestCase):
         self.review_key = b'x' * 32; self.capture_key = b'y' * 32
         self.expected = {'issue': 783, 'phase': 'review', 'round': 1, 'run_id': 'r1',
                          'target_key': 'target', 'input_digest': 'a' * 64, 'snapshot_oid': 'b' * 40}
-        review = {**self.expected, 'producer': 'pr-reviewer', 'findings': [
+        context = {'issue': 783, 'snapshot_oid': 'b' * 40, 'input_digest': 'a' * 64,
+                   'approval_ref': 'approved-design-1', 'documents': dict.fromkeys(
+                       ('ac', 'vd_cp', 'design', 'change'), 'evidence')}
+        self.context = json.dumps(context).encode()
+        self.digest = hashlib.sha256(self.context).hexdigest()
+        review = {**self.expected, 'reviewer_worktree': str(self.reviewer),
+                  'context_sha256': self.digest, 'producer': 'pr-reviewer', 'findings': [
             {'finding_id': 'F-1', 'harm': 'real', 'scope': 'in', 'severity': 'major',
              'harm_detail': 'loss', 'evidence': 'evidence'}]}
         self.raw = json.dumps(review).encode()
-        self.context = json.dumps(dict.fromkeys(('ac', 'vd_cp', 'design', 'change'), 'evidence')).encode()
-        self.digest = hashlib.sha256(self.context).hexdigest()
         self.binding = {'review': self.raw.decode(), 'review_signature': hmac.new(
             self.review_key, self.raw, hashlib.sha256).hexdigest(), 'expected': self.expected,
             'context': self.context.decode(), 'context_digest': self.digest,
@@ -53,7 +57,7 @@ class TriagerDispatchTest(unittest.TestCase):
             Path(argv[argv.index('--output-last-message') + 1]).write_text(json.dumps(self.assessments))
             return 2 if fail else 0
         def git(argv, **kwargs):
-            stdout = ("worktree " + str(self.reviewer) + "\n") if "worktree" in argv else "b" * 40
+            stdout = ("worktree " + str(self.reviewer) + "\nworktree " + str(self.root / "other") + "\n") if "worktree" in argv else "b" * 40
             return SimpleNamespace(stdout=stdout)
         with patch('codex_worktree_exec.triager_dispatch.verify_source_snapshot'), \
              patch('codex_worktree_exec.triager_dispatch.subprocess.run', side_effect=git), \
@@ -75,6 +79,30 @@ class TriagerDispatchTest(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(CodexExecError):
                 self.launch()
             self.binding[field] = original
+        self.assertFalse((self.root / self.req.output_file).exists())
+
+    def test_unsigned_origin_or_context_replacement_rejected_before_launch(self):
+        other = self.root / 'other'; other.mkdir()
+        original = self.binding.copy()
+        self.binding['reviewer_worktree'] = str(other)
+        with self.assertRaises(CodexExecError): self.launch()
+        self.binding = original.copy()
+        changed = json.loads(self.context); changed['documents']['ac'] = 'other AC'
+        context = json.dumps(changed).encode()
+        self.binding.update(context=context.decode(), context_digest=hashlib.sha256(context).hexdigest())
+        with self.assertRaises(CodexExecError): self.launch()
+        self.assertFalse((self.root / self.req.output_file).exists())
+
+    def test_signed_context_target_mismatch_rejected(self):
+        for field, value in [('issue', 999), ('snapshot_oid', 'c' * 40), ('input_digest', 'd' * 64)]:
+            context = json.loads(self.context); context[field] = value
+            raw = json.dumps(context).encode()
+            digest = hashlib.sha256(raw).hexdigest()
+            review = json.loads(self.raw); review['context_sha256'] = digest
+            review_raw = json.dumps(review).encode()
+            self.binding.update(context=raw.decode(), context_digest=digest, review=review_raw.decode(),
+                                review_signature=hmac.new(self.review_key, review_raw, hashlib.sha256).hexdigest())
+            with self.subTest(field=field), self.assertRaises(CodexExecError): self.launch()
         self.assertFalse((self.root / self.req.output_file).exists())
 
     def test_failure_does_not_produce_capture(self):

@@ -44,6 +44,8 @@ def validate_binding(request, cwd, worktree, environ):
     raw, context = binding["review"].encode(), binding["context"].encode()
     prompt, review = prepare(raw, binding["review_signature"], keys[0], expected,
                              context, binding["context_digest"])
+    if reviewer != Path(review["reviewer_worktree"]).resolve(strict=True):
+        raise ValueError("reviewer origin mismatch")
     if len(keys[1]) < 32 or hmac.compare_digest(*keys):
         raise ValueError("distinct trusted capture key required")
     return binding, keys, raw, context, prompt, review

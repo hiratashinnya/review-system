@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parent.parent
 def prepare(raw: bytes, signature: str, key: bytes, expected: dict,
             context_raw: bytes, context_digest: str) -> tuple[str, dict]:
     review = verify_review(raw, signature, key, expected)
-    context = verify_context(context_raw, context_digest)
+    context = verify_context(context_raw, context_digest, review)
     role = (ROOT / ".ai/agents/finding-triager.md").read_text(encoding="utf-8")
     harm = (ROOT / ".ai/skills/review-harm/SKILL.md").read_text(encoding="utf-8")
     if not role.strip() or not harm.strip():

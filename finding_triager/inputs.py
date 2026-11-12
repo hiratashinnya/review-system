@@ -20,7 +20,7 @@ def verify_review(raw: bytes, signature: str, key: bytes, expected: dict) -> dic
         data = json.loads(raw)
     except (ValueError, UnicodeDecodeError) as exc:
         raise ValueError("invalid review JSON") from exc
-    if not isinstance(data, dict) or set(data) != set(BINDINGS) | {"producer", "findings"}:
+    if not isinstance(data, dict) or set(data) != set(BINDINGS) | {"producer", "findings", "reviewer_worktree", "context_sha256"}:
         raise ValueError("invalid review fields")
     if set(expected) != set(BINDINGS) or any(data[k] != expected[k] for k in BINDINGS):
         raise ValueError("review binding mismatch")
@@ -28,12 +28,14 @@ def verify_review(raw: bytes, signature: str, key: bytes, expected: dict) -> dic
             or type(data["issue"]) is not int or data["issue"] < 1
             or type(data["round"]) is not int or data["round"] < 1):
         raise ValueError("invalid review envelope")
-    for field, length in (("input_digest", 64), ("snapshot_oid", 40)):
+    for field, length in (("input_digest", 64), ("snapshot_oid", 40), ("context_sha256", 64)):
         if not isinstance(data[field], str) or not re.fullmatch(r"[0-9a-f]{%d}" % length, data[field]):
             raise ValueError("invalid " + field)
     for field in ("run_id", "target_key"):
         if not isinstance(data[field], str) or not data[field].strip():
             raise ValueError("invalid " + field)
+    if not isinstance(data["reviewer_worktree"], str) or not data["reviewer_worktree"].startswith("/"):
+        raise ValueError("invalid signed reviewer worktree")
     findings = data["findings"]
     if not isinstance(findings, list) or any(not isinstance(f, dict) for f in findings):
         raise ValueError("invalid findings")

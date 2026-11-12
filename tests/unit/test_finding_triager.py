@@ -11,11 +11,15 @@ class FindingTriagerTest(unittest.TestCase):
     def setUp(self):
         self.key = b"x" * 32
         self.capture_key = b"y" * 32
-        self.context = json.dumps(dict.fromkeys(("ac", "vd_cp", "design", "change"), "source evidence")).encode()
-        self.context_digest = hashlib.sha256(self.context).hexdigest()
         self.expected = {"issue": 783, "phase": "review", "round": 1, "run_id": "run",
                          "target_key": "target", "input_digest": "a" * 64, "snapshot_oid": "b" * 40}
-        review = {**self.expected, "producer": "pr-reviewer", "findings": [
+        context = {"issue": 783, "snapshot_oid": "b" * 40, "input_digest": "a" * 64,
+                   "approval_ref": "approved-design-1", "documents": dict.fromkeys(
+                       ("ac", "vd_cp", "design", "change"), "source evidence")}
+        self.context = json.dumps(context).encode()
+        self.context_digest = hashlib.sha256(self.context).hexdigest()
+        review = {**self.expected, "reviewer_worktree": "/reviewer", "context_sha256": self.context_digest,
+                  "producer": "pr-reviewer", "findings": [
             {"finding_id": "F-1", "harm": "real", "scope": "in", "severity": "major",
              "harm_detail": "data loss", "evidence": "review evidence", "summary": "finding"}]}
         self.raw = json.dumps(review).encode()
