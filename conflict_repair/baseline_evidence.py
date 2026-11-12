@@ -14,6 +14,8 @@ def describe(versions):
     parsed, errors = {}, {}
     for label, raw in zip(('祖先', 'main', 'head'), versions):
         try:
+            if raw is None:
+                raise ValueError('baseline を取得できません')
             parsed[label] = parse_baseline(raw)
         except ValueError as exc:
             errors[label] = str(exc)

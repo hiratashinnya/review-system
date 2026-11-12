@@ -394,3 +394,16 @@ class BaselineGitTest(RunnerTest):
         self.assertEqual(len(evidence['各版の変更キー']['main']['comment_blocks']['削除']), 1)
         self.assertFalse(report['push'])
         self.assertEqual(api.branch_oid('feature'), api.head)
+
+    def test_deleted_baseline_summary_retains_valid_side(self):
+        api = self.setup_baseline()
+        self.add_head_commit(api, lambda: self.baseline_path.unlink())
+        report = self.summary_result(api)
+        evidence = report['baseline 3版の証跡']
+        self.assertEqual(evidence['状態'], '未統合')
+        self.assertIn('head', evidence['解析エラー'])
+        self.assertIsNone(evidence['各版の変更キー']['head'])
+        self.assertIsNone(evidence['競合キー'])
+        self.assertEqual(len(evidence['各版の変更キー']['main']['comment_blocks']['削除']), 1)
+        self.assertFalse(report['push'])
+        self.assertEqual(api.branch_oid('feature'), api.head)
