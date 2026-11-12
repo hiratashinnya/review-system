@@ -93,4 +93,4 @@ class UntrackedRecoveryTests(unittest.TestCase):
         self.assertTrue(legacy.exists())
         with self.assertRaisesRegex(ValueError, "unsupported_cache_format count=1") as caught:
             verify_untracked_sources(self.root)
-        self.assertIn("move .pyo outside checkout", str(caught.exception))
+        self.assertIn("untracked_recovery --apply (quarantine .pyo)", str(caught.exception))
