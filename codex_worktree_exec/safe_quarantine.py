@@ -78,12 +78,12 @@ def move_checked(root: Path, relative: Path, destination: Path, allowed, snapsho
                     return
             except FileNotFoundError:
                 pass
-            # Check the pinned original directory, not root/relative:
-            # a racing parent symlink may point root/relative at unrelated data.
+            # Hard-link rollback is atomic NO-CLOBBER. Never rename over a
+            # new writer's file, even if it appeared after the last stat.
             try:
-                os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
-            except FileNotFoundError:
-                os.rename(destination, name, dst_dir_fd=parent_fd)
+                os.link(destination, name, dst_dir_fd=parent_fd, follow_symlinks=False)
+            except FileExistsError:
+                pass  # The writer owns this name; preserve both copies.
             raise ValueError(f"candidate changed during move; inspect {relative} and {destination}")
         finally:
             os.close(source_fd)
