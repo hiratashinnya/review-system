@@ -24,23 +24,29 @@ class CoverageBytecodeTests(unittest.TestCase):
         before = {p.relative_to(root) for p in root.rglob("__pycache__/*.pyc")}
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
-            plain_env = os.environ.copy()
-            plain_env.pop("PYTHONDONTWRITEBYTECODE", None)
-            plain_env["PYTHONPYCACHEPREFIX"] = str(output / "plain-pycache")
-            plain = subprocess.run([sys.executable, *suite], cwd=root, env=plain_env,
-                                   text=True, capture_output=True)
-            covered_env = dict(plain_env, PYTHONDONTWRITEBYTECODE="1",
-                               COVERAGE_FILE=str(output / ".coverage"))
-            covered_env.pop("PYTHONPYCACHEPREFIX", None)
-            covered = subprocess.run(
-                ["uv", "run", "--no-project", "--python", sys.executable,
-                 "--with", "coverage", "coverage", "run", *suite],
-                cwd=root, env=covered_env, text=True, capture_output=True)
-            failures = lambda result: set(re.findall(
-                r"^(?:FAIL|ERROR): ([^\n]+)", result.stdout + result.stderr, re.MULTILINE))
-            self.assertEqual(failures(plain), failures(covered), covered.stderr)
-            self.assertEqual(plain.returncode, 0, plain.stderr)
-            self.assertEqual(covered.returncode, 0, covered.stderr)
-            self.assertTrue((output / ".coverage").is_file())
+            plain_root = output / "plain-checkout"
+            subprocess.run(["git", "-C", str(root), "worktree", "add",
+                            "--detach", "-q", str(plain_root), "HEAD"], check=True)
+            try:
+                plain_env = os.environ.copy()
+                plain_env.pop("PYTHONDONTWRITEBYTECODE", None)
+                plain_env.pop("PYTHONPYCACHEPREFIX", None)
+                plain = subprocess.run([sys.executable, *suite], cwd=plain_root, env=plain_env,
+                                       text=True, capture_output=True)
+                covered_env = dict(plain_env, PYTHONDONTWRITEBYTECODE="1",
+                                   COVERAGE_FILE=str(output / ".coverage"))
+                covered = subprocess.run(
+                    ["uv", "run", "--no-project", "--python", sys.executable,
+                     "--with", "coverage", "coverage", "run", *suite],
+                    cwd=root, env=covered_env, text=True, capture_output=True)
+                failures = lambda result: set(re.findall(
+                    r"^(?:FAIL|ERROR): ([^\n]+)", result.stdout + result.stderr, re.MULTILINE))
+                self.assertEqual(failures(plain), failures(covered), covered.stderr)
+                self.assertEqual(plain.returncode, 0, plain.stderr)
+                self.assertEqual(covered.returncode, 0, covered.stderr)
+                self.assertTrue((output / ".coverage").is_file())
+            finally:
+                subprocess.run(["git", "-C", str(root), "worktree", "remove",
+                                "--force", str(plain_root)], check=True)
         after = {p.relative_to(root) for p in root.rglob("__pycache__/*.pyc")}
         self.assertEqual(before, after)
