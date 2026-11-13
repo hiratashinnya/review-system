@@ -358,7 +358,7 @@ cache pruneは削除をせず、Git indexの排他ロックを取得して再度
 `cache_prune --apply` は `.pyo` を削除しないため、その回復案を提示しない。
 
 違反は最初の1件で打ち切らず、分類別件数・代表path・回復方法を集約報告する。
-coverage出力はcoverage-html手順により作業面外に隔離する。
+coverage出力はcoverage-html手順により作業面外に隔離する。通常比較は同じcommitのisolated detached worktreeを使用し、環境変数なしの全unittestを実行する。coverage側だけbytecodeを抑止し、両実行の失敗test ID集合・終了コードを照合する。両方が0でない限りHTML生成とdone判定を拒否する。
 生成物はgitignoreを許可根拠にせず拒否する。trusted callerは
 `python3 -m codex_worktree_exec.untracked_recovery` でdry-run確認し、
 `python3 -m codex_worktree_exec.untracked_recovery --apply` の単一の処置で

@@ -1,28 +1,31 @@
 # coverage HTML レポート生成
 
-coverage・HTML・bytecode はsource検査に混入しないようcheckout外に生成する。
-coverageインストールは `uv run --with coverage` に限定し、uv不在ならpipへフォールバックせず停止する。
+coverage・HTML・bytecode は checkout 外に生成する。coverage の導入・実行は
+`uv run --no-project --with coverage` に限定し、uv 不在なら停止（pip へのフォールバック禁止）。
 
 ## 手順
 
-1. 作業面外の出力先とinterpreterを固定する。
+1. Git HEAD と tracked worktree が一致する作業面で、一時出力先を決める。
    ```bash
    COVERAGE_OUTPUT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/review-system-coverage.XXXXXXXX")" || exit 1
    export COVERAGE_OUTPUT_DIR
-   export COVERAGE_FILE="$COVERAGE_OUTPUT_DIR/.coverage"
-   export PYTHONDONTWRITEBYTECODE=1
-   export COVERAGE_PYTHON="$(command -v python3)"
    ```
-2. 同一interpreterで計測、HTML生成、表示する。
+2. 同一コミット・interpreterによる **全** `unittest discover -s tests -t . -p "test_*.py"` を比較する。
    ```bash
-   uv run --no-project --python "$COVERAGE_PYTHON" --with coverage coverage run -m unittest discover -s tests -t . -p "test_*.py"
-   uv run --no-project --python "$COVERAGE_PYTHON" --with coverage coverage html -d "$COVERAGE_OUTPUT_DIR/htmlcov"
-   uv run --no-project --python "$COVERAGE_PYTHON" --with coverage coverage report
+   python3 -m codex_worktree_exec.coverage_parity --output "$COVERAGE_OUTPUT_DIR"
    ```
-3. 同じcommit・interpreterで環境変数を解除し、`"$COVERAGE_PYTHON" -m unittest discover -s tests -t . -p "test_*.py"` の失敗test id集合と比較する。差がある場合は未完了として扱う。
+   この処理は通常 unittest を隔離した detached worktree で、coverage unittest を
+   現作業面で実行する。通常側に `PYTHONDONTWRITEBYTECODE` や
+   `PYTHONPYCACHEPREFIX` を設定しない。coverage 側は
+   `PYTHONDONTWRITEBYTECODE=1`・`COVERAGE_FILE` を作業面外に指定し、
+   同一interpreterを `uv run --no-project --python` で固定する。
+   両実行の失敗test ID集合・終了コードを `parity.json` に記録する。
+   一致してもどちらかが非0なら未完了。失敗時はHTML/reportを生成せず停止する。
+3. 成功したら `$COVERAGE_OUTPUT_DIR/htmlcov/index.html` を表示・送付する。
+   通常側の detached worktree は検査終了時に除去する。元checkoutはbytecodeを生成しない。
 
 ## done条件
-- [ ] coverageと通常unittestの失敗test id集合が一致
-- [ ] `$COVERAGE_OUTPUT_DIR/htmlcov/index.html` が生成済み
-- [ ] checkout内に `.coverage`、`htmlcov/`、新しい `__pycache__` が残らない
-- [ ] サマリーと作業面外レポートパスを報告済み
+- [ ] 同一commit・同一interpreterでの全テストID集合が一致し、**両方の終了コードが0**
+- [ ] `$COVERAGE_OUTPUT_DIR/parity.json` および `htmlcov/index.html` が生成済み
+- [ ] 元checkout内に新しい `.coverage`、`htmlcov/`、`__pycache__` が増えない
+- [ ] 比較結果と作業面外レポートパスを報告済み

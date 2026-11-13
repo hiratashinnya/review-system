@@ -177,3 +177,20 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: python3 -m advisory check --against-ref "origin/$BASE_REF" --require-base
+
+  issue655-coverage-parity:
+    # Full-suite parity is distinct from the existing PR gate / Pages artifact.
+    # It compares the same commit+interpreter with and without coverage/bytecode suppression.
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+      - name: Full unittest and coverage parity (Issue 655)
+        run: python3 -m codex_worktree_exec.coverage_parity --output "$RUNNER_TEMP/issue655-parity"
