@@ -3,6 +3,7 @@ import argparse
 import subprocess
 import tempfile
 from pathlib import Path
+from .safe_quarantine import index_guard, move_checked
 from .untracked_policy import classify_untracked, regular_unlinked
 
 RECOVERABLE = frozenset({
@@ -31,14 +32,18 @@ def candidates(worktree: Path) -> list[tuple[str, Path]]:
     return sorted(selected, key=lambda item: item[1].as_posix())
 
 
+def _allowed(root: Path, relative: Path) -> bool:
+    return (regular_unlinked(root / relative)
+            and classify_untracked(root, relative.as_posix(), {}) in RECOVERABLE)
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--worktree", type=Path, default=Path.cwd())
     parser.add_argument("--quarantine-parent", type=Path, default=Path(tempfile.gettempdir()))
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args(argv)
-    root = args.worktree.resolve()
-    parent = args.quarantine_parent.resolve()
+    root, parent = args.worktree.resolve(), args.quarantine_parent.resolve()
     if parent.is_relative_to(root):
         raise ValueError("quarantine directory must be outside worktree")
     selected = candidates(root)
@@ -49,15 +54,9 @@ def main(argv=None) -> int:
         return 0
     quarantine = Path(tempfile.mkdtemp(prefix="review-system-quarantine-", dir=parent))
     print(f"quarantine directory: {quarantine}", flush=True)
-    for category, relative in selected:
-        original = root / relative
-        if not regular_unlinked(original):
-            raise ValueError(f"source changed during recovery; preserved: {relative}")
-        destination = quarantine / relative
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        original.rename(destination)  # Atomic; EXDEV fails without deleting source.
-        if not regular_unlinked(destination):
-            raise ValueError(f"quarantined path unsafe; inspect: {destination}")
+    with index_guard(root):
+        for category, relative in selected:
+            move_checked(root, relative, quarantine / relative, _allowed)
     print(f"untracked recovery count={len(selected)} mode=apply; files preserved")
     return 0
 

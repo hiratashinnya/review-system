@@ -353,7 +353,7 @@ sourceのあるcacheは従来どおり現在のHEAD bytesと標準compiler出力
 stale cacheと別runtime cacheは拒否し、trusted callerが
 `python3 -m codex_worktree_exec.cache_prune --apply` で明示回復する（既定dry-run）。
 対象はGit未追跡の `__pycache__/*.pyc` 通常ファイルだけで検査自体はread-only。
-削除処置では同一ディレクトリへatomic renameで仮退避し、列挙時と同じinode・サイズ・mtime・modeである場合だけunlinkする。置換が検出されたら原本を戻すか保全先を示して停止する。
+cache pruneは削除をせず、Git indexの排他ロックを取得して再度未追跡状態を検査し、ファイル実体の同一性を確認したうえで作業面外へatomic renameする。置換や親ディレクトリの切替えを検出した場合は原本を戻すか保全先を示して停止する。元ファイルはunlinkしない。
 旧形式の `.pyo` は非対応cacheとして拒否し、trusted caller が `untracked_recovery --apply` で原本を退避する。
 `cache_prune --apply` は `.pyo` を削除しないため、その回復案を提示しない。
 
@@ -367,7 +367,7 @@ coverage出力はcoverage-html手順により作業面外に隔離する。
 未承認tmp（`tmp/_adr-notify/*.root`、`tmp/pr-diffs/*.diff`、
 `tmp/_feedback/*.toml`、任意拡張子のtmp残骸等）。
 通常source・追加TC・symlinkは対象にせず拒否維持。下書きも無断で削除せず原本保全し、
-復元が必要なら保全先を確認して戻す。同一FS上のatomic renameで保全できない場合は停止し、
+復元が必要なら保全先を確認して戻す。Git indexの排他ロック中に未追跡状態・種類・対象inode/mtimeを再検証し、同一FS上のatomic renameで保全できない場合は停止し、
 外部の別FSへ無言コピー・削除しない。移動先はcheckout外の限定アクセス権の一時領域にする。
 通常sourceとTCは引き続き拒否。profile pin（D1）・D5・project trust・read-only profile・
 既存source_changesの承認条件を変えない。
