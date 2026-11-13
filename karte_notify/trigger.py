@@ -29,11 +29,7 @@ SUPPORTED_TOOL_NAMES = (BASH_TOOL, CTX_EXECUTE_TOOL, CTX_BATCH_EXECUTE_TOOL)
 def detect_trigger(command: str) -> str | None:
     """``command`` が通知契機の karte verb の実行なら verb 名を返す。"""
     match = TRIGGER_RE.search(command)
-    return match.group(1) if match else "ingest-reviewer" if _is_codex_reviewer(command) else None
-
-
-def _is_codex_reviewer(command: str) -> bool:
-    return is_codex_reviewer(command)
+    return match.group(1) if match else "ingest-reviewer" if is_codex_reviewer(command) else None
 
 
 def extract_commands(tool_name: str, tool_input: Mapping[str, Any]) -> list[str]:
@@ -51,8 +47,11 @@ def extract_commands(tool_name: str, tool_input: Mapping[str, Any]) -> list[str]
     if tool_name == CTX_BATCH_EXECUTE_TOOL:
         commands = tool_input.get("commands")
         items = commands if isinstance(commands, list) else []
-        return [item["command"] for item in items
-                if isinstance(item, Mapping) and isinstance(item.get("command"), str)]
+        return [
+            item["command"]
+            for item in items
+            if isinstance(item, Mapping) and isinstance(item.get("command"), str)
+        ]
     return []
 
 

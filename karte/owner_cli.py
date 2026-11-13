@@ -14,13 +14,15 @@ from .verb_boundary import fail_close
 def cmd_activate(args, repo_root) -> int:
     """進行ポインタを対象 Issue の取り込み済み最新 round へ向ける。"""
     issue = paths.validate_issue(args.issue)
+    expected = review_expectation.from_args(args, issue)
     if getattr(args, "repair_declared_scope", False):
+        if expected is not None:
+            raise KarteUsageError("--repair-declared-scope と review envelope 引数は同時に指定できない")
         dropped = scope_ledger_repair.repair(issue, repo_root)
         print(f"=== activate --repair-declared-scope: issue-{issue} 除いた壊れた行 {len(dropped)} 件 ===")
         for line in dropped:
             print(f"  {line}")
         return EXIT_OK
-    expected = review_expectation.from_args(args, issue)
     try:
         last = karte_rounds.last_round(load_karte(repo_root, issue)[1])
     except KarteNotFound:

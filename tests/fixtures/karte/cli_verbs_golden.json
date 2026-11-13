@@ -128,7 +128,7 @@
     "ingest_same_round": {
       "exit_code": 4,
       "stdout": "",
-      "stderr": "拒否（fail-close）: round は単調増加させる（取り込み済みの最新ラウンドは 1・指定は 1）。同じラウンドの再取り込みは台帳の状態遷移を壊す\n",
+      "stderr": "拒否（fail-close）: round は単調増加させる（取り込み済みの最新ラウンドは 1・指定は 1）。同じラウンドの再取り込みは、保護モードの主文脈 ingest-review とレビューアの --round 明示（台帳の最新ラウンドと同じ値）以外では拒否する。回復は再取り込みではなく karte/README.md「進行ポインタの書込みが台帳より後に失敗した窓」を参照\n",
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
@@ -704,7 +704,7 @@
     ],
     "parsers": {
       "<top>": {
-        "help_sha256": "bbd32071edcc55ff96ab696aebd9c223a2a383594c2dba0e0a3b142063634a6e",
+        "help_compact_sha256": "379f89fe7a13fb89881f283d0f335d2cee36ec9ccf61151ba683015c8fe872da",
         "actions": [
           {
             "dest": "help",
@@ -735,7 +735,7 @@
         ]
       },
       "ingest-review": {
-        "help_sha256": "1bba623f2ae1860d868cbdc76f60aacb5e2f56df19dd78b91a5d301121d046ea",
+        "help_compact_sha256": "eb6e29be8b5a4c4275def28b2bb038a7962ffe59e6b3ad2a9010db457f4887fe",
         "actions": [
           {
             "dest": "help",
@@ -781,7 +781,7 @@
         ]
       },
       "render": {
-        "help_sha256": "ddead30eca025e8a3f65e63da2e77ebf6f572027cfe378575c10150ee4ee4f81",
+        "help_compact_sha256": "54c11dbb9fec2cdae55b77a7f68b9eb9dca4cdabf7fc6bc64001f4b66abcac9a",
         "actions": [
           {
             "dest": "help",
@@ -807,7 +807,7 @@
         ]
       },
       "append": {
-        "help_sha256": "9170014a91a0b2af2bd8e29b0a0d9051a784abea8150f503a54eb174fc134798",
+        "help_compact_sha256": "b19e7ceedde12a3bc557c74e6174c0cf4dfa2cb34138d8e59f5c61fb7f02aca5",
         "actions": [
           {
             "dest": "help",
@@ -901,7 +901,7 @@
         ]
       },
       "close-attempt": {
-        "help_sha256": "3fc33d4a61fb8581b21d4511b3d7bddb51fe2ddabb245021db4d27e64389447a",
+        "help_compact_sha256": "d5b23bb97bd41b25a17c38c4f8c38e325defc8f6d895dd260390e1123fbbebf7",
         "actions": [
           {
             "dest": "help",
@@ -992,7 +992,7 @@
         ]
       },
       "check": {
-        "help_sha256": "bfc16b40537d34ddabf05a5ae9438d7b79285e20a03d8a26249d110889bc3a97",
+        "help_compact_sha256": "b71abd58670e70345e7ef4e2cc762664f9cf26e1e828640561182069a45a5421",
         "actions": [
           {
             "dest": "help",
@@ -1028,7 +1028,7 @@
         ]
       },
       "status": {
-        "help_sha256": "9624f15651652963499feca284690755553c926e748e2b1d6fcc193ff81124a7",
+        "help_compact_sha256": "49d6e43afc95a933d694ae5e1b66901fd6d7ab8c8f3957ba8747486028429c41",
         "actions": [
           {
             "dest": "help",
@@ -1079,7 +1079,7 @@
     ],
     "parsers": {
       "<top>": {
-        "help_sha256": "9b8b522e4892e4a708b3b779ae94f63dc6031fb83b01e13f330e245e0c9ed859",
+        "help_compact_sha256": "6d02a16dbfaabc485f6d349ab6b0fdc3d4b9e720eb860bc0b29254234460a905",
         "actions": [
           {
             "dest": "help",
@@ -1113,7 +1113,7 @@
         ]
       },
       "ingest-review": {
-        "help_sha256": "1bba623f2ae1860d868cbdc76f60aacb5e2f56df19dd78b91a5d301121d046ea",
+        "help_compact_sha256": "eb6e29be8b5a4c4275def28b2bb038a7962ffe59e6b3ad2a9010db457f4887fe",
         "actions": [
           {
             "dest": "help",
@@ -1159,7 +1159,7 @@
         ]
       },
       "render": {
-        "help_sha256": "ddead30eca025e8a3f65e63da2e77ebf6f572027cfe378575c10150ee4ee4f81",
+        "help_compact_sha256": "54c11dbb9fec2cdae55b77a7f68b9eb9dca4cdabf7fc6bc64001f4b66abcac9a",
         "actions": [
           {
             "dest": "help",
@@ -1185,7 +1185,7 @@
         ]
       },
       "append": {
-        "help_sha256": "9170014a91a0b2af2bd8e29b0a0d9051a784abea8150f503a54eb174fc134798",
+        "help_compact_sha256": "b19e7ceedde12a3bc557c74e6174c0cf4dfa2cb34138d8e59f5c61fb7f02aca5",
         "actions": [
           {
             "dest": "help",
@@ -1279,7 +1279,7 @@
         ]
       },
       "close-attempt": {
-        "help_sha256": "3fc33d4a61fb8581b21d4511b3d7bddb51fe2ddabb245021db4d27e64389447a",
+        "help_compact_sha256": "d5b23bb97bd41b25a17c38c4f8c38e325defc8f6d895dd260390e1123fbbebf7",
         "actions": [
           {
             "dest": "help",
@@ -1370,7 +1370,7 @@
         ]
       },
       "check": {
-        "help_sha256": "bfc16b40537d34ddabf05a5ae9438d7b79285e20a03d8a26249d110889bc3a97",
+        "help_compact_sha256": "b71abd58670e70345e7ef4e2cc762664f9cf26e1e828640561182069a45a5421",
         "actions": [
           {
             "dest": "help",
@@ -1406,7 +1406,7 @@
         ]
       },
       "status": {
-        "help_sha256": "9624f15651652963499feca284690755553c926e748e2b1d6fcc193ff81124a7",
+        "help_compact_sha256": "49d6e43afc95a933d694ae5e1b66901fd6d7ab8c8f3957ba8747486028429c41",
         "actions": [
           {
             "dest": "help",
@@ -1442,7 +1442,7 @@
         ]
       },
       "ingest-reviewer": {
-        "help_sha256": "7c7eab9b48bf9ea6591b5e1c06c190a8223a45abd020deaddbf3b2f0a3ad13fb",
+        "help_compact_sha256": "9aebb0ecfa29a07f3a7e6d74f3325b0c9667edca0f4195a99da65c8df7f69d0a",
         "actions": [
           {
             "dest": "help",
@@ -1478,7 +1478,7 @@
         ]
       },
       "activate": {
-        "help_sha256": "e145b1141d798159206c82e664df183a50eabed705a16418ee8d7ede2cdb727c",
+        "help_compact_sha256": "ca96468d35ee05ce06aea94480c9307d8bfe94a3a51722f6605a8275eda9b772",
         "actions": [
           {
             "dest": "help",
@@ -1564,7 +1564,7 @@
         ]
       },
       "decide": {
-        "help_sha256": "4d559175fdcaa41edb8bb8139ef841c3791434ff0c1a8dffd2814926a718c12c",
+        "help_compact_sha256": "9b41de99b481d17ac118916b591a47fbdca06852adf130f7d9551d650aa29844",
         "actions": [
           {
             "dest": "help",
