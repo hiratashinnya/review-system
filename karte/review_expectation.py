@@ -3,8 +3,8 @@
 期待値を決めるのは主文脈（``activate`` の引数）か trusted wrapper の承認済み binding で、reviewer の
 handoff は自己申告するだけ。``ingest-reviewer`` が申告を期待値へ完全に束縛する。期待値は 1 回限りで、
 取り込みが成功すると進行ポインタの書き換えで消える（再利用された handoff は期待値が無く拒否される）。
-期待値が残っている間は、その Issue の review は ``ingest-reviewer`` で取り込む前提なので、主文脈の
-``ingest-review`` を拒否する（round 1 を含め、レビューアの申告原本を迂回させない）。
+期待値が残っている間は、その Issue の review は ``ingest-reviewer`` で取り込む前提なので、他 Issue 宛も
+主文脈の ``ingest-review`` を拒否する（round 1 を含め、期待値とレビューアの申告原本を守る）。
 """
 
 from . import paths, review_envelope
@@ -58,9 +58,13 @@ def require(repo_root, issue: int) -> dict:
 
 def refuse_main_context_ingest(repo_root, issue: int) -> None:
     """期待値が残っている間は、主文脈の ``ingest-review`` で review を取り込ませない。"""
-    if pending(repo_root, issue) is not None:
+    active = read_active(repo_root)
+    if EXPECT_KEY not in active:
+        return
+    waiting_issue = paths.validate_issue(active.get("issue"))
+    if pending(repo_root, waiting_issue) is not None:
         raise KarteUsageError(
-            "この Issue はレビューア本人の取り込み待ち（進行ポインタに review envelope の期待値がある）。"
-            "主文脈の ingest-review は使えない。レビューアの `ingest-reviewer` を待つか、"
-            "取り込まない場合は `karte activate --issue <N>`（期待値なし）で待ちを解除する"
+            f"Issue {waiting_issue} はレビューア本人の取り込み待ち（進行ポインタに review envelope の期待値がある）。"
+            f"主文脈の ingest-review は他 Issue 宛も使えない。Issue {waiting_issue} の `ingest-reviewer` を待つか、"
+            f"取り込まない場合は `karte activate --issue {waiting_issue}`（期待値なし）で待ちを解除する"
         )

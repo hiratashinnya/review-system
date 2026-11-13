@@ -61,10 +61,13 @@ class TestRoundCompletion(_RootedCase):
             pointer_completion.ingest_target(self._args(issue="7", round="3"), self.root),
         )
 
-    def test_pointer_round_zero_is_rejected_by_ingest_target_as_before(self):
+    def test_pointer_round_zero_completes_ingest_target_to_round_one(self):
         self.write_pointer('{"issue": 7, "round": 0}\n')
+        self.assertEqual(
+            (7, 1), pointer_completion.ingest_target(self._args(issue="7", round=None), self.root)
+        )
         with self.assertRaises(KarteUsageError):
-            pointer_completion.ingest_target(self._args(issue="7", round=None), self.root)
+            pointer_completion.resolve_round(self._args(round=None), self.root, 7, _HINT)
 
 
 class TestRecordedRound(unittest.TestCase):
@@ -117,13 +120,22 @@ class TestIngestRefusalsHaveNoSideEffect(_RootedCase):
             "not-an-object": "[]",
             "no-issue": '{"round": 2}',
             "no-round": '{"issue": 7}',
-            "zero-round": '{"issue": 7, "round": 0}',
+            "negative-round": '{"issue": 7, "round": -1}',
+            "boolean-round": '{"issue": 7, "round": false}',
+            "huge-round": '{"issue": 7, "round": "' + HUGE + '"}',
             "non-ascii-round": '{"issue": 7, "round": "²"}',
         }
         for name, text in cases.items():
             with self.subTest(case=name):
                 self.write_pointer(text)
                 self._assert_refused_without_side_effect()
+
+    def test_pointer_round_zero_allows_ingestion_as_round_one(self):
+        self.write_pointer('{"issue": 7, "round": 0}')
+        report = report_text(("new", finding("a.py::f", "検証が不足")))
+        code, _out, err = self.run_verb(ingest_argv(), report)
+        self.assertEqual(exit_codes.EXIT_OK, code, err)
+        self.assertEqual([1], self.ledger().findings[0].rounds)
 
     def test_pointer_pointing_at_another_issue_creates_no_lock_file(self):
         self.write_pointer('{"issue": 999, "round": 4}')
