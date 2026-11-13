@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from codex_worktree_exec.untracked_recovery import main as recover
+from codex_worktree_exec.untracked_recovery import candidates, main as recover
 from tests.unit.codex_worktree_exec_support import make_repository
 
 
@@ -79,3 +79,20 @@ class UntrackedRecoveryRaceTests(unittest.TestCase):
                 self.invoke()
         self.assertEqual((alternative / file.name).read_text(), "original")
         self.assertEqual((foreign / file.name).read_text(), "foreign data")
+
+    def test_replaced_after_listing_is_not_quarantined(self):
+        file = self.root / "tmp/replaced.out"
+        file.parent.mkdir()
+        file.write_text("old")
+        original = candidates
+
+        def replace_after_listing(root):
+            entries = original(root)
+            file.write_text("new owner content, different size")
+            return entries
+
+        with patch("codex_worktree_exec.untracked_recovery.candidates",
+                   side_effect=replace_after_listing):
+            with self.assertRaisesRegex(ValueError, "changed since listing"):
+                self.invoke()
+        self.assertEqual(file.read_text(), "new owner content, different size")

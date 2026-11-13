@@ -34,6 +34,10 @@ def _signature(info) -> tuple:
     return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_mode
 
 
+def signature(path: Path) -> tuple:
+    return _signature(path.stat(follow_symlinks=False))
+
+
 @contextmanager
 def _parent(root: Path, parts: tuple):
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
@@ -47,7 +51,7 @@ def _parent(root: Path, parts: tuple):
             os.close(descriptor)
 
 
-def move_checked(root: Path, relative: Path, destination: Path, allowed) -> None:
+def move_checked(root: Path, relative: Path, destination: Path, allowed, snapshot: tuple) -> None:
     """Call while holding index_guard. Never unlink moved owner content."""
     if (relative.is_absolute() or ".." in relative.parts
             or not _untracked(root, relative) or not allowed(root, relative)):
@@ -58,6 +62,8 @@ def move_checked(root: Path, relative: Path, destination: Path, allowed) -> None
         source_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=parent_fd)
         try:
             expected = _signature(os.fstat(source_fd))
+            if expected != snapshot:
+                raise ValueError(f"candidate changed since listing: {relative}")
             if not stat.S_ISREG(expected[-1]):
                 raise ValueError(f"nonregular candidate: {relative}")
             if _signature(os.stat(name, dir_fd=parent_fd, follow_symlinks=False)) != expected:

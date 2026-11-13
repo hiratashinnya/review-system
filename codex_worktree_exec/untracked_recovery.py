@@ -3,7 +3,7 @@ import argparse
 import subprocess
 import tempfile
 from pathlib import Path
-from .safe_quarantine import index_guard, move_checked
+from .safe_quarantine import index_guard, move_checked, signature
 from .untracked_policy import classify_untracked, regular_unlinked
 
 RECOVERABLE = frozenset({
@@ -12,7 +12,7 @@ RECOVERABLE = frozenset({
 })
 
 
-def candidates(worktree: Path) -> list[tuple[str, Path]]:
+def candidates(worktree: Path) -> list[tuple[str, Path, tuple]]:
     root = worktree.resolve()
     names = subprocess.run(
         ["git", "-C", str(root), "ls-files", "--others", "-z"],
@@ -28,7 +28,7 @@ def candidates(worktree: Path) -> list[tuple[str, Path]]:
             continue
         category = classify_untracked(root, relative.as_posix(), source_bytes)
         if category in RECOVERABLE:
-            selected.append((category, relative))
+            selected.append((category, relative, signature(path)))
     return sorted(selected, key=lambda item: item[1].as_posix())
 
 
@@ -47,7 +47,7 @@ def main(argv=None) -> int:
     if parent.is_relative_to(root):
         raise ValueError("quarantine directory must be outside worktree")
     selected = candidates(root)
-    for category, relative in selected:
+    for category, relative, snapshot in selected:
         print(f"{'move' if args.apply else 'would move'} {relative} ({category})")
     if not args.apply or not selected:
         print(f"untracked recovery count={len(selected)} mode={'apply' if args.apply else 'dry-run'}")
@@ -55,8 +55,8 @@ def main(argv=None) -> int:
     quarantine = Path(tempfile.mkdtemp(prefix="review-system-quarantine-", dir=parent))
     print(f"quarantine directory: {quarantine}", flush=True)
     with index_guard(root):
-        for category, relative in selected:
-            move_checked(root, relative, quarantine / relative, _allowed)
+        for category, relative, snapshot in selected:
+            move_checked(root, relative, quarantine / relative, _allowed, snapshot)
     print(f"untracked recovery count={len(selected)} mode=apply; files preserved")
     return 0
 
