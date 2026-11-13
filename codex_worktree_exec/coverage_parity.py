@@ -28,6 +28,31 @@ def _run(command, *, cwd, env):
     return subprocess.run(command, cwd=cwd, env=env, capture_output=True, text=True)
 
 
+
+def require_head_test_source_inventory(root: Path) -> None:
+    """A HEAD-based plain checkout cannot run added local tests/source.
+
+    Include ignored files: gitignore and per-clone exclude are not approval.
+    Generated non-source output outside tests does not affect test discovery.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "--others", "-z"],
+        check=True, capture_output=True,
+    )
+    unsafe = []
+    for raw in filter(None, result.stdout.split(b"\0")):
+        relative = Path(raw.decode("utf-8", "surrogateescape"))
+        if ((relative.parts and relative.parts[0] == "tests")
+                or relative.suffix == ".py"):
+            unsafe.append(relative.as_posix())
+    if unsafe:
+        sample = ", ".join(sorted(unsafe)[:5])
+        raise ValueError(
+            f"coverage input inventory differs from HEAD: untracked tests/source "
+            f"count={len(unsafe)} examples=[{sample}]"
+        )
+
+
 def execute(output: Path) -> None:
     root = Path(__file__).resolve().parents[1]
     output = output.resolve()
@@ -36,6 +61,7 @@ def execute(output: Path) -> None:
     output.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "-C", str(root), "diff", "--exit-code", "HEAD", "--"],
                    check=True, capture_output=True)
+    require_head_test_source_inventory(root)
     oid = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"],
                          check=True, text=True, capture_output=True).stdout.strip()
     with tempfile.TemporaryDirectory(prefix="issue655-parity-") as temp:

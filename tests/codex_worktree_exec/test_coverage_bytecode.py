@@ -7,7 +7,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from codex_worktree_exec.coverage_parity import validate
+from codex_worktree_exec.coverage_parity import validate, require_head_test_source_inventory
+from tests.unit.codex_worktree_exec_support import make_repository
 
 
 class CoverageBytecodeTests(unittest.TestCase):
@@ -15,6 +16,39 @@ class CoverageBytecodeTests(unittest.TestCase):
         error = subprocess.CompletedProcess([], 1, "", "FAIL: example.test\n")
         with self.assertRaisesRegex(ValueError, "matching_failures="):
             validate(error, error)
+
+
+    def test_untracked_successful_test_must_refuse_parity(self):
+        """A test that passes only on the coverage side cannot be silently ignored."""
+        with tempfile.TemporaryDirectory() as directory:
+            _, root = make_repository(Path(directory))
+            tests = root / "tests"
+            tests.mkdir()
+            extra = tests / "test_only_coverage.py"
+            extra.write_text(
+                "import unittest\n"
+                "class CoverageOnlyTests(unittest.TestCase):\n"
+                "    def test_success(self): self.assertTrue(True)\n"
+            )
+            with self.assertRaisesRegex(ValueError, r"coverage input inventory differs from HEAD"):
+                require_head_test_source_inventory(root)
+            extra.unlink()
+            require_head_test_source_inventory(root)
+
+    def test_ignored_source_cannot_bypass_inventory_check(self):
+        with tempfile.TemporaryDirectory() as directory:
+            _, root = make_repository(Path(directory))
+            (root / ".gitignore").write_text("injected.py\n")
+            (root / "injected.py").write_text("VALUE = 42\n")
+            with self.assertRaisesRegex(ValueError, r"injected.py"):
+                require_head_test_source_inventory(root)
+
+    def test_non_source_tmp_data_does_not_fail_inventory_check(self):
+        with tempfile.TemporaryDirectory() as directory:
+            _, root = make_repository(Path(directory))
+            (root / "tmp").mkdir()
+            (root / "tmp" / "progress.json").write_text("{}\n")
+            require_head_test_source_inventory(root)
 
     @unittest.skipUnless(shutil.which("uv"), "coverage parity requires uv")
     def test_bytecode_disabled_coverage_matches_plain_unittest(self):
