@@ -193,4 +193,4 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
       - name: Full unittest and coverage parity (Issue 655)
-        run: python3 -m codex_worktree_exec.coverage_parity --output "$RUNNER_TEMP/issue655-parity"
+        run: python3 -B -m codex_worktree_exec.coverage_parity --output "$RUNNER_TEMP/issue655-parity"

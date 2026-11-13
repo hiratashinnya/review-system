@@ -12,7 +12,7 @@ coverage・HTML・bytecode は checkout 外に生成する。coverage の導入�
    ```
 2. 同一コミット・interpreterによる **全** `unittest discover -s tests -t . -p "test_*.py"` を比較する。
    ```bash
-   python3 -m codex_worktree_exec.coverage_parity --output "$COVERAGE_OUTPUT_DIR"
+   python3 -B -m codex_worktree_exec.coverage_parity --output "$COVERAGE_OUTPUT_DIR"
    ```
    この処理は通常 unittest を隔離した detached worktree で、coverage unittest を
    現作業面で実行する。通常側に `PYTHONDONTWRITEBYTECODE` や
@@ -29,3 +29,5 @@ coverage・HTML・bytecode は checkout 外に生成する。coverage の導入�
 - [ ] `$COVERAGE_OUTPUT_DIR/parity.json` および `htmlcov/index.html` が生成済み
 - [ ] 元checkout内に新しい `.coverage`、`htmlcov/`、`__pycache__` が増えない
 - [ ] 比較結果と作業面外レポートパスを報告済み
+
+補足：parity runner自身のimportによるbytecodeも、起動時の `python3 -B` により防止する。

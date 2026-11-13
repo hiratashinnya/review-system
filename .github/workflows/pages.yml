@@ -34,7 +34,7 @@ jobs:
         uses: actions/configure-pages@v6
 
       - name: Issue 655 coverage parity and output-isolation smoke
-        run: python3 -m unittest discover -s tests/codex_worktree_exec -p test_coverage_bytecode.py
+        run: python3 -B -m unittest discover -s tests/codex_worktree_exec -p test_coverage_bytecode.py
 
       # Keep the discovery roots and order aligned with tests.yml. Each suite appends
       # coverage data to the same file; any failed step stops the job before Pages deploys.
