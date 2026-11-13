@@ -78,7 +78,11 @@ def move_checked(root: Path, relative: Path, destination: Path, allowed, snapsho
                     return
             except FileNotFoundError:
                 pass
-            if not os.path.lexists(root / relative):
+            # Check the pinned original directory, not root/relative:
+            # a racing parent symlink may point root/relative at unrelated data.
+            try:
+                os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+            except FileNotFoundError:
                 os.rename(destination, name, dst_dir_fd=parent_fd)
             raise ValueError(f"candidate changed during move; inspect {relative} and {destination}")
         finally:
