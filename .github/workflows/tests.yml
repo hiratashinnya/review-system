@@ -98,6 +98,7 @@ jobs:
       - name: Checkout exact PR head
         uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -117,10 +118,10 @@ jobs:
         with:
           name: issue655-ac16-full-parity
           path: |
-            /tmp/issue655-ac16/parity.json
-            /tmp/issue655-ac16/plain.log
-            /tmp/issue655-ac16/covered.log
-            /tmp/issue655-ac16/htmlcov/index.html
+            ${{ runner.temp }}/issue655-ac16/parity.json
+            ${{ runner.temp }}/issue655-ac16/plain.log
+            ${{ runner.temp }}/issue655-ac16/covered.log
+            ${{ runner.temp }}/issue655-ac16/htmlcov/index.html
           if-no-files-found: warn
           retention-days: 30
 
