@@ -85,59 +85,7 @@ jobs:
       - name: Maintainability principles check (Issue #539)
         run: python3 -m maintainability_lint check
 
-      - name: Remember current Python path for one-shot cross-runtime AC check
-        run: echo "ISSUE655_PREVIOUS_PYTHON=$(python3 -c 'import sys;print(sys.executable)')" >> "$GITHUB_ENV"
 
-      - name: Install second Python for Issue 655 acceptance evidence
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-
-      - name: Validate real foreign-runtime cache from Python 3.15 with Python 3.13
-        run: python3 -B -m unittest discover -s tests/issue_start -p 'test_issue655_cross_runtime.py' -v
-
-
-  issue655-ac-one-shot:
-    # Temporary acceptance evidence for Issue 655, remove after capture.
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.15"
-      - name: Preserve first interpreter for cross-runtime fixture
-        run: echo "ISSUE655_PREVIOUS_PYTHON=$(python3 -c 'import sys;print(sys.executable)')" >> "$GITHUB_ENV"
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-      - name: Execute acceptance matrix on isolated Git fixture
-        run: |
-          python3 -B -m unittest discover -s tests/issue_start -p 'test_issue655_*.py' -v
-          python3 -B -m unittest discover -s tests/codex_worktree_exec -v
-          python3 -B -m maintainability_lint check
-
-  issue655-final-parity-one-shot:
-    # Single final acceptance run for Issue 655 AC16; remove after evidence.
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.x"
-      - uses: astral-sh/setup-uv@v7
-      - name: Full same-commit plain-vs-coverage parity
-        run: python3 -B -m codex_worktree_exec.coverage_parity --output "$RUNNER_TEMP/issue655-final-parity"
-      - name: Preserve parity evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: issue655-final-parity-logs
-          path: |
-            ${{ runner.temp }}/issue655-final-parity/parity.json
-            ${{ runner.temp }}/issue655-final-parity/plain.log
-            ${{ runner.temp }}/issue655-final-parity/covered.log
-          if-no-files-found: warn
 
   typecheck:
     runs-on: ubuntu-latest
