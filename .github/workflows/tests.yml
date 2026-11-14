@@ -87,44 +87,6 @@ jobs:
 
 
 
-  issue655-ac16-one-shot:
-    # One-time evidence run for Issue #655 AC16 on PR #818; remove after result.
-    if: github.event_name == 'pull_request' && github.event.pull_request.number == 818
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout exact PR head
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          persist-credentials: false
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.x"
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v7
-      - name: Full plain-vs-coverage test parity on same HEAD/interpreter
-        run: |
-          python3 -B -m codex_worktree_exec.coverage_parity --output "$RUNNER_TEMP/issue655-ac16"
-          test -s "$RUNNER_TEMP/issue655-ac16/parity.json"
-          test -s "$RUNNER_TEMP/issue655-ac16/htmlcov/index.html"
-          python3 -c 'import json,os,pathlib; p=pathlib.Path(os.environ["RUNNER_TEMP"])/"issue655-ac16"/"parity.json"; d=json.loads(p.read_text()); print(json.dumps(d,indent=2)); assert d["plain_exit"]==d["covered_exit"]==0 and d["plain_failures"]==d["covered_failures"]==[]'
-      - name: Preserve plain/coverage logs and HTML evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: issue655-ac16-full-parity
-          path: |
-            ${{ runner.temp }}/issue655-ac16/parity.json
-            ${{ runner.temp }}/issue655-ac16/plain.log
-            ${{ runner.temp }}/issue655-ac16/covered.log
-            ${{ runner.temp }}/issue655-ac16/htmlcov/index.html
-          if-no-files-found: warn
-          retention-days: 30
-
   typecheck:
     runs-on: ubuntu-latest
     steps:
@@ -217,3 +179,42 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: python3 -m advisory check --against-ref "origin/$BASE_REF" --require-base
+
+  issue655-ac16-one-shot:
+    # One-time evidence run for Issue #655 AC16 on PR #818; remove after result.
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 818
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+      - name: Full plain-vs-coverage test parity on same HEAD/interpreter
+        run: |
+          python3 -B -m codex_worktree_exec.coverage_parity --output "$RUNNER_TEMP/issue655-ac16"
+          test -s "$RUNNER_TEMP/issue655-ac16/parity.json"
+          test -s "$RUNNER_TEMP/issue655-ac16/htmlcov/index.html"
+          python3 -c 'import json,os,pathlib; p=pathlib.Path(os.environ["RUNNER_TEMP"])/"issue655-ac16"/"parity.json"; d=json.loads(p.read_text()); print(json.dumps(d,indent=2)); assert d["plain_exit"]==d["covered_exit"]==0 and d["plain_failures"]==d["covered_failures"]==[]'
+      - name: Preserve plain/coverage logs and HTML evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue655-ac16-full-parity
+          path: |
+            ${{ runner.temp }}/issue655-ac16/parity.json
+            ${{ runner.temp }}/issue655-ac16/plain.log
+            ${{ runner.temp }}/issue655-ac16/covered.log
+            ${{ runner.temp }}/issue655-ac16/htmlcov/index.html
+          if-no-files-found: warn
+          retention-days: 30
+
