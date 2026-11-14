@@ -173,6 +173,7 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
   主文脈の `ingest-review` は従来動作に戻る（退避経路を追記専用にしない・F-375-10）。レビューアが既に取り込んで
   原本がある Issue（F-375-22 の窓で原本だけが残った Issue を含む）では、待ちを取り消しても原本は消えず
   保護モードが残る（オーナー確定の scope を守るため）。
+  主文脈の先書きは許されるが reviewer の申告ではない。書き手と原本の照合方法は下記「scope の出所」。
   `run_id` / `target_key` は handoff ヘッダへそのまま往復できる値（英数字で始まる 128 文字以内の
   英数字と `. _ : / @ + # -`）に限り、空白・`-->` を含む値は `activate` が拒否する（F-375-12）。
 - **review handoff の共通 envelope（Issue #375・#371 契約）**：handoff 先頭の 1 行
@@ -565,3 +566,23 @@ touched-set 自体が空（`--base` を誤って空 diff になったケース�
 - **ロック内で拒否された `ingest-review`／`ingest-reviewer`** は共通経路 `ingest_locked` で、どちらも
   `4` を返し台帳・ポインタは書かないが、新規 repo でも `tmp/_karte/` と `.writer.lock` は残る。
   何も作らずに拒否できるのは、ロック前に行う引数・ポインタ・本文の検証だけである。
+
+### scope の出所（#797）
+
+`tmp/_karte/issue-<N>.scope-origin.jsonl` は各 ingest の書込み前 `pending` と台帳書込み後
+`committed` を対で保存する。各行は `tx`、`phase`、`round`、`entries`（`id`、`scope`、`source`、
+`new`）を持つ。`source` は `main` または `reviewer`。申告原本とは別であり、
+この記録は reviewer 申告を作らない。`activate` はどちらも作らない。
+
+消費側は `karte.scope_origin.first_writers(issue, repo_root)` で最初の書き手を取得し、
+`karte.scope_origin.reviewer_declarations(issue, repo_root)` で reviewer 申告の round と値を取得する。
+辞書に ID がない場合、出所または申告は未証明であり、#523 の消費側は reviewer 申告なしを
+「覆しなし」として clean にしてはならない。`unknown` も未証明として扱う。既存履歴や
+書込み途中は `unknown` となり、途中失敗からの再試行でも先書き履歴を推定しない。
+この API は現時点の scope の書き手ではなく最初の書き手と申告履歴を返す。
+申告 API は出所記録で台帳への反映が確定し、かつ原本に存在する申告だけを返す。
+原本自体の書込み後に台帳が失敗した申告は返さない。出所の確定書込みが台帳の保存後に
+失敗した場合、台帳は保存済みでポインタは進まず、出所は未証明となる。再取り込みせず
+`karte render` で台帳を確認し、`karte activate` でポインタを回復する。未証明の出所は
+回復後も推測しない。出所記録の消失・破損は
+保証を損ない、破損は拒否する。非協調なファイル操作からの完全性は保証しない。

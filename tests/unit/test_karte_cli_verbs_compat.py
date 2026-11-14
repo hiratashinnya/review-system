@@ -183,7 +183,8 @@ class TestKarteCliVerbsCompatibility(unittest.TestCase):
         cls.golden = json.loads(GOLDEN.read_text(encoding="utf-8"))
 
     def test_verb_outputs_and_file_effects(self):
-        actual = cases()
+        with mock.patch("karte.scope_origin.secrets.token_hex", return_value="0" * 32):
+            actual = cases()
         self.assertEqual(set(self.golden["cases"]), set(actual))
         for name, result in actual.items():
             with self.subTest(case=name):
@@ -205,6 +206,8 @@ class TestKarteCliVerbsCompatibility(unittest.TestCase):
         for name in ("issue_invalid_prepare", "empty_stdin_prepare", "missing_from"):
             self.assertFalse(c[name]["directory_exists"], name)
         self.assertEqual([".writer.lock"], c["validation_locked"]["changed"])
+        self.assertIn("issue-7.scope-origin.jsonl", c["ingest_file"]["changed"])
+        self.assertIn("issue-7.scope-origin.jsonl", c["ingest_stdin"]["changed"])
         for name in ("validation_locked", "ingest_missing_previous", "append_unknown", "append_bad_slug",
                      "append_saturated", "close_empty_diff", "empty_stdin_prepare", "missing_from"):
             self.assertEqual({k: v for k, v in c[name]["before"].items() if k != ".writer.lock"},
