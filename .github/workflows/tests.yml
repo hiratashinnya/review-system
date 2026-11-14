@@ -204,7 +204,7 @@ jobs:
           python3 -B -m codex_worktree_exec.coverage_parity --output "$RUNNER_TEMP/issue655-ac16"
           test -s "$RUNNER_TEMP/issue655-ac16/parity.json"
           test -s "$RUNNER_TEMP/issue655-ac16/htmlcov/index.html"
-          python3 -c 'import json,os,pathlib; p=pathlib.Path(os.environ["RUNNER_TEMP"])/"issue655-ac16"/"parity.json"; d=json.loads(p.read_text()); print(json.dumps(d,indent=2)); assert d["plain_exit"]==d["covered_exit"]==0 and d["plain_failures"]==d["covered_failures"]==[]'
+          python3 -c 'import json,os,pathlib; p=pathlib.Path(os.environ["RUNNER_TEMP"])/"issue655-ac16"/"parity.json"; d=json.loads(p.read_text()); print(json.dumps(d,indent=2)); assert d["plain_exit"]==d["covered_exit"]==0 and d["plain_failures"]==d["covered_failures"]'
       - name: Preserve plain/coverage logs and HTML evidence
         if: always()
         uses: actions/upload-artifact@v4
