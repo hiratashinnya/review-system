@@ -86,12 +86,14 @@ class UntrackedRecoveryTests(unittest.TestCase):
         legacy = self.place("pkg/__pycache__/orphan.cpython-313.pyo")
         self.assertEqual(candidates(self.root), [cache])
         self.assertEqual(prune(["--worktree", str(self.root)]), 0)
-        self.assertTrue(cache.exists())
         quarantine = self.root.parents[3] / "cache-preserved"
         quarantine.mkdir(exist_ok=True)
+        self.assertTrue(cache.exists())  # Dry-run keeps its input.
         self.assertEqual(prune(["--worktree", str(self.root), "--apply",
                                 "--quarantine-parent", str(quarantine)]), 0)
         self.assertFalse(cache.exists())
+        saved = list(quarantine.glob("review-system-cache-*/pkg/__pycache__/*.pyc"))
+        self.assertEqual([p.read_bytes() for p in saved], [b"x"])
         self.assertTrue(other.exists())
         self.assertTrue(legacy.exists())
         with self.assertRaisesRegex(ValueError, "unsupported_cache_format count=1") as caught:
