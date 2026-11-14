@@ -87,7 +87,11 @@ class UntrackedRecoveryTests(unittest.TestCase):
         self.assertEqual(candidates(self.root), [cache])
         self.assertEqual(prune(["--worktree", str(self.root)]), 0)
         self.assertTrue(cache.exists())
-        self.assertEqual(prune(["--worktree", str(self.root), "--apply"]), 0)
+        quarantine = self.root.parents[3] / "cache-preserved"
+        quarantine.mkdir(exist_ok=True)
+        self.assertEqual(prune(["--worktree", str(self.root), "--apply",
+                                "--quarantine-parent", str(quarantine)]), 0)
+        self.assertEqual(len(list(quarantine.glob("review-system-cache-*/pkg/__pycache__/*.pyc"))), 1)
         self.assertFalse(cache.exists())
         self.assertTrue(other.exists())
         self.assertTrue(legacy.exists())

@@ -1,6 +1,5 @@
 """Issue #822: real local git pull with source-delete and source-update residues."""
 import py_compile
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -63,8 +62,6 @@ class GitPullRecoveryIntegrationTests(unittest.TestCase):
             self.assertIn("mode=apply", result.stdout)
             verify_untracked_sources(consumer)
             self.assertFalse(cache.exists())
-            copies = list(preserve.glob("review-system-quarantine-*/module/__pycache__/*.pyc"))
-            # The original cache is under the root-level __pycache__, not module/.
             copies = list(preserve.glob("review-system-quarantine-*/__pycache__/*.pyc"))
             self.assertEqual(len(copies), 1)
             self.assertTrue(copies[0].is_file())
