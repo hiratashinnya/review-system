@@ -116,6 +116,29 @@ jobs:
           python3 -B -m unittest discover -s tests/codex_worktree_exec -v
           python3 -B -m maintainability_lint check
 
+  issue655-final-parity-one-shot:
+    # Single final acceptance run for Issue 655 AC16; remove after evidence.
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+      - uses: astral-sh/setup-uv@v7
+      - name: Full same-commit plain-vs-coverage parity
+        run: python3 -B -m codex_worktree_exec.coverage_parity --output "$RUNNER_TEMP/issue655-final-parity"
+      - name: Preserve parity evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue655-final-parity-logs
+          path: |
+            ${{ runner.temp }}/issue655-final-parity/parity.json
+            ${{ runner.temp }}/issue655-final-parity/plain.log
+            ${{ runner.temp }}/issue655-final-parity/covered.log
+          if-no-files-found: warn
+
   typecheck:
     runs-on: ubuntu-latest
     steps:
