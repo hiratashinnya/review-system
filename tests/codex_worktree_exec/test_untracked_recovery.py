@@ -8,7 +8,6 @@ from codex_worktree_exec.cache_prune import candidates, main as prune
 from codex_worktree_exec.source_snapshot import verify_untracked_sources
 from tests.unit.codex_worktree_exec_support import git, make_repository
 
-
 class UntrackedRecoveryTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
