@@ -1722,7 +1722,7 @@ class AgentCommandGateTests(unittest.TestCase):
             "issue-implementer": set(),
             "issue-fixer": {"render", "append", "close-attempt", "check", "status"},
             "issue-investigator": set(), "plan-reviewer": set(),
-            "pr-reviewer": {"ingest-reviewer"}, "adviser": set(),
+            "pr-reviewer": {"ingest-reviewer"}, "adviser": set(), "finding-triager": set(),
         }
         verbs = ("ingest-reviewer", "ingest-review", "decide", "activate", "render",
                  "append", "close-attempt", "check", "status")

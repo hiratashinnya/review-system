@@ -90,7 +90,7 @@ python3 -m codex_worktree_exec --role <自ロール> -C <自分の worktree ル�
 ### Codex に渡す argv
 
 ```
-codex exec -C <worktree> -c default_permissions="<role>" -m <model> \
+codex exec -C <worktree> -c default_permissions="<profile>" -m <model> \
   -c shell_environment_policy.inherit="core" \
   -c model_reasoning_effort="<effort>" --output-last-message <最終応答> -
 ```
@@ -128,7 +128,7 @@ sandbox や承認を迂回する flag は渡さない。ラッパーはモデル
 config の最初の有効設定はトップレベルの `default_permissions = "secure-default"` とする（F-538-24）。
 `[permissions.secure-default]` は `:workspace` を継承し、role profile と同じ network deny と認証情報パス deny を持つ。
 これにより project config を読む未指定の直接起動も、編集可能な workspace 権限を保ちながら認証情報を読めない。
-`codex_worktree_exec` は `-c default_permissions="<role>"` で個別 role profile を明示選択するため、この既定値を使わない。
+`codex_worktree_exec` は role に対応する profile を明示選択するため、この既定値を使わない。`finding-triager` は既存 `adviser` の read-only profile を共有し、pin に加え権限内容を検査する。
 `secure-default` は起動時の既定でありロールではない。`CODEX_EXEC_ROLES` や wrapper の `--role` 許可集合には含めない。
 
 Codex 起動の実効権限は sandbox 指定と project config の組合せで決まる。`--sandbox read-only` や `codex-review`
@@ -149,8 +149,8 @@ profile の構文は、パスを絶対パスか `~/` 始まりで書く。`unitt
 
 ## 「要設計」4項目の決定
 
-1. **profile の選択経路**：project-local の `.codex/config.toml` に `[permissions.<role>]` を版管理し、ラッパーが
-   `-c default_permissions="<role>"` で選ぶ。`--profile` が選ぶのは config profile で別概念である。
+1. **profile の選択経路**：project-local の `.codex/config.toml` に profile を版管理し、ラッパーが
+   role に対応する `-c default_permissions="<profile>"` で選ぶ。`finding-triager` の対応先は `adviser` で、固定済み read-only 権限の検査を必須とする。`--profile` が選ぶのは config profile で別概念である。
    task-private な `CODEX_HOME` へ profile を生成する方式（#452）は採らない。`-c` の dotted key で profile 本体を
    渡す方式は、ドットを含むパスの filesystem 規則を表現できないため採らない（実測⑧）。
 2. **project trust**：未 trust の clone では Codex 自身が `default_permissions requires a [permissions] table` で

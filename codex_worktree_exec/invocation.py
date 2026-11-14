@@ -78,6 +78,10 @@ def compose_prompt(role: str, worktree: Path, body: str) -> str:
     return preamble.format(role=role, worktree=worktree) + scope + criteria + body
 
 
+def profile_for_role(role: str) -> str:
+    return "adviser" if role == "finding-triager" else role
+
+
 def build_codex_argv(
     request: ExecRequest, worktree: Path, output_file: Path, codex: str = "codex"
 ) -> list[str]:
@@ -85,7 +89,7 @@ def build_codex_argv(
     return [
         codex, "exec",
         "-C", str(worktree),
-        "-c", f'default_permissions="{request.role}"',
+        "-c", f'default_permissions="{profile_for_role(request.role)}"',
         "-c", 'shell_environment_policy.inherit="core"',
         "-m", request.model,
         "-c", f'model_reasoning_effort="{request.reasoning_effort}"',
