@@ -19,6 +19,7 @@
   それを担保するために :class:`NoWallClockReadTests` が実装ソースを機械検査する。
 """
 
+import ast
 import os
 import shutil
 import subprocess
@@ -2004,23 +2005,55 @@ class WorktreeForgetTests(LedgerFixture):
 
 
 class NoWallClockReadTests(LedgerFixture):
+    @staticmethod
+    def _wall_clock_imports(source: str) -> list[str]:
+        """Detect clock imports, including aliases and imports nested in functions."""
+        forbidden = {"datetime", "calendar", "time"}
+        found: list[str] = []
+        for node in ast.walk(ast.parse(source)):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.split(".", 1)[0] in forbidden:
+                        found.append(f"{node.lineno}: import {alias.name}")
+            elif isinstance(node, ast.ImportFrom) and node.level == 0:
+                if (node.module or "").split(".", 1)[0] in forbidden:
+                    found.append(f"{node.lineno}: from {node.module} import")
+        return found
+
     def test_module_never_reads_the_wall_clock(self):
-        # 時刻を読むのは CLI 境界（gitgate/cli.py の `_now`）だけ。ロジック側に
-        # wall clock 読み取りが混ざると、コード変更なしに時間経過でテストが壊れる。
-        # 「呼び出しを grep する」のではなく「時計モジュールを import していない」ことを見る
-        # ——import が無ければ読みようがない（散文中の `datetime.now()` に反応もしない）。
-        source = Path(__file__).resolve().parents[2] / "gitgate" / "worktree.py"
-        import_lines = [
-            line.strip()
-            for line in source.read_text(encoding="utf-8").splitlines()
-            if line.startswith(("import ", "from "))
-        ]
-        for line in import_lines:
-            with self.subTest(line=line):
-                self.assertNotIn("datetime", line)
-                self.assertNotIn("calendar", line)
-                self.assertNotEqual(line, "import time")
-                self.assertFalse(line.startswith("from time import"))
+        # CLI だけが wall clock を読む。worktree_*.py に抽出された処理も監視する。
+        # ファイル名の列挙は将来の小規模モジュール抽出にも自動追従する。
+        gitgate_dir = Path(__file__).resolve().parents[2] / "gitgate"
+        modules = sorted(gitgate_dir.glob("worktree*.py"))
+        self.assertIn(gitgate_dir / "worktree.py", modules)
+        self.assertGreater(len(modules), 1)
+        for module in modules:
+            with self.subTest(module=module.name):
+                self.assertEqual(
+                    self._wall_clock_imports(module.read_text(encoding="utf-8")),
+                    [],
+                    f"{module.name}: clock imports belong only in gitgate/cli.py",
+                )
+
+    def test_extracted_module_clock_import_mutations_are_detected(self):
+        # 抽出先へ禁止 import が混入した場合に、同じ検査が必ず検出する。
+        gitgate_dir = Path(__file__).resolve().parents[2] / "gitgate"
+        for module in sorted(gitgate_dir.glob("worktree*.py")):
+            source = module.read_text(encoding="utf-8")
+            for injected in (
+                "import time as clock",
+                "from time import time",
+                "import datetime",
+                "from datetime import datetime",
+                "import calendar",
+                "from calendar import timegm",
+                "def nested_clock():\n    import time",
+            ):
+                with self.subTest(module=module.name, injected=injected):
+                    self.assertTrue(
+                        self._wall_clock_imports(source + "\n" + injected + "\n"),
+                        f"{module.name}: failed to detect injected {injected!r}",
+                    )
 
     def test_injected_now_is_what_lands_in_the_ledger(self):
         entry_id = self.entry_with_status("collected")
