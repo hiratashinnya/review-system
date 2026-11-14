@@ -97,6 +97,25 @@ jobs:
         run: python3 -B -m unittest discover -s tests/issue_start -p 'test_issue655_cross_runtime.py' -v
 
 
+  issue655-ac-one-shot:
+    # Temporary acceptance evidence for Issue 655, remove after capture.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.15"
+      - name: Preserve first interpreter for cross-runtime fixture
+        run: echo "ISSUE655_PREVIOUS_PYTHON=$(python3 -c 'import sys;print(sys.executable)')" >> "$GITHUB_ENV"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Execute acceptance matrix on isolated Git fixture
+        run: |
+          python3 -B -m unittest discover -s tests/issue_start -p 'test_issue655_*.py' -v
+          python3 -B -m unittest discover -s tests/codex_worktree_exec -v
+          python3 -B -m maintainability_lint check
+
   typecheck:
     runs-on: ubuntu-latest
     steps:
