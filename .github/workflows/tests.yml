@@ -85,6 +85,18 @@ jobs:
       - name: Maintainability principles check (Issue #539)
         run: python3 -m maintainability_lint check
 
+      - name: Remember current Python path for one-shot cross-runtime AC check
+        run: echo "ISSUE655_PREVIOUS_PYTHON=$(python3 -c 'import sys;print(sys.executable)')" >> "$GITHUB_ENV"
+
+      - name: Install second Python for Issue 655 acceptance evidence
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Validate real foreign-runtime cache from Python 3.15 with Python 3.13
+        run: python3 -B -m unittest discover -s tests/issue_start -p 'test_issue655_cross_runtime.py' -v
+
+
   typecheck:
     runs-on: ubuntu-latest
     steps:
