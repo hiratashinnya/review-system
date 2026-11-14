@@ -23,15 +23,15 @@ class CrossPythonCacheTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp)
             _, root = make_repository(base)
-            source = root / "pkg" / "module.py"
-            source.parent.mkdir()
+            source = root / "module.py"
             source.write_text("answer = 42\n")
-            git(root, "add", "pkg/module.py")
+            git(root, "add", "module.py")
             git(root, "commit", "-qm", "dummy committed source")
-            subprocess.run([other, "-B", "-c",
-                            "import py_compile,sys;py_compile.compile(sys.argv[1],doraise=True)",
-                            str(source)], check=True)
-            cache = list((root / "pkg/__pycache__").glob("*.pyc"))
+            subprocess.run([other, "-c",
+                            "import sys,unittest;sys.path.insert(0,sys.argv[1]);"
+                            "import module;unittest.TestCase().assertEqual(module.answer,42)",
+                            str(root)], check=True)
+            cache = list((root / "__pycache__").glob("*.pyc"))
             self.assertEqual(len(cache), 1)
             self.assertIn(other_tag, cache[0].name)
             original = cache[0].read_bytes()
@@ -42,6 +42,6 @@ class CrossPythonCacheTests(unittest.TestCase):
             self.assertEqual(prune(["--worktree", str(root),
                                     "--quarantine-parent", str(safe), "--apply"]), 0)
             verify_untracked_sources(root)
-            found = list(safe.glob("review-system-cache-*/pkg/__pycache__/*.pyc"))
+            found = list(safe.glob("review-system-cache-*/__pycache__/*.pyc"))
             self.assertEqual(len(found), 1)
             self.assertEqual(found[0].read_bytes(), original)
