@@ -37,7 +37,7 @@ Issue単位1本のkarteへ連番roundで取り込む方法は、下記の取り�
 
 ## レビュー契約
 
-### Issue #801: AC全件判定と Review Summary（オーナー決定⑤）
+### AC全件判定と Review Summary
 
 2bで渡された**元IssueのAC snapshot全件**について充足可否と根拠を審査する。
 finding 0件・1件以上を問わず `## Review Summary` を必ず原本に含める。

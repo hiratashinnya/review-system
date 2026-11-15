@@ -9,7 +9,7 @@ docstring を正本とする。本 README は `close-attempt` の**既定値の�
 `deferred`/`waived` の除外の集約**（Issue #503）、**`change_kind` の語彙**（同 観測2）、
 **`harm_detail` の内容 lint と allowlist**（Issue #511）を掃引的に説明する。
 
-## Review Summary（Issue #801、2026-11-15 オーナー決定⑤）
+## Review Summary（Issue #801）
 
 Review Summary は finding 0 件・1 件以上で共通のレビュー原本形式。既存 finding の
 9項目や status/disposition の権限境界は変更しない。検証は
@@ -68,10 +68,12 @@ finding_refs: [new@1]
   `ingest-reviewer` はこのtrusted snapshotの `ac_count` / `ac_snapshot_digest` とSummaryを照合し、食い違いを拒否する。
   保存先は `tmp/_karte/issue-N-ac-round-R.md`、Codexには同じ凍結済み本文とdigestをtrusted callerがpromptへ含める。
   main以外のロールはIssueチェック編集禁止。owner報告時の更新案生成には `karte.ac_check_update.plan`、更新後には `verify_written` を用いる。
-- 現在の実装は**移行段階**であり、旧来の指摘ありレポートの受理は互換維持のため
-  継続する。全レビューへのSummary必須化、信頼済みAC snapshotとの直接照合、
-  owner reportでの自動ACチェック付与、Codex prompt渡しは未実装／検証待ち。
-  この段階を全AC完了と解釈しない。
+- **移行状態・既知の制約**：旧来の指摘ありレポートはSummaryなしでも受理する。
+  現在のreview envelopeではAC snapshotを省略できるため、全レビューのAC照合が強制されるわけではない。
+  Codexへのsnapshot渡しは実装されているが、snapshotなしの起動経路が残る。
+  owner reportのチェック更新はCLI書込入口への強制結線がなく、書込前の機械停止を保証しない。
+  これらはPR #846の未完了条件である。経緯・方式選択の理由は
+  [rationale](../.ai/rationale/issue-801-review-round-ac.md) を参照する。
 
 ## `scope` / `disposition` と `status` の verdict（Issue #495）
 
