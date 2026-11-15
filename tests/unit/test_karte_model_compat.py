@@ -121,8 +121,12 @@ def view_karte(text):
 
 
 def view_review(text):
+    # Only the two newly introduced optional keys are absent from the pre-830
+    # ReviewFinding shape. Preserve golden checks on every legacy field.
     return [
-        {k: (list(v) if isinstance(v, tuple) else v) for k, v in vars(item).items()}
+        {k: (list(v) if isinstance(v, tuple) else v)
+         for k, v in vars(item).items()
+         if k not in ("reachability_path", "threat_assumption")}
         for item in model.parse_review(text, 307)
     ]
 
