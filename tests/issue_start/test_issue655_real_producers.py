@@ -89,4 +89,5 @@ class RealProducerTests(unittest.TestCase):
         self.assertEqual(result[0], 0, result[2])
         self.assertTrue((self.source / "tmp/_karte/issue-822.md").exists())
         self.assertTrue((self.source / "tmp/_karte/.writer.lock").exists())
+        self.assertTrue((self.source / "tmp/_karte/issue-822.scope-origin.jsonl").exists())
         verify_untracked_sources(self.source)
