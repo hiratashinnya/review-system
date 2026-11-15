@@ -11,6 +11,7 @@ from .block_parser import Block
 from .disposition import parse_disposition
 from .field_validators import validate_finding_ids, validate_slug, validate_targets
 from .finding_id import parse_finding_id
+from .finding_basis import REACHABILITY_PATH, THREAT_ASSUMPTION, read_basis
 from .finding_handoff_ledger import record_from_block
 from .finding_record import Finding
 from .format_error import KarteFormatError
@@ -44,6 +45,8 @@ def _finding_from_block(block: Block, issue: int) -> Finding:
         evidence=_require_nonempty(block, "evidence"),
         expected=_require_nonempty(block, "expected"),
         recheck=_require_nonempty(block, "recheck"),
+        reachability_path=read_basis(block, REACHABILITY_PATH),
+        threat_assumption=read_basis(block, THREAT_ASSUMPTION),
         scope=_optional_enum(block, "scope", SCOPES, DEFAULT_SCOPE),
         disposition=disposition.kind,
         deferred_to=disposition.deferred_to,
