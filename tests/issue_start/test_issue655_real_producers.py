@@ -98,7 +98,7 @@ class RealProducerTests(unittest.TestCase):
         for name in valid:
             path = self.source / name
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("{}\\n")
+            path.write_text("{}\n")
         verify_untracked_sources(self.source)
 
         invalid = ("tmp/_karte/issue-0.scope-origin.jsonl",
@@ -109,7 +109,7 @@ class RealProducerTests(unittest.TestCase):
             with self.subTest(path=name):
                 path = self.source / name
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text("{}\\n")
+                path.write_text("{}\n")
                 with self.assertRaisesRegex(ValueError, "unapproved_tmp"):
                     verify_untracked_sources(self.source)
                 path.unlink()
