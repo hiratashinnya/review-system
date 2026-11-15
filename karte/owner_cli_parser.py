@@ -1,5 +1,7 @@
 """主文脈専用 activate / decide のパーサー登録（実装から分離）。"""
 
+from . import model
+
 def register(subparsers, add_issue, cmd_activate, cmd_decide) -> None:
     activate = subparsers.add_parser("activate", help="進行ポインタを Issue に向ける（主文脈専用）")
     activate.add_argument("--issue", required=True, help="Issue 番号")
