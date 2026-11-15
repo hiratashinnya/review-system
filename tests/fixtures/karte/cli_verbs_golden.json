@@ -1546,7 +1546,7 @@
         ]
       },
       "activate": {
-        "help_compact_sha256": "ca96468d35ee05ce06aea94480c9307d8bfe94a3a51722f6605a8275eda9b772",
+        "help_compact_sha256": "f536751f416efff26dbb587d46e070cbc13f1c5327772a816d360b75083daf47",
         "actions": [
           {
             "dest": "help",
@@ -1623,6 +1623,16 @@
             "dest": "phase",
             "options": [
               "--phase"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "ac_snapshot_file",
+            "options": [
+              "--ac-snapshot-file"
             ],
             "required": false,
             "choices": null,

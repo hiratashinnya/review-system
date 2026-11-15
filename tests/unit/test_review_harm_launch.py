@@ -48,6 +48,8 @@ class HarmLaunchTests(unittest.TestCase):
                 stack.enter_context(patch.object(cli, name))
             stack.enter_context(patch.object(cli, 'capture_target', return_value=(375, 0, 1)))
             stack.enter_context(patch.object(cli, 'review_envelope_of', return_value={}))
+            # 本テストはreview-harmのstdin接続を検証する。AC注入は専用テストで検証する。
+            stack.enter_context(patch.object(cli, 'append_ac_snapshot', side_effect=lambda body, *_: body))
             stack.enter_context(patch.object(cli, 'ingest_codex_output', return_value='ingested'))
             return cli._launch([], clean_environ(), self.worktree, str(self.codex))
 
