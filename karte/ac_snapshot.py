@@ -25,30 +25,54 @@ class AC:
 
 
 def from_issue_body(body: str) -> tuple[AC, ...]:
-    """Acceptance criteria の各itemを本文順で抽出。非checkboxは評価のみ、更新不可。"""
+    """AC項目の継続行・子リスト・コードを含めて正規化し、全文をdigestへ束縛する。"""
     if not isinstance(body, str):
         raise KarteFormatError("Issue本文は文字列であること")
-    in_ac, level, found, items = False, 0, False, []
+    in_ac, level, found = False, 0, False
+    items: list[tuple[list[str], bool | None, int]] = []
+    base_indent: int | None = None
+    fence: str | None = None
     for number, line in enumerate(body.splitlines(), start=1):
-        heading = HEADING.fullmatch(line.strip())
+        stripped = line.strip()
+        heading = HEADING.fullmatch(stripped) if fence is None else None
         if heading:
             if found:
                 raise KarteFormatError("Issue本文のAcceptance criteriaセクションが重複")
             in_ac, level, found = True, len(heading.group(1)), True
             continue
-        h = NEXT_HEADING.match(line)
+        h = NEXT_HEADING.match(line) if fence is None else None
         if in_ac and h and len(h.group(1)) <= level:
             in_ac = False
         if not in_ac:
             continue
-        checkbox = CHECKBOX.fullmatch(line)
-        if checkbox:
-            items.append(AC(checkbox.group(3).strip(), checkbox.group(2).lower() == "x", number))
-        elif match := ITEM.match(line):
-            items.append(AC(match.group(1).strip(), None, number))
-    if len({(item.text, item.checked is not None) for item in items}) != len(items):
+        # fenced code 内のリスト風行を別ACと誤認しない。本文はそのまま保持する。
+        fence_head = re.match(r"^\s*(`{3,}|~{3,})", line)
+        if fence_head:
+            delimiter = fence_head.group(1)
+            if fence is None:
+                fence = delimiter
+            elif delimiter[0] == fence[0] and len(delimiter) >= len(fence):
+                fence = None
+        checkbox = CHECKBOX.fullmatch(line) if fence is None and not fence_head else None
+        plain = ITEM.match(line) if fence is None and not fence_head else None
+        indent = len(line) - len(line.lstrip(" \t"))
+        is_top_item = (checkbox is not None or plain is not None) and (
+            base_indent is None or indent <= base_indent
+        )
+        if is_top_item:
+            if base_indent is None:
+                base_indent = indent
+            if checkbox is not None:
+                items.append(([checkbox.group(3).strip()], checkbox.group(2).lower() == "x", number))
+            else:
+                items.append(([plain.group(1).strip()], None, number))
+        elif items:
+            items[-1][0].append(line)
+    result = tuple(AC("\n".join(parts).rstrip("\n"), checked, first)
+                   for parts, checked, first in items)
+    if len({(item.text, item.checked is not None) for item in result}) != len(result):
         raise KarteFormatError("同一文言のACが重複しており照合できない")
-    return tuple(items)
+    return result
 
 
 def digest(items: tuple[AC, ...]) -> str:

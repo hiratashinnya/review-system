@@ -64,6 +64,48 @@ class ACSnapshotUpdateTest(unittest.TestCase):
         self.assertEqual((original, []), plan(original, original, judge("satisfied")))
         self.assertEqual((), from_issue_body("# no AC\n"))
 
+    def test_multiline_ac_continuation_is_bound_to_snapshot_and_live(self):
+        multiline = """# Test
+
+## Acceptance criteria
+- [ ] AC1 通常動作
+    続き: 実環境での検証も必要
+    - [ ] 子条件A
+    - [ ] 子条件B
+
+    ```text
+    - [ ] コード中の擬似条件
+    ```
+- [ ] AC2 単独条件
+
+## Notes
+- [ ] ACと無関係
+"""
+        ac = from_issue_body(multiline)
+        self.assertEqual(len(ac), 2)
+        self.assertIn("続き: 実環境での検証も必要", ac[0].text)
+        self.assertIn("子条件B", ac[0].text)
+        self.assertIn("コード中の擬似条件", ac[0].text)
+        changed = multiline.replace("子条件B", "子条件C")
+        self.assertNotEqual(digest(ac), digest(from_issue_body(changed)))
+        with self.assertRaisesRegex(KarteUsageError, "live本文"):
+            plan(multiline, changed, judge("satisfied", "satisfied"))
+        updated, changed_numbers = plan(multiline, multiline, judge("satisfied", "satisfied"))
+        self.assertEqual(changed_numbers, [1, 2])
+        self.assertIn("子条件B", updated)
+        self.assertIn("コード中の擬似条件", updated)
+        self.assertEqual(
+            updated.replace("- [x] AC1", "- [ ] AC1").replace("- [x] AC2", "- [ ] AC2"),
+            multiline,
+        )
+
+    def test_multiline_snapshot_changes_when_continuation_only_changed(self):
+        body = "## Acceptance criteria\n- [ ] A\n  - nested evidence\n"
+        self.assertNotEqual(
+            digest(from_issue_body(body)),
+            digest(from_issue_body(body.replace("nested evidence", "nested missing"))),
+        )
+
     def test_duplicate_ac_rejected(self):
         with self.assertRaises(KarteFormatError):
             from_issue_body(BODY.replace("- [ ] AC2 未検証", "- [ ] AC1 動作する"))
