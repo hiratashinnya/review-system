@@ -69,6 +69,10 @@ class CodexReviewerHandoffTests(unittest.TestCase):
             issue=375, phase="implementation", run_id="run-375", target_key="pr-697",
             input_digest="b" * 64, snapshot_oid="a" * 40,
         )
+        (self.primary / "tmp" / "_karte" / "active.json").write_text(
+            json.dumps({"issue": 375, "round": 0, "legacy_finding_only": True,
+                        "review_expect": self.envelope}), encoding="utf-8"
+        )
         self.activate_argv = ["--run-id", "run-375", "--target-key", "pr-697", "--phase", "implementation",
                               "--snapshot-oid", "a" * 40, "--input-digest", "b" * 64, "--legacy-finding-only"]
         self.output = self.worktree / "tmp" / "result.md"

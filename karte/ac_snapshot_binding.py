@@ -34,6 +34,8 @@ def read_for_dispatch(repo_root, issue, round_no):
     active = read_active(repo_root, required=True)
     if active.get("issue") != issue or active.get("round") != round_no - 1:
         raise KarteUsageError("review dispatchのAC snapshotと進行ポインタが不一致")
+    if "review_expect" not in active:
+        raise KarteUsageError("review envelopeの期待値が無い。主文脈の再activateが必要")
     record = active.get("ac_snapshot")
     if record is None:
         if active.get("legacy_finding_only") is True:
