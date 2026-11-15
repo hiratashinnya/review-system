@@ -28,8 +28,11 @@ def render_finding(finding: Finding) -> str:
     _emit(lines, "locus", finding.locus)
     _emit(lines, "summary", finding.summary)
     _emit(lines, "evidence", finding.evidence)
-    _emit(lines, "reachability_path", finding.reachability_path)
-    _emit(lines, "threat_assumption", finding.threat_assumption)
+    # 未導入の旧findingは従来どおりの描画を保つ（golden/CLI互換）。
+    if finding.reachability_path:
+        _emit(lines, "reachability_path", finding.reachability_path)
+    if finding.threat_assumption:
+        _emit(lines, "threat_assumption", finding.threat_assumption)
     _emit(lines, "expected", finding.expected)
     _emit(lines, "recheck", finding.recheck)
     _emit(lines, "rounds", finding.rounds)
