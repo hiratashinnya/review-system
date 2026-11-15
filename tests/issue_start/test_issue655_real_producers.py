@@ -89,4 +89,32 @@ class RealProducerTests(unittest.TestCase):
         self.assertEqual(result[0], 0, result[2])
         self.assertTrue((self.source / "tmp/_karte/issue-822.md").exists())
         self.assertTrue((self.source / "tmp/_karte/.writer.lock").exists())
+        self.assertTrue((self.source / "tmp/_karte/issue-822.scope-origin.jsonl").exists())
         verify_untracked_sources(self.source)
+
+    def test_karte_scope_sidecars_use_exact_allowlist(self):
+        valid = ("tmp/_karte/issue-822.scope-origin.jsonl",
+                 "tmp/_karte/issue-822.declared-scope.jsonl")
+        for name in valid:
+            path = self.source / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("{}\\n")
+        verify_untracked_sources(self.source)
+
+        invalid = ("tmp/_karte/issue-0.scope-origin.jsonl",
+                   "tmp/_karte/issue-0822.declared-scope.jsonl",
+                   "tmp/_karte/issue-822.unapproved.jsonl",
+                   "tmp/elsewhere/issue-822.scope-origin.jsonl")
+        for name in invalid:
+            with self.subTest(path=name):
+                path = self.source / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("{}\\n")
+                with self.assertRaisesRegex(ValueError, "unapproved_tmp"):
+                    verify_untracked_sources(self.source)
+                path.unlink()
+
+        link = self.source / "tmp/_karte/issue-823.scope-origin.jsonl"
+        link.symlink_to(self.source / valid[0])
+        with self.assertRaisesRegex(ValueError, "unsafe_path"):
+            verify_untracked_sources(self.source)
