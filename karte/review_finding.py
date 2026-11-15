@@ -25,3 +25,4 @@ class ReviewFinding:
     deferred_to: str = ""
     waived_by: str = ""
     waived_reason: str = ""
+    override_ref: str = ""
