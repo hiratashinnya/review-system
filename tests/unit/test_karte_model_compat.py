@@ -121,8 +121,13 @@ def view_karte(text):
 
 
 def view_review(text):
+    # Legacy snapshot is a pre-#523 contract: only the new *empty* optional
+    # owner-reference field is excluded from its historical projection.
+    # Non-empty override_ref is separately covered by #523 regression tests.
     return [
-        {k: (list(v) if isinstance(v, tuple) else v) for k, v in vars(item).items()}
+        {k: (list(v) if isinstance(v, tuple) else v)
+         for k, v in vars(item).items()
+         if not (k == "override_ref" and not v)}
         for item in model.parse_review(text, 307)
     ]
 
