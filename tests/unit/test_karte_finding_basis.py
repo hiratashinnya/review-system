@@ -47,6 +47,9 @@ class FindingBasisTests(RootedCase):
             1, self._block(reachability_path=route, threat_assumption=threat)
         )
         self.assertEqual(0, code, err)
+        persisted_text = model.dumps(self.ledger())
+        self.assertIn("reachability_path: " + route, persisted_text)
+        self.assertIn("threat_assumption: " + threat, persisted_text)
         first = self.ledger().finding("F-7-01")
         self.assertEqual((route, threat), (first.reachability_path, first.threat_assumption))
         self.assertTrue(first.needs_disposition)
@@ -72,10 +75,17 @@ class FindingBasisTests(RootedCase):
     def test_old_ledger_format_still_loads(self):
         self.assertEqual(0, self.ingest(1, self._block())[0])
         serialized = model.dumps(self.ledger())
-        legacy = "".join(line for line in serialized.splitlines(keepends=True)
-                         if not line.startswith(("reachability_path:", "threat_assumption:")))
-        item = model.parse(legacy).finding("F-7-01")
-        self.assertEqual(("", ""), (item.reachability_path, item.threat_assumption))
+        self.assertNotIn("reachability_path:", serialized)
+        self.assertNotIn("threat_assumption:", serialized)
+        # A historical ledger and a ledger with explicitly empty optional fields
+        # must both load without relaxing the new reviewer report validation.
+        legacy = serialized
+        explicit_empty = serialized.replace(
+            "evidence:", "reachability_path:\nthreat_assumption:\nevidence:", 1
+        )
+        for candidate in (legacy, explicit_empty):
+            item = model.parse(candidate).finding("F-7-01")
+            self.assertEqual(("", ""), (item.reachability_path, item.threat_assumption))
         self.assertEqual(model.parse(legacy).findings[0].harm, "real")
 
 
