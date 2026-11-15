@@ -2265,5 +2265,31 @@ class CodexWorktreeExecGrantTests(unittest.TestCase):
         self.assertIsNone(run_gate({"tool_input": {"command": codex_exec_command("--role issue-implementer")}}))
 
 
+
+@unittest.skipUnless(_HAS_BASH, "bash バイナリが必要")
+class HandoffCommandGateTests(unittest.TestCase):
+    def assert_denied(self, result):
+        self.assertIsNotNone(result)
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+
+    def test_handoff_verbs_denied_and_existing_permissions_preserved(self):
+        self.assert_denied(run_gate(payload("issue-implementer", "python3 -m karte")))
+        for role in ("issue-fixer", "pr-reviewer", "issue-implementer"):
+            for verb in ("handoff-preview", "handoff-post", "handoff-recheck"):
+                with self.subTest(role=role, verb=verb):
+                    self.assert_denied(run_gate(payload(role, f"python3 -m karte {verb} --issue 7")))
+        for verb in ("render", "append", "close-attempt", "check", "status"):
+            with self.subTest(verb=verb):
+                self.assertIsNone(run_gate(payload("issue-fixer", f"python3 -m karte {verb}")))
+                self.assert_denied(run_gate(payload("issue-implementer", f"python3 -m karte {verb}")))
+        self.assertIsNone(run_gate(payload("pr-reviewer", "python3 -m karte ingest-reviewer")))
+
+    def test_context_execution_denies_handoff_post(self):
+        command = "python3 -m karte handoff-post --issue 7"
+        for role in ("issue-fixer", "pr-reviewer", "issue-implementer"):
+            with self.subTest(role=role):
+                self.assert_denied(run_gate(ctx_execute_payload(role, command)))
+                self.assert_denied(run_gate(ctx_batch_payload(role, [command])))
+
 if __name__ == "__main__":
     unittest.main()

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .finding_id import parse_finding_id
+from .finding_handoff_record import HandoffRecord
 from .vocabulary import CLEARING_DISPOSITIONS, CLEARING_HARM, DEFAULT_SCOPE
 
 
@@ -34,6 +35,7 @@ class Finding:
     waived_reason: str = ""
     rounds: list = field(default_factory=list)
     resolved_round: int | None = None
+    handoff: HandoffRecord | None = None
 
     @property
     def seq(self) -> int:

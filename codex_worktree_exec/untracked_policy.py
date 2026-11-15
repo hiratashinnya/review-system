@@ -1,5 +1,6 @@
 """Issue #655: fail-closed classification of ignored and untracked inputs."""
 import importlib.util
+import re
 import subprocess
 from pathlib import Path
 from .compiled_cache import verify_compiled_cache
@@ -8,6 +9,7 @@ LOCKS = frozenset({".ai/feedback/.writer.lock", ".claude/scheduled_tasks.lock",
                    "tmp/_worktree/ledger.json.lock", "tmp/_karte/.writer.lock",
                    "issue_start/adr/.write.lock", "issue_start/adr/.file-issue.lock"})
 TMP_DATA = frozenset({".json", ".md", ".yaml", ".yml", ".txt", ".log"})
+SCOPE_ORIGIN = re.compile(r"tmp/_karte/issue-[1-9][0-9]*\.scope-origin\.jsonl", re.ASCII)
 
 
 def regular_unlinked(path: Path) -> bool:
@@ -36,7 +38,7 @@ def classify_untracked(root: Path, name: str, source_cache: dict) -> str | None:
     path = root / name
     if not regular_unlinked(path):
         return "unsafe_path"
-    if name in LOCKS:
+    if name in LOCKS or SCOPE_ORIGIN.fullmatch(name):
         return None
     parts = Path(name).parts
     if parts and parts[0] == "tmp" and path.suffix in TMP_DATA:
