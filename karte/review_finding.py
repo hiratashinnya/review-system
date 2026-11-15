@@ -26,3 +26,5 @@ class ReviewFinding:
     waived_by: str = ""
     waived_reason: str = ""
     override_ref: str = ""
+    reachability_path: str = ""  # 旧 reviewer は未記載。明示的な「根拠なし」と区別する
+    threat_assumption: str = ""

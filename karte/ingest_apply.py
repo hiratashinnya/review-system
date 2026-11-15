@@ -32,6 +32,11 @@ def apply_accepted(karte, accepted, round_no, policy=None) -> IngestOutcome:
         finding.locus = list(item.locus)
         finding.summary = item.summary
         finding.evidence = item.evidence
+        # 旧形式の再取り込みで既存の根拠を消さない。明示的な「根拠なし」は上書きする。
+        if item.reachability_path:
+            finding.reachability_path = item.reachability_path
+        if item.threat_assumption:
+            finding.threat_assumption = item.threat_assumption
         finding.expected = item.expected
         finding.recheck = item.recheck
         if round_no not in finding.rounds:

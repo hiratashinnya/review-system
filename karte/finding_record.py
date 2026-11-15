@@ -37,6 +37,8 @@ class Finding:
     rounds: list = field(default_factory=list)
     resolved_round: int | None = None
     handoff: HandoffRecord | None = None
+    reachability_path: str = ""  # 旧形式の不在は空文字で保持する
+    threat_assumption: str = ""
 
     @property
     def seq(self) -> int:

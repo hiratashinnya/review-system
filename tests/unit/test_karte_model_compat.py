@@ -121,13 +121,14 @@ def view_karte(text):
 
 
 def view_review(text):
-    # Legacy snapshot is a pre-#523 contract: only the new *empty* optional
-    # owner-reference field is excluded from its historical projection.
-    # Non-empty override_ref is separately covered by #523 regression tests.
+    # The pre-830/#523 ReviewFinding golden predates these optional fields.
+    # The basis keys are verified in their own tests; non-empty override_ref
+    # must remain visible in the historical projection.
     return [
         {k: (list(v) if isinstance(v, tuple) else v)
          for k, v in vars(item).items()
-         if not (k == "override_ref" and not v)}
+         if k not in ("reachability_path", "threat_assumption")
+         and not (k == "override_ref" and not v)}
         for item in model.parse_review(text, 307)
     ]
 
