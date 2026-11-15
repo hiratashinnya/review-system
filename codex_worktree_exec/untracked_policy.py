@@ -1,5 +1,6 @@
 """Issue #655: fail-closed classification of ignored and untracked inputs."""
 import importlib.util
+import re
 import subprocess
 from pathlib import Path
 from .compiled_cache import verify_compiled_cache
@@ -37,6 +38,11 @@ def classify_untracked(root: Path, name: str, source_cache: dict) -> str | None:
     if not regular_unlinked(path):
         return "unsafe_path"
     if name in LOCKS:
+        return None
+    if re.fullmatch(
+        r"tmp/_karte/issue-[1-9][0-9]*\.(?:declared-scope|scope-origin)\.jsonl",
+        name,
+    ):
         return None
     parts = Path(name).parts
     if parts and parts[0] == "tmp" and path.suffix in TMP_DATA:
