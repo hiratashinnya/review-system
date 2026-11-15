@@ -55,7 +55,7 @@ class CodexReviewerHandoffTests(unittest.TestCase):
         write_trust(self.home, self.primary)
         (self.primary / "tmp" / "_karte").mkdir(parents=True)
         (self.primary / "tmp" / "_karte" / "active.json").write_text(
-            json.dumps({"issue": 375, "round": 0}), encoding="utf-8"
+            json.dumps({"issue": 375, "round": 0, "legacy_finding_only": True}), encoding="utf-8"
         )
         (self.worktree / "tmp").mkdir()
         (self.worktree / "tmp" / "prompt.md").write_text("Review the assigned change.", encoding="utf-8")
@@ -70,7 +70,7 @@ class CodexReviewerHandoffTests(unittest.TestCase):
             input_digest="b" * 64, snapshot_oid="a" * 40,
         )
         self.activate_argv = ["--run-id", "run-375", "--target-key", "pr-697", "--phase", "implementation",
-                              "--snapshot-oid", "a" * 40, "--input-digest", "b" * 64]
+                              "--snapshot-oid", "a" * 40, "--input-digest", "b" * 64, "--legacy-finding-only"]
         self.output = self.worktree / "tmp" / "result.md"
         self.codex = self.directory / "fake-codex"
         self.ingest = patch(

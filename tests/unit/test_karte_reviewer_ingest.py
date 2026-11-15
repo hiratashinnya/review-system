@@ -66,7 +66,7 @@ class ReviewerIngestCase(unittest.TestCase):
 
     def _activate(self, **overrides):
         """主文脈が review envelope の期待値つきでポインタを向ける（通常の運用と同じ形）。"""
-        return self._run(owner_cli.cmd_activate, issue=str(self.issue), **{**ENVELOPE_ARGS, **overrides})
+        return self._run(owner_cli.cmd_activate, issue=str(self.issue), **{**ENVELOPE_ARGS, "legacy_finding_only": True, **overrides})
 
     def _expectation(self):
         return review_envelope.expected_of(issue=self.issue, **ENVELOPE_ARGS)
@@ -78,6 +78,7 @@ class ReviewerIngestCase(unittest.TestCase):
         pointer = {"issue": self.issue, "round": round_no}
         if expect:
             pointer["review_expect"] = self._expectation()
+            pointer["legacy_finding_only"] = True
         paths.active_path(self.root, create_dir=True).write_text(json.dumps(pointer), encoding="utf-8")
 
     def _rearm_expectation(self):
@@ -88,6 +89,7 @@ class ReviewerIngestCase(unittest.TestCase):
         except (OSError, ValueError, KartePathError):
             return
         pointer["review_expect"] = self._expectation()
+        pointer["legacy_finding_only"] = True
         path.write_text(json.dumps(pointer), encoding="utf-8")
 
     def _next_round(self):

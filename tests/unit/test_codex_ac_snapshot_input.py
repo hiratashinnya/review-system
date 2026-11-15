@@ -50,8 +50,13 @@ class CodexAcInputTest(unittest.TestCase):
             append_ac_snapshot("Review PR.", self.root, (801, 0, 1))
 
     def test_legacy_without_snapshot_is_unchanged(self):
-        write_active(self.root, 801, 0, {"marker": "trusted"})
+        write_active(self.root, 801, 0, {"marker": "trusted"}, legacy_finding_only=True)
         self.assertEqual("Review PR.", append_ac_snapshot("Review PR.", self.root, (801, 0, 1)))
+
+    def test_snapshot_missing_without_explicit_legacy_fails_closed(self):
+        write_active(self.root, 801, 0, {"marker": "trusted"})
+        with self.assertRaises(CodexExecError):
+            append_ac_snapshot("Review PR.", self.root, (801, 0, 1))
 
 
 if __name__ == "__main__":

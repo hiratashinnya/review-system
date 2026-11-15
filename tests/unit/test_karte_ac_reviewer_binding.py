@@ -54,6 +54,20 @@ class ACReviewerBindingTest(unittest.TestCase):
         source.write_text(handoff_header.render_header(1, expected) + "\n" + report, encoding="utf-8")
         return self.run_cli(reviewer_cli.cmd_ingest_reviewer, source=str(source), issue=None, round=None)
 
+    def test_envelope_without_snapshot_stops_before_pointer_write(self):
+        code, _, err = self.run_cli(owner_cli.cmd_activate, issue="801",
+                                    repair_declared_scope=False, **OPTIONS)
+        self.assertEqual(code, EXIT_ERROR)
+        self.assertIn("snapshot必須", err)
+        self.assertFalse((self.root / "tmp" / "_karte" / "active.json").exists())
+
+    def test_legacy_mode_cannot_accept_zero_finding_summary(self):
+        code, _, err = self.run_cli(owner_cli.cmd_activate, issue="801",
+                                    legacy_finding_only=True, repair_declared_scope=False, **OPTIONS)
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertEqual(self.ingest(self.make_report())[0], EXIT_ERROR)
+        self.assertFalse(paths.karte_path(801, self.root).exists())
+
     def test_zero_findings_accepts_and_persists(self):
         self.assertEqual(self.activate()[0], EXIT_OK)
         code, _, err = self.ingest(self.make_report())

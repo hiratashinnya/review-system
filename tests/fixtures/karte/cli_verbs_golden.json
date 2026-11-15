@@ -1546,7 +1546,7 @@
         ]
       },
       "activate": {
-        "help_compact_sha256": "f536751f416efff26dbb587d46e070cbc13f1c5327772a816d360b75083daf47",
+        "help_compact_sha256": "b613e67e9965fc1b1a85be700262be15fcc0dd5432734b9fd5b3216a032fac1e",
         "actions": [
           {
             "dest": "help",
@@ -1638,6 +1638,16 @@
             "choices": null,
             "nargs": null,
             "default": null
+          },
+          {
+            "dest": "legacy_finding_only",
+            "options": [
+              "--legacy-finding-only"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": false
           }
         ]
       },
