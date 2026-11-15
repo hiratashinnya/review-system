@@ -1,5 +1,6 @@
 """Issue #523: waived・scope 覆しの owner override_ref と出所検証。"""
 import unittest
+import json
 
 from feedback_ledger.schema import LEDGER_SPEC
 from feedback_ledger.store import write_document
@@ -28,6 +29,7 @@ class OverrideReferenceTest(ReviewerIngestCase):
         ref = self._save_ref()
         self.assertEqual(0, self._decide(override_ref=ref)[0])
         self.assertEqual(ref, self._finding(f"F-{self.issue}-01").override_ref)
+        self.assertEqual(ref, json.loads(self._status()[1])["findings"][0]["override_ref"])
         self.assertIn('"verdict": "clean"', self._status()[1])
 
     def test_owner_scope_override_requires_reference_from_round_one(self):
@@ -36,10 +38,30 @@ class OverrideReferenceTest(ReviewerIngestCase):
         self.assertEqual(0, self._decide(disposition="deferred", deferred_to="#900",
                                         scope="out")[0])
         self.assertIn('"verdict": "harmful-open"', self._status()[1])
-        self.assertEqual(0, self._decide(override_ref=self._save_ref())[0])
+        ref = self._save_ref()
+        self.assertEqual(0, self._decide(override_ref=ref)[0])
+        self.assertEqual(ref, json.loads(self._status()[1])["findings"][0]["override_ref"])
         self.assertIn('"verdict": "clean"', self._status()[1])
         self.assertEqual(0, self._ingest(_report(f"F-{self.issue}-01", scope="in"))[0])
         self.assertIn('"verdict": "clean"', self._status()[1])
+
+    def test_cancelled_reviewer_wait_main_ingest_requires_owner_decision_ref(self):
+        self.assertEqual(0, self._activate()[0])
+        self.assertEqual(0, self._run(owner_cli.cmd_activate, issue=str(self.issue))[0])
+        report = self.root / "report.md"
+        report.write_text(_report(scope="in"), encoding="utf-8")
+        code, _, err = self._run(cli.cmd_ingest_review, issue=str(self.issue),
+                                 round="1", source=str(report))
+        self.assertEqual(0, code, err)
+        self.assertEqual(0, self._decide(disposition="deferred", deferred_to="#900", scope="out")[0])
+        status = json.loads(self._status()[1])
+        self.assertEqual("harmful-open", status["verdict"])
+        self.assertIn(f"F-{self.issue}-01", status["override_pending"])
+        ref = self._save_ref()
+        self.assertEqual(0, self._decide(override_ref=ref)[0])
+        status = json.loads(self._status()[1])
+        self.assertEqual("clean", status["verdict"])
+        self.assertEqual(ref, status["findings"][0]["override_ref"])
 
     def test_invalid_owner_ref_rejected_without_write(self):
         self._activate()
