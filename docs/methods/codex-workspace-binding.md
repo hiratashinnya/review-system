@@ -8,8 +8,11 @@ Issue #452 の Codex repo supervisor 方式は Issue #538 の PR-A で退役し�
 
 - **Codex は主文脈にしない。** 主文脈は Claude Code であり、Codex はサブ実行者として使う
   （オーナー決定・2026-09-22・Issue #538）。
-- **Codex 既定のロール（`issue-investigator`・`test-writer`・`issue-implementer`・`issue-fixer`・`adviser`）は、
-  linked worktree で元ロールの権限を維持してCodexを起動する。** Claude 固定のロール（`ac-designer`・`change-planner`・
+- **Codex 既定のロール（`issue-investigator`・`test-writer`・`issue-implementer`・`issue-fixer`・`adviser`）の作業は、
+  linked worktree で元ロールの権限を維持したCodexが実行する。** 書込ロール（`test-writer`・`issue-implementer`・
+  `issue-fixer`）は自分の worktree でCodexを起動する。read-only ロール（`issue-investigator`・`adviser`）は、主文脈が
+  `issue_start.readonly_workspace` を実行し、その入口がCodexを起動する（後述「read-only工程のprimary → linked準備」）。
+  Claude 固定のロール（`ac-designer`・`change-planner`・
   `plan-reviewer`・`pr-reviewer`）は Codex 実行者を使わない（オーナー決定・2026-11-15・Issue #829。ロールごとの既定は
   `.ai/skills/issue-pipeline/SKILL.md`「既定実行者」が正本）。これは運用規範で、ラッパーと gate の許可集合（D4）は
   Claude 固定のロールも含んだままである。`pr-reviewer` の Codex 出力取り込みも機構としては残る。経路は

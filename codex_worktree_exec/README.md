@@ -1,8 +1,11 @@
 # `codex_worktree_exec` — Codex を自分の worktree で実行者として起動する
 
 Claude Code の Issue 工程ロールのうち Codex 既定のロール（`issue-investigator`・`test-writer`・
-`issue-implementer`・`issue-fixer`・`adviser`）が、linked worktree で元ロールの権限を維持して
-Codex を起動する `codex exec -C <worktree>` の薄いラッパー（#538、#371、#829）。
+`issue-implementer`・`issue-fixer`・`adviser`）の作業を、linked worktree で元ロールの権限を維持した
+Codex に実行させる `codex exec -C <worktree>` の薄いラッパー（#538、#371、#829）。
+書込ロール（`test-writer`・`issue-implementer`・`issue-fixer`）は自分の worktree でこのラッパーを起動する。
+read-only ロール（`issue-investigator`・`adviser`）は、主文脈が `issue_start.readonly_workspace` を実行し、
+その入口がこのラッパーを呼ぶ。
 Claude 固定のロール（`ac-designer`・`change-planner`・`plan-reviewer`・`pr-reviewer`）は Codex 実行者を使わない。
 ラッパーと gate はこれらの `--role` も機械的には受理するが、使わないことは運用規範
 （`.ai/skills/issue-pipeline/SKILL.md`「既定実行者」）で定める。

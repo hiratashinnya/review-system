@@ -155,7 +155,7 @@ Codex新profileと製品live dispatchの実測は #652 で追跡し、unitのhoo
 
 ### Codex 実行者経路（Claude Code 固有・Issue #538）
 
-Codex 既定のロール（`issue-investigator`・`test-writer`・`issue-implementer`・`issue-fixer`・`adviser`）は、linked worktree で元ロールの権限を維持してCodexへ実行を委譲する。Claude 固定のロール（`ac-designer`・`change-planner`・`plan-reviewer`・`pr-reviewer`）は Codex 実行者を使わない。どのロールがどちらかは共通本文「既定実行者」を正とする。read-only roleは編集profileを使わない。経路は `python3 -m codex_worktree_exec`（`codex exec -C <worktree>` の薄いラッパー）だけで、契約は `docs/methods/codex-workspace-binding.md` を正とする。
+Codex 既定のロール（`issue-investigator`・`test-writer`・`issue-implementer`・`issue-fixer`・`adviser`）の作業は、linked worktree で元ロールの権限を維持したCodexが実行する。書込ロールは自分でCodexを起動し、read-only ロールは主文脈の専用入口がCodexを起動する（下の箇条書き）。Claude 固定のロール（`ac-designer`・`change-planner`・`plan-reviewer`・`pr-reviewer`）は Codex 実行者を使わない。どのロールがどちらかは共通本文「既定実行者」を正とする。read-only roleは編集profileを使わない。経路は `python3 -m codex_worktree_exec`（`codex exec -C <worktree>` の薄いラッパー）だけで、契約は `docs/methods/codex-workspace-binding.md` を正とする。
 
 - **書込ロール（`test-writer`・`issue-implementer`・`issue-fixer`）の既定は、主文脈が dispatch prompt に Codex 実行者とモデル・推論予算を書くことで指定する。** 例：`Codex 実行者: --model <モデル> --reasoning-effort <low|medium|high|xhigh|max>`。選定はリスク信号表に従い、Codex 側のモデル名と推論予算は `.ai/Individually-managed-lists.md`「Bloom の model mapping」の Codex 行で写像する。書かなければロールは自分で著作・実装・是正するが、主文脈が書かずに dispatch してよいのは、上限の証拠による切替の再 dispatch と、オーナーが明示判断した場合だけである。
 - **read-only ロール（`issue-investigator`・`adviser`）の既定では、主文脈が `python3 -m issue_start.readonly_workspace` を実行し、その入口が Codex を起動する**（上記「工程の入力と独立レビュー束縛」）。この経路では Claude のロールを dispatch しない。切替またはオーナー判断で Claude のロールを native dispatch するときは Codex 実行者を指定せず、ロールは Codex を起動せず自分で調査・回答する。この経路の実 dispatch は未実測である（#652）。

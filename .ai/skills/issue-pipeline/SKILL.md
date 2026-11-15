@@ -135,7 +135,7 @@ globやdirectory一括許可を使わず、
 | issue-fixer | レビュー指摘の根本原因の分析 Lv4 | 中位 / 中 |
 | adviser | 相談内容の主要認知行為 | 中位または最上位 / 相談ごとに引く |
 
-adviser の層と予算は、主文脈が相談ごとに、相談内容の主要認知行為から `.ai/skills/bloom-model-tier/SKILL.md` の閾値表で引く。難しい相談は Codex 側の層を最上位へ引き上げる。
+adviser の層と予算は、主文脈が相談ごとに、相談内容の主要認知行為から `.ai/skills/bloom-model-tier/SKILL.md` の閾値表で引く。層の下限は中位とする。難しい相談は Codex 側の層を最上位へ引き上げる。
 
 具体ID/予算は `.ai/model-policy.json` と `model_policy/README.md` の既存resolverで解決し、
 policy/catalog hash、取得surface/方法/日時、resolved ID、実使用ID、確認結果を追跡する。
