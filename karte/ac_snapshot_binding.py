@@ -27,6 +27,28 @@ def stage(repo_root, issue, round_no, source):
             "source": str(archived.relative_to(Path(repo_root).resolve()))}
 
 
+def read_for_dispatch(repo_root, issue, round_no):
+    """進行ポインタに対応するtrusted AC snapshotを再検証して返す。"""
+    from .active_pointer import read_active
+
+    active = read_active(repo_root, required=True)
+    if active.get("issue") != issue or active.get("round") != round_no - 1:
+        raise KarteUsageError("review dispatchのAC snapshotと進行ポインタが不一致")
+    record = active.get("ac_snapshot")
+    if record is None:
+        return None
+    if not isinstance(record, dict) or set(record) != {"digest", "count", "source"}:
+        raise KarteUsageError("AC snapshotの期待値が不正")
+    path = _archived(repo_root, issue, round_no)
+    if record["source"] != str(path.relative_to(Path(repo_root).resolve())):
+        raise KarteUsageError("AC snapshotの保存先が不一致")
+    criteria = from_issue_body(paths.read_text(path))
+    if (type(record["count"]) is not int or record["count"] != len(criteria)
+            or record["digest"] != digest(criteria)):
+        raise KarteUsageError("AC snapshotの原本と期待値が不一致")
+    return record, criteria
+
+
 def validate(repo_root, issue, round_no, report):
     """レビューア本文のACはmainが凍結した原本と一致する場合に限り受理。"""
     from .active_pointer import read_active

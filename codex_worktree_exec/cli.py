@@ -25,6 +25,7 @@ from .profile_pin import verify_profile_pinned
 from .project_trust import codex_home, verify_project_trusted
 from .prompt_files import read_prompt, resolve_output_target
 from .review_binding import review_envelope_of
+from .review_ac_input import append_ac_snapshot
 from .review_handoff import ingest_codex_output
 from .review_target import capture_target
 from .worktree_binding import bind_worktree
@@ -57,6 +58,7 @@ def _launch(
             paths.main_worktree_root(worktree), expected_issue
         )
         envelope = review_envelope_of(cwd, request.binding_file)
+        body = append_ac_snapshot(body, worktree, launch_target)
     result = run_codex(
         build_codex_argv(request, worktree, output_file, codex),
         compose_prompt(request.role, worktree, body),
