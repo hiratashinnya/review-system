@@ -9,7 +9,7 @@ LOCKS = frozenset({".ai/feedback/.writer.lock", ".claude/scheduled_tasks.lock",
                    "tmp/_worktree/ledger.json.lock", "tmp/_karte/.writer.lock",
                    "issue_start/adr/.write.lock", "issue_start/adr/.file-issue.lock"})
 TMP_DATA = frozenset({".json", ".md", ".yaml", ".yml", ".txt", ".log"})
-SCOPE_ORIGIN = re.compile(r"tmp/_karte/issue-[1-9][0-9]*\\.scope-origin\\.jsonl", re.ASCII)
+SCOPE_ORIGIN = re.compile(r"tmp/_karte/issue-[1-9][0-9]*\.scope-origin\.jsonl", re.ASCII)
 
 
 def regular_unlinked(path: Path) -> bool:
