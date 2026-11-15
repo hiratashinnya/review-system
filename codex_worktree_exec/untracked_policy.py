@@ -7,7 +7,7 @@ from .compiled_cache import verify_compiled_cache
 LOCKS = frozenset({".ai/feedback/.writer.lock", ".claude/scheduled_tasks.lock",
                    "tmp/_worktree/ledger.json.lock", "tmp/_karte/.writer.lock",
                    "issue_start/adr/.write.lock", "issue_start/adr/.file-issue.lock"})
-TMP_DATA = frozenset({".json", ".md", ".yaml", ".yml", ".txt", ".log"})
+TMP_DATA = frozenset({".json", ".md", ".yaml", ".yml", ".txt", ".log", ".jsonl"})
 
 
 def regular_unlinked(path: Path) -> bool:
