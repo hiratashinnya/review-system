@@ -49,7 +49,11 @@ def pending(karte, root):
         if fid in owner_scopes:
             if fid in declared:
                 requires |= any(scope != owner_scopes[fid] for _round, scope in declared[fid])
-            elif origins.get(fid) != "main":
+            elif origins.get(fid) == "main":
+                # 待機取消後の旧 ingest-review は reviewer 原本を証明できない。
+                # オーナーが scope を確定したなら少なくとも決定記録を要求する。
+                requires = True
+            else:
                 result[fid] = "owner scope に対応する検証済み reviewer 申告原本がない"
                 continue
         if requires and not item.override_ref:
