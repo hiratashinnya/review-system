@@ -52,6 +52,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          # Issue #722 Red proof: checkout pre-fix commit, NOT pull/845/merge.
+          ref: 19e0b27fff6cff71d371cda9d800863d1c260eda
 
       - name: Set up Python
         uses: actions/setup-python@v6
