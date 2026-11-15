@@ -37,6 +37,25 @@ Issue単位1本のkarteへ連番roundで取り込む方法は、下記の取り�
 
 ## レビュー契約
 
+### Issue #801: AC全件判定と Review Summary（オーナー決定⑤）
+
+2bで渡された**元IssueのAC snapshot全件**について充足可否と根拠を審査する。
+finding 0件・1件以上を問わず `## Review Summary` を必ず原本に含める。
+書式（`### Summary` の `finding_count` / `ac_count` / `ac_snapshot_digest`、
+`### AC N` の `result` / `evidence` / `finding_refs`、末尾
+`<!-- review-complete -->`）は `karte/README.md` を参照する。欠損時はSTOPする。
+
+ACが未充足・未検証なら、`result: not_met` / `unverified` とし、
+**同じroundの `harm: real` findingへ関連付ける**。新規 `### new` は出現順
+`new@1` で参照する。未検証で後工程へ回すことを推奨する場合も
+`disposition: deferred` は書かず、オーナーへ処置判断を依頼する。
+ACの存在しないIssueでは `ac_count: 0` とし、レビューを止めない。
+非checkbox ACは判定のみ記録し、Issue本文の自動編集はしない。
+reviewerはIssue本文のチェックを更新しない。主文脈がclean後のowner reportで、
+snapshot照合と更新後read-backを経て満足済みACだけを更新する（未完了の実装課題）。
+
+
+
 - レビュー対象のリスク、正しさ、退行、スコープ、プロジェクト規律を実体（読んだ差分・ファイル本文）で確認する。
 - 各 finding の問題類型について、PR 差分全体とその変更が影響する対称箇所・複製・関連記述を同一ラウンド内に横断確認する。同型の問題は locus を複数指定した一つの finding にまとめ、同型箇所を別 finding に分けて小出しにしない。`scope` は finding 単位のため、scope が異なる同型はその場合に限って分け、同じラウンドで網羅して出す。範囲外の同型は既存どおり finding の列に `scope: out` として記録し、処置はオーナー判断に委ねる。
 - git push やコード変更は行わず、指摘の是正は issue-fixer に戻す。

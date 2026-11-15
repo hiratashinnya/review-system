@@ -9,6 +9,63 @@ docstring を正本とする。本 README は `close-attempt` の**既定値の�
 `deferred`/`waived` の除外の集約**（Issue #503）、**`change_kind` の語彙**（同 観測2）、
 **`harm_detail` の内容 lint と allowlist**（Issue #511）を掃引的に説明する。
 
+## Review Summary（Issue #801、2026-11-15 オーナー決定⑤）
+
+Review Summary は finding 0 件・1 件以上で共通のレビュー原本形式。既存 finding の
+9項目や status/disposition の権限境界は変更しない。検証は
+`karte/review_summary.py` が担当し、取り込み成功 round の SHA-256 レシートを
+カルテの `## Review Rounds` に保存する。失敗入力は台帳／進行ポインタを更新しない。
+
+```text
+## Findings
+
+### new
+harm: real
+harm_detail: 未実測のため受入条件の充足を証明できない
+severity: major
+scope: in
+locus: tests/integration
+summary: AC1 が未検証
+evidence: merge 後の実環境検証が未実施
+expected: 実環境での検証結果を確認する
+recheck: 実環境検証後に再判定する
+status: open
+
+## Review Summary
+
+### Summary
+finding_count: 1
+ac_count: 1
+ac_snapshot_digest: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+### AC 1
+result: unverified
+evidence: merge 後の実環境検証待ち
+finding_refs: [new@1]
+<!-- review-complete -->
+```
+
+- `finding_count` はそのroundのfindingブロック**総数**で、新規指摘数とは別。
+  findingがない場合は `## Findings` のブロックを省略して `finding_count: 0` とする。
+- `ac_count` は対象となる元IssueのAC数。ACがない場合は `ac_count: 0`
+  とし、`### AC N` ブロックは書かない（not_applicable）。
+- `result` は `satisfied` / `not_met` / `unverified`。全ACに判断根拠を記録する。
+  未充足・未検証のACは必ず `harm: real` finding に紐付ける（満足済みACの
+  `finding_refs` は空リスト `[]`）。未検証ACのcheckboxを付けない。
+- `### new` / `### NEW` / `### new-finding` による新規findingは、原本に
+  現れる順に `new@1` / `new@2` と参照できる。既存IDは `F-N-SS` とする。
+- `ac_snapshot_digest` は dispatch で固定したAC一覧のSHA-256。記述だけでは
+  信頼済みsnapshotとの照合を保証しない。チェック付与前に主文脈がIssueを再取得し、
+  AC文言・対応・チェック状態の一致を確認し、更新後にread-backする（決定④）。
+- 最終行 `<!-- review-complete -->` が必須。これが欠ける、件数不一致、参照先なし、
+  AC判定不足などは fail-close。
+- `deferred` / `waived` はレビューアが決定しない。ownerによる転記・確認を経て
+  初めてcleanの可否へ反映する。cleanでも未検証ACは未充足のまま扱う。
+- 現在の実装は**移行段階**であり、旧来の指摘ありレポートの受理は互換維持のため
+  継続する。全レビューへのSummary必須化、信頼済みAC snapshotとの直接照合、
+  owner reportでの自動ACチェック付与、Codex prompt渡しは未実装／検証待ち。
+  この段階を全AC完了と解釈しない。
+
 ## `scope` / `disposition` と `status` の verdict（Issue #495）
 
 ### なぜ入れたか
