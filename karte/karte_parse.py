@@ -30,7 +30,7 @@ def parse(text: str) -> Karte:
         if block.section == SECTION_FINDINGS:
             karte.findings.append(_finding_from_block(block, issue))
         elif block.section == SECTION_REVIEW_ROUNDS:
-            karte.review_rounds.append(review_round_from_block(block))
+            karte.review_rounds.append(review_round_from_block(block, issue))
         elif block.section == SECTION_ATTEMPTS:
             if attempt_title := ATTEMPT_TITLE_RE.match(block.title):
                 karte.attempts.append(_attempt_from_block(block, attempt_title))

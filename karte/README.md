@@ -61,6 +61,9 @@ finding_refs: [new@1]
   AC判定不足などは fail-close。
 - `deferred` / `waived` はレビューアが決定しない。ownerによる転記・確認を経て
   初めてcleanの可否へ反映する。cleanでも未検証ACは未充足のまま扱う。
+- 新しい Summary 付きroundでは原本を `tmp/_karte/issue-<N>-review-round-<R>.md` に保管し、
+  台帳の `source` と `digest`（SHA-256）を記録する。保存先はカルテと同じ `tmp/_karte` で、
+  **tmp の消去・別環境への転送後までの永続性は保証しない**。原本を保管する前に台帳を更新しない。
 - 現在の実装は**移行段階**であり、旧来の指摘ありレポートの受理は互換維持のため
   継続する。全レビューへのSummary必須化、信頼済みAC snapshotとの直接照合、
   owner reportでの自動ACチェック付与、Codex prompt渡しは未実装／検証待ち。

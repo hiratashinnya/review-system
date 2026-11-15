@@ -52,6 +52,7 @@ class ReviewSummaryTest(unittest.TestCase):
             FINDING.replace("finding_refs: [new@1]", "finding_refs: [new@2]"),
             FINDING.replace("harm: real", "harm: none"),
             FINDING.replace("result: unverified", "result: satisfied"),
+            FINDING.replace("result: unverified", "result: [x]"),
             FINDING.replace("ac_count: 1", "ac_count: 2"),
             "## Review Summary\n",
         ]
@@ -68,6 +69,12 @@ class ReviewSummaryTest(unittest.TestCase):
             ledger = model.parse(paths.read_text(paths.karte_path(801, root)))
             self.assertEqual(len(ledger.findings), 0)
             self.assertEqual([r.number for r in ledger.review_rounds], [1])
+            receipt = ledger.review_rounds[0]
+            self.assertEqual(receipt.source, "tmp/_karte/issue-801-review-round-1.md")
+            archived = paths.read_text(paths.resolve_within_repo(root / receipt.source, root))
+            self.assertEqual(archived, CLEAN)
+            from hashlib import sha256
+            self.assertEqual(receipt.digest, sha256(archived.encode("utf-8")).hexdigest())
 
     def test_previous_open_finding_is_not_silently_resolved_by_zero(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -82,7 +82,7 @@ def ingest_locked(repo_root, issue, round_no, report_text, policy=None, *, allow
     ingest_receipt.restore_scopes(karte, policy)
     karte.findings.sort(key=lambda item: item.seq)
     if summary is not None:
-        ingest_receipt.record(karte, round_no, original_report_text)
+        ingest_receipt.record(karte, round_no, original_report_text, repo_root, issue)
     origin = scope_origin.begin(issue, repo_root, collected.accepted, "reviewer" if policy and policy.record_declarations else "main", round_no)
     if policy:
         policy.persist(round_no)  # 台帳より先に原本を残す
