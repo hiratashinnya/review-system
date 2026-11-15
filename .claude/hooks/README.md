@@ -876,7 +876,7 @@ CI（`python-version: "3.x"`）は 3.11 以上なので発生しない。exit 2 
 
 ## Claude Code の出力上限
 
-Bash は `.claude/hooks/agent-command-gate.sh` が `gh-create-issue` 専用 allowlist を適用し、他の shell command・git write・GitHub close／汎用 API write（許可した関係追加 API を除く）を拒否する。 `gh project item-edit` は対象 item の Project から `Status` field/options を live 取得し、`Done` を拒否する。認証・API障害やmetadata不整合時も当該single-select編集を拒否する。SubagentStop の出力は JSON 化後 9,000 文字を上限とする。本文が超える場合は `systemMessage` を出さず、`fallback_required` の receipt を書いて主文脈が全文提示する。バイト切詰めで不完全な Issue draft を完成版のように見せない。
+Bash は `.claude/hooks/agent-command-gate.sh` が `gh-create-issue` 専用 allowlist を適用する。**許可コマンド・フラグ・位置制約・API/git の許可／拒否一覧**は `.claude/agents/gh-create-issue.md`「専用 Bash command gate の許可契約」に一元化している。ここでは許可表を複製しない。`gh project item-edit` は live Project metadata で対象 Issue と Project を検証し、`Status=Done` や metadata 不整合を拒否する。SubagentStop の出力は JSON 化後 9,000 文字を上限とする。本文が超える場合は `systemMessage` を出さず、`fallback_required` の receipt を書いて主文脈が全文提示する。バイト切詰めで不完全な Issue draft を完成版のように見せない。
 
 ## 信頼の入口とパス検証
 
