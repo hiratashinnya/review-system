@@ -40,6 +40,11 @@ def classify_untracked(root: Path, name: str, source_cache: dict) -> str | None:
         return "unsafe_path"
     if name in LOCKS or SCOPE_ORIGIN.fullmatch(name):
         return None
+    if re.fullmatch(
+        r"tmp/_karte/issue-[1-9][0-9]*\.(?:declared-scope|scope-origin)\.jsonl",
+        name,
+    ):
+        return None
     parts = Path(name).parts
     if parts and parts[0] == "tmp" and path.suffix in TMP_DATA:
         return None
