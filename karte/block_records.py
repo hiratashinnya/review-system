@@ -11,6 +11,7 @@ from .block_parser import Block
 from .disposition import parse_disposition
 from .field_validators import validate_finding_ids, validate_slug, validate_targets
 from .finding_id import parse_finding_id
+from .finding_handoff_ledger import record_from_block
 from .finding_record import Finding
 from .format_error import KarteFormatError
 from .int_args import matched_int, require_ascii_int
@@ -50,6 +51,7 @@ def _finding_from_block(block: Block, issue: int) -> Finding:
         waived_reason=disposition.waived_reason,
         rounds=_require_int_list(block, "rounds"),
         resolved_round=resolved,
+        handoff=record_from_block(block),
     )
 
 

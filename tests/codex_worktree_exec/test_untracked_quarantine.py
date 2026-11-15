@@ -53,6 +53,17 @@ class UntrackedQuarantineTests(unittest.TestCase):
         protected.unlink()
         verify_untracked_sources(self.root)
 
+    def test_scope_origin_output_allowed_but_unrelated_jsonl_rejected(self):
+        expected = self.put("tmp/_karte/issue-822.scope-origin.jsonl", '{"phase":"committed"}')
+        verify_untracked_sources(self.root)
+        for name in ("tmp/other.jsonl", "tmp/_karte/issue-822.other.jsonl"):
+            with self.subTest(name=name):
+                rejected = self.put(name)
+                with self.assertRaisesRegex(ValueError, "unapproved_tmp"):
+                    verify_untracked_sources(self.root)
+                rejected.unlink()
+        self.assertTrue(expected.exists())
+
     def test_candidate_git_added_after_listing_is_not_moved(self):
         path = self.put("tmp/owner.out")
         original = candidates

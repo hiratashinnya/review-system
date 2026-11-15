@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from . import model
+from .finding_handoff_exemption import is_stall_exempt
 from .saturation_groups import saturated_groups
 from .stall_detection import STALL_ROUNDS, stalled_ids
 from .status_findings import finding_rows
@@ -15,7 +16,7 @@ def status_payload(karte: model.Karte) -> dict:
     # K-09: 表示（ここ）とゲート（append）は同じ判定関数を使う。`saturated_groups` は
     # 「そのアプローチを繰り返す append が拒否される」既存 Attempt の組。
     saturated = [members for _number, members, _hits, _candidate in saturated_groups(karte)]
-    return {
+    payload = {
         "issue": karte.issue,
         "verdict": verdict,
         "open_findings": [item.id for item in open_findings],
@@ -44,3 +45,7 @@ def status_payload(karte: model.Karte) -> dict:
         "escalate": bool(stalled or saturated),
         "findings": findings,
     }
+    exempt = [item.id for item in karte.remediation_findings() if is_stall_exempt(item)]
+    if exempt:
+        payload["handoff_exempt_findings"] = exempt
+    return payload

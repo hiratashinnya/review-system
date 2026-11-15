@@ -13,9 +13,8 @@ def render_finding_lines(karte: model.Karte) -> list[str]:
         lines.append("  (未解消の指摘なし)")
     stalled_finding_ids = set(stalled_ids(karte))
     for finding in open_findings:
-        # Issue #503: 無進捗の印も `_stalled_ids`（単一の判定）から引く。ここだけ
-        # `max_consecutive_rounds` を直に見ていると、`status` は無進捗と言わないのに
-        # `render` だけが是正担当へ ★無進捗 を見せる、という食い違いが残る。
+        # 無進捗の印は stall_detection.stalled_ids から引く。
+        # この判定は finding_handoff_exemption.is_stall_exempt を追加で除く。
         stalled = " ★無進捗" if finding.id in stalled_finding_ids else ""
         lines.append(
             f"  - {finding.id} [harm={finding.harm}] [severity={finding.severity}] "

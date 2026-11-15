@@ -29,7 +29,8 @@ class Karte:
         """**この PR で是正が求められている未解消 finding**（Issue #503・単一の集合）。
 
         verdict の「``clean`` を妨げる未解消」（``status --json`` の ``blocking_findings``）・
-        ``check`` の診断網羅要求・無進捗検知は、いずれもこの 1 つの集合を使う。
+        ``check`` の診断網羅要求はこの集合を使う。無進捗検知はここから
+        ``is_stall_exempt`` に該当する検証済み handoff を追加で除く。
         除かれるのは **``harm: real`` かつ** ``deferred``/``waived`` のものだけ
         （:data:`CLEARING_HARM`）。``harm: none`` は ``disposition`` を書いても残る。
         """
