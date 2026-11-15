@@ -89,3 +89,31 @@ AC の出典：#375 の既存 AC に 0件は明示されていない。`O2`（#3
 - **① AC結果の語彙**：`satisfied / not_met / unverified` はPR #846 の `karte/review_summary_ac.py` で追加された **AC判定専用の新規列挙**。既存 `karte/vocabulary.py` の `harm: real|none`、`status: open|resolved`、`disposition: fix-here|deferred|waived` と異なる判定軸。別コンポーネントの `unverified-evidence` は証拠の検証状態であってAC判定の既存規格ではない。新語彙を採用するなら互換性・SSoT・consumerを別途検証し、オーナー決定前は確定語彙として扱わない。
 - **③ チェック済みACの後退**：`karte/ac_check_update.plan` は後退時に例外を送出するが、GitHub更新実行経路に強制結線されていない。呼び忘れを防止する機械的保証がなく、AIの注意力に依存する。owner-onlyの書込境界に整合性検査を結線するまで確実な停止とは主張しない。
 - **独立レビュー F-801-06 / F-801-08 / F-801-09 / F-801-10**：最新PR #846の独立レビュー（HEAD 909122ef）で、snapshot無しのenvelopeフォールバック、複数行ACの見落とし、Codex起動互換テスト、CLI parser golden不整合を指摘。これらは未解消の実害findingであり、本件の完了条件に残る。
+
+## ① AC判定語彙の背反点検（2026-11-15）
+
+| 確認先 | 既存の意味・境界 | 新規 `unverified` との関係 |
+|---|---|---|
+| `karte/review_summary_ac.py` | `result` に `satisfied/not_met/unverified` を新設 | **AC判定専用の新規enum**。既存の正本語彙ではない |
+| `karte/vocabulary.py` / `karte/status_verdict.py` | findingの `harm=real/none`、`status=open/resolved`、`disposition=fix-here/deferred/waived` | 異なる判定軸なので直接の値衝突はない。ただしACの評価不能とfindingの実害を直結する規定は追加判断 |
+| `.ai/skills/review-harm/SKILL.md` | 実害は仕様違反・検証不能・トレーサビリティ断絶等を根拠とし、単なる推測を実害としない | 未観測の理由を示さず全件を `harm: real` とするのは、実害根拠の個別立証規則と衝突するおそれ。特にmerge後にしか観測できない条件は、意図した測定時期と失敗を区別する必要がある |
+| `triage_policy/evaluator.py` / `.ai/rationale/triage-policy.md` | `unverified-evidence` は証拠の確認不足に対する owner-review 理由。AC違反のdeferred候補を自動提案しない | 同じ単語を用いるが**別語彙**。自動でdeferredを承認する機構ではない |
+| `.ai/agents/pr-reviewer.md` と `.ai/skills/issue-pipeline/SKILL.md` | AC判定とfinding列の関係、処置はowner専権 | 現PRで `unverified` を新規導入しており、他の役割と互換性が確定したとは言えない |
+| `karte/ac_check_update.py` | `unverified` でチェック付与しない | 呼び出したときだけ機能する。元Issue側との結線・書込境界が不十分 |
+
+**結論：語彙新設である。既存の列挙値と同一データ項目で衝突する箇所は見当たらないが、semanticな背反は未解消**。推奨は、`unverified` を単なる「ACの未検証状態」として定義し、原因別に「レビュー時点で実測可能なのに未検証」「後工程を正当な測定時期とする」の区別を契約化すること。後者を自動 `harm: real` とするかはオーナー判断①へ戻す。これ以前に検証済みと宣言しない。
+
+## ③ チェック済みAC後退の機械停止ギャップと必要な構成
+
+現行 `karte/ac_check_update.plan` は `ac.checked is True` かつ `result != satisfied` なら `KarteUsageError` を送出し、単体テストが存在する。しかし**GitHub Issue本文の書込みは独立した `gh issue edit` / MCP経路から可能**であり、この関数を必須で通すようには配線されていない。よって**AIによる呼び忘れを機械的に防げない**。
+
+さらに最新独立レビューの **F-801-08** は複数行ACの続きがsnapshot/digestから欠落し、続きのみが変化しても照合を通ると実証した。F-801-06はsnapshotを省略できる旧モードへの暗黙フォールバック。両者を塞ぐまで、`plan` 呼出し自体も十分な停止保証ではない。
+
+必要な構成（③の正式なオーナー決定より前の**設計案**）：
+1. 元IssueのAC全行（複数行継続・子項目も含む）をsnapshot化し、対象の本文・基点のrevisionを固定する。原本とレビューSummaryの整合がなければ書込不可。
+2. **唯一のowner-only ACチェック更新入口**が、最新roundの原本・digest、全AC結果、`karte status` のverdict、snapshot/liveを照合。既存チェック済みACの後退、未検証、件数不整合、原本欠落はAPI呼出し前に機械停止。
+3. managed operation内でraw `gh issue edit`／GitHub MCPの本文更新を直接実行できる経路をポリシーや権限で拒否し、上記入口への迂回を塞ぐ。**この封鎖がなければ完全な停止保証と報告しない**。
+4. 同一Issueの同時編集はGitHub側の条件付き書込／revision整合の可否を検証し、非原子的なら read-backだけではTOCTOU完全保証ではないことを残差として明示する。
+5. 「checked→unverified/not_met」「継続行だけのlive変更」「snapshotなし」「別Issue」「古いround」「read-back不一致」「直接書込迂回」を**write boundaryのE2E**でテストする。helper単体成功は代用しない。
+
+この構成の採用と停止時のオーナー判断手順は未決③に属し、ここでは承認済みとは扱わない。
