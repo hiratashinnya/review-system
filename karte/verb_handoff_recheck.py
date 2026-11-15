@@ -6,7 +6,7 @@ from . import finding_handoff_context as context, finding_handoff_github as gith
 from .finding_handoff_errors import FindingHandoffError
 from .finding_handoff_observe import describe, timestamp, verify
 from .finding_handoff_store import snapshot, store
-from .finding_handoff_target import REPO
+from .finding_handoff_target import REPO, normalize_target
 from .verb_boundary import fail_close
 
 
@@ -15,6 +15,8 @@ def observe(finding, repository):
     match = re.fullmatch(rf"({REPO})#([1-9][0-9]*)", record.handoff_issue, re.ASCII)
     if not match or match.group(1).lower() != repository.lower():
         raise FindingHandoffError("repository", "記録の repository が origin と一致しません")
+    if normalize_target(finding.deferred_to, match.group(1)) != record.handoff_issue:
+        raise FindingHandoffError("destination", "現在の deferred_to が記録済みの申し送り先と一致しません")
     context.issue_status(record.handoff_issue)
     verify(record.handoff_issue, record.handoff_comment_url, finding,
            github.current_login(), record.handoff_content_hash)
