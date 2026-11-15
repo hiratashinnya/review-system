@@ -117,21 +117,12 @@ def run(fn, *args):
 
 
 def view_karte(text):
-    # Issue #830 で増えたフィールドは旧golden生成時に存在しない。
-    # 旧書式の互換性比較からのみ除外し、新形式は専用テストで固定する。
-    return "".join(
-        line for line in model.dumps(model.parse(text)).splitlines(keepends=True)
-        if not line.startswith(("reachability_path:", "threat_assumption:"))
-    )
+    return model.dumps(model.parse(text))
 
 
 def view_review(text):
     return [
-        {
-            k: (list(v) if isinstance(v, tuple) else v)
-            for k, v in vars(item).items()
-            if k not in ("reachability_path", "threat_assumption")
-        }
+        {k: (list(v) if isinstance(v, tuple) else v) for k, v in vars(item).items()}
         for item in model.parse_review(text, 307)
     ]
 
