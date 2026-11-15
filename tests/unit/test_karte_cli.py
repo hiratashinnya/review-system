@@ -2755,7 +2755,7 @@ class TestVerdictGateOnDisposition(KarteTestCase):
         self.assertEqual(payload["deferred_findings"], [{"id": "F-307-01", "deferred_to": "#493"}])
         self.assertEqual(payload["blocking_findings"], [])
 
-    def test_waived_clears_the_verdict_but_stays_open(self):
+    def test_waived_without_override_ref_stays_open_and_blocks_clean(self):
         code, _out, err = self._ingest(
             1,
             (
@@ -2770,7 +2770,8 @@ class TestVerdictGateOnDisposition(KarteTestCase):
         )
         self.assertEqual(code, exit_codes.EXIT_OK, err)
         payload = self._verdict()
-        self.assertEqual(payload["verdict"], "clean")
+        self.assertEqual(payload["verdict"], "harmful-open")
+        self.assertEqual(payload["override_pending"]["F-307-01"], "オーナー判断の override_ref が未記入")
         self.assertEqual(self._karte().finding("F-307-01").status, "open")
         self.assertEqual(payload["waived_findings"][0]["waived_by"], "owner")
 
@@ -3472,7 +3473,7 @@ class TestDispositionExclusionIsASingleJudgment(KarteTestCase):
         self.assertEqual(code, exit_codes.EXIT_OK, err)
         self._close(1, DIFF)
 
-    def test_check_and_status_agree_on_every_disposition(self):
+    def test_check_and_status_account_for_owner_override_pending(self):
         for label, fields, needs_remediation in self.CASES:
             with self.subTest(disposition=label):
                 self.setUp()  # 台帳は Issue ごとに1本なので毎回作り直す
@@ -3483,8 +3484,8 @@ class TestDispositionExclusionIsASingleJudgment(KarteTestCase):
 
                 self.assertEqual(
                     in_blocking,
-                    needs_remediation,
-                    "status の blocking_findings が期待と違う",
+                    needs_remediation or label == "waived",
+                    "status の blocking_findings が override_ref 要件と食い違う",
                 )
                 self.assertEqual(
                     check_code != exit_codes.EXIT_OK,
