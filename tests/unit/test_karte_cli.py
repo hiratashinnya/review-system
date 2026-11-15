@@ -3507,8 +3507,11 @@ class TestDispositionExclusionIsASingleJudgment(KarteTestCase):
                 self.assertEqual(
                     "F-307-02" in payload["stalled_findings"], needs_remediation
                 )
+                # #523: waived の免責自体は診断から除外するが、owner の
+                # override_ref 未確認なら verdict の blocking 集合には残す。
                 self.assertEqual(
-                    "F-307-02" in payload["blocking_findings"], needs_remediation
+                    "F-307-02" in payload["blocking_findings"],
+                    needs_remediation or label == "waived",
                 )
 
     CLEARING_CONSTANTS = ("CLEARING_DISPOSITIONS", "CLEARING_HARM")
