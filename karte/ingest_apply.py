@@ -52,3 +52,4 @@ def _apply_owner_fields(finding, item) -> None:
     finding.deferred_to = item.deferred_to
     finding.waived_by = item.waived_by
     finding.waived_reason = item.waived_reason
+    finding.override_ref = item.override_ref
