@@ -117,11 +117,13 @@
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [
         "active.json",
-        "issue-7.md"
+        "issue-7.md",
+        "issue-7.scope-origin.jsonl"
       ],
       "directory_exists": true
     },
@@ -132,12 +134,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
@@ -149,12 +153,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "78ed446be87f1eb417c854c9b6c606220a743be10e32883b1d1bddef3f04fd20"
+        "issue-7.md": "78ed446be87f1eb417c854c9b6c606220a743be10e32883b1d1bddef3f04fd20",
+        "issue-7.scope-origin.jsonl": "e1806425827191b723675d87f2a12285076671c83da9c2380a5a9f43a029a25c"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "78ed446be87f1eb417c854c9b6c606220a743be10e32883b1d1bddef3f04fd20"
+        "issue-7.md": "78ed446be87f1eb417c854c9b6c606220a743be10e32883b1d1bddef3f04fd20",
+        "issue-7.scope-origin.jsonl": "e1806425827191b723675d87f2a12285076671c83da9c2380a5a9f43a029a25c"
       },
       "changed": [],
       "directory_exists": true
@@ -166,12 +172,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
@@ -183,12 +191,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
@@ -200,12 +210,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
@@ -217,12 +229,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
@@ -234,12 +248,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
@@ -251,12 +267,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
@@ -268,12 +286,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
@@ -285,12 +305,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
@@ -302,12 +324,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a"
+        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [
         "issue-7.md"
@@ -321,12 +345,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a"
+        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a"
+        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
@@ -338,12 +364,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a"
+        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a"
+        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
@@ -355,12 +383,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a"
+        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a"
+        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
@@ -372,12 +402,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a"
+        "issue-7.md": "d887bfc28f73cdd86a52aa637e8bd96ce7980574879d55d2db5afec77ddb965a",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "1b94f5d2502adae00c06d892870617e3577479998bad56e0762871ba09124380"
+        "issue-7.md": "1b94f5d2502adae00c06d892870617e3577479998bad56e0762871ba09124380",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [
         "issue-7.md"
@@ -391,12 +423,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "1b94f5d2502adae00c06d892870617e3577479998bad56e0762871ba09124380"
+        "issue-7.md": "1b94f5d2502adae00c06d892870617e3577479998bad56e0762871ba09124380",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "1b94f5d2502adae00c06d892870617e3577479998bad56e0762871ba09124380"
+        "issue-7.md": "1b94f5d2502adae00c06d892870617e3577479998bad56e0762871ba09124380",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
@@ -408,12 +442,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "1b94f5d2502adae00c06d892870617e3577479998bad56e0762871ba09124380"
+        "issue-7.md": "1b94f5d2502adae00c06d892870617e3577479998bad56e0762871ba09124380",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "1b94f5d2502adae00c06d892870617e3577479998bad56e0762871ba09124380"
+        "issue-7.md": "1b94f5d2502adae00c06d892870617e3577479998bad56e0762871ba09124380",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
@@ -425,12 +461,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "1b94f5d2502adae00c06d892870617e3577479998bad56e0762871ba09124380"
+        "issue-7.md": "1b94f5d2502adae00c06d892870617e3577479998bad56e0762871ba09124380",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "2f57783e1818fb4e411331399261a506ae86f5b9ed431ba8e3d8c289a9f6044f"
+        "issue-7.md": "2f57783e1818fb4e411331399261a506ae86f5b9ed431ba8e3d8c289a9f6044f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [
         "issue-7.md"
@@ -444,12 +482,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "2f57783e1818fb4e411331399261a506ae86f5b9ed431ba8e3d8c289a9f6044f"
+        "issue-7.md": "2f57783e1818fb4e411331399261a506ae86f5b9ed431ba8e3d8c289a9f6044f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "a0b609a55bf873d9f2f1876f431ecc13b254915fba2fa5b11dc8cce974ed9d07"
+        "issue-7.md": "a0b609a55bf873d9f2f1876f431ecc13b254915fba2fa5b11dc8cce974ed9d07",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [
         "issue-7.md"
@@ -463,12 +503,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "a0b609a55bf873d9f2f1876f431ecc13b254915fba2fa5b11dc8cce974ed9d07"
+        "issue-7.md": "a0b609a55bf873d9f2f1876f431ecc13b254915fba2fa5b11dc8cce974ed9d07",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "a0b609a55bf873d9f2f1876f431ecc13b254915fba2fa5b11dc8cce974ed9d07"
+        "issue-7.md": "a0b609a55bf873d9f2f1876f431ecc13b254915fba2fa5b11dc8cce974ed9d07",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
@@ -480,12 +522,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "a0b609a55bf873d9f2f1876f431ecc13b254915fba2fa5b11dc8cce974ed9d07"
+        "issue-7.md": "a0b609a55bf873d9f2f1876f431ecc13b254915fba2fa5b11dc8cce974ed9d07",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f"
+        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [
         "issue-7.md"
@@ -499,12 +543,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f"
+        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f"
+        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
@@ -516,12 +562,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f"
+        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f"
+        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
@@ -533,12 +581,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f"
+        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f"
+        "issue-7.md": "e4463590ba08fb6e4b1260597e71af9b2cb9439fc4308a3356f6da117885544f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
@@ -549,11 +599,13 @@
       "stderr": "",
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "issue-7.md": "78ed446be87f1eb417c854c9b6c606220a743be10e32883b1d1bddef3f04fd20"
+        "issue-7.md": "78ed446be87f1eb417c854c9b6c606220a743be10e32883b1d1bddef3f04fd20",
+        "issue-7.scope-origin.jsonl": "e1806425827191b723675d87f2a12285076671c83da9c2380a5a9f43a029a25c"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "issue-7.md": "bfd783f65e0bf212c0cbc709e527b5e37441b44cacc5d4a17c459721013e457a"
+        "issue-7.md": "bfd783f65e0bf212c0cbc709e527b5e37441b44cacc5d4a17c459721013e457a",
+        "issue-7.scope-origin.jsonl": "e1806425827191b723675d87f2a12285076671c83da9c2380a5a9f43a029a25c"
       },
       "changed": [
         "issue-7.md"
@@ -566,11 +618,13 @@
       "stderr": "NG: 診断されていない未解消 finding: F-7-02\n",
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "issue-7.md": "bfd783f65e0bf212c0cbc709e527b5e37441b44cacc5d4a17c459721013e457a"
+        "issue-7.md": "bfd783f65e0bf212c0cbc709e527b5e37441b44cacc5d4a17c459721013e457a",
+        "issue-7.scope-origin.jsonl": "e1806425827191b723675d87f2a12285076671c83da9c2380a5a9f43a029a25c"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "issue-7.md": "bfd783f65e0bf212c0cbc709e527b5e37441b44cacc5d4a17c459721013e457a"
+        "issue-7.md": "bfd783f65e0bf212c0cbc709e527b5e37441b44cacc5d4a17c459721013e457a",
+        "issue-7.scope-origin.jsonl": "e1806425827191b723675d87f2a12285076671c83da9c2380a5a9f43a029a25c"
       },
       "changed": [],
       "directory_exists": true
@@ -581,11 +635,13 @@
       "stderr": "",
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "issue-7.md": "bfd783f65e0bf212c0cbc709e527b5e37441b44cacc5d4a17c459721013e457a"
+        "issue-7.md": "bfd783f65e0bf212c0cbc709e527b5e37441b44cacc5d4a17c459721013e457a",
+        "issue-7.scope-origin.jsonl": "e1806425827191b723675d87f2a12285076671c83da9c2380a5a9f43a029a25c"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "issue-7.md": "8117cda35ea88e9f7b8b2b910af681ccbae581ab6b1a661ebbc2e1d2b212fa76"
+        "issue-7.md": "8117cda35ea88e9f7b8b2b910af681ccbae581ab6b1a661ebbc2e1d2b212fa76",
+        "issue-7.scope-origin.jsonl": "e1806425827191b723675d87f2a12285076671c83da9c2380a5a9f43a029a25c"
       },
       "changed": [
         "issue-7.md"
@@ -598,11 +654,13 @@
       "stderr": "拒否（fail-close）: --attempt が未指定で、未クローズの Attempt が複数ある（Attempt 1, Attempt 2）。どの Attempt に記録するか --attempt で明示すること（Issue #378）\n",
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "issue-7.md": "8117cda35ea88e9f7b8b2b910af681ccbae581ab6b1a661ebbc2e1d2b212fa76"
+        "issue-7.md": "8117cda35ea88e9f7b8b2b910af681ccbae581ab6b1a661ebbc2e1d2b212fa76",
+        "issue-7.scope-origin.jsonl": "e1806425827191b723675d87f2a12285076671c83da9c2380a5a9f43a029a25c"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "issue-7.md": "8117cda35ea88e9f7b8b2b910af681ccbae581ab6b1a661ebbc2e1d2b212fa76"
+        "issue-7.md": "8117cda35ea88e9f7b8b2b910af681ccbae581ab6b1a661ebbc2e1d2b212fa76",
+        "issue-7.scope-origin.jsonl": "e1806425827191b723675d87f2a12285076671c83da9c2380a5a9f43a029a25c"
       },
       "changed": [],
       "directory_exists": true
@@ -613,11 +671,13 @@
       "stderr": "",
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "issue-7.md": "8117cda35ea88e9f7b8b2b910af681ccbae581ab6b1a661ebbc2e1d2b212fa76"
+        "issue-7.md": "8117cda35ea88e9f7b8b2b910af681ccbae581ab6b1a661ebbc2e1d2b212fa76",
+        "issue-7.scope-origin.jsonl": "e1806425827191b723675d87f2a12285076671c83da9c2380a5a9f43a029a25c"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "issue-7.md": "9916a5e88873381b07b42559951c74ae7d74dcc6a15c13e42e0183e44d1eb4e6"
+        "issue-7.md": "9916a5e88873381b07b42559951c74ae7d74dcc6a15c13e42e0183e44d1eb4e6",
+        "issue-7.scope-origin.jsonl": "e1806425827191b723675d87f2a12285076671c83da9c2380a5a9f43a029a25c"
       },
       "changed": [
         "issue-7.md"
@@ -632,12 +692,14 @@
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [
         ".writer.lock",
         "active.json",
-        "issue-7.md"
+        "issue-7.md",
+        "issue-7.scope-origin.jsonl"
       ],
       "directory_exists": true
     },
@@ -648,12 +710,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "11d6b9397ce9b2c7fb826b35ff71aecad8b4d937d70216a4c4b24d3b77b478c5"
+        "issue-7.md": "11d6b9397ce9b2c7fb826b35ff71aecad8b4d937d70216a4c4b24d3b77b478c5",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "11d6b9397ce9b2c7fb826b35ff71aecad8b4d937d70216a4c4b24d3b77b478c5"
+        "issue-7.md": "11d6b9397ce9b2c7fb826b35ff71aecad8b4d937d70216a4c4b24d3b77b478c5",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
@@ -665,12 +729,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f"
+        "issue-7.md": "9ded8c9a0704d859a2edb88e75e2fd8dd09cca7c6f97bc881108c1cc3b8e4d6f",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
@@ -682,12 +748,14 @@
       "before": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "11d6b9397ce9b2c7fb826b35ff71aecad8b4d937d70216a4c4b24d3b77b478c5"
+        "issue-7.md": "11d6b9397ce9b2c7fb826b35ff71aecad8b4d937d70216a4c4b24d3b77b478c5",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "after": {
         ".writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "active.json": "beac84832dcf73f8f20e8d0033d2e19cc163021ce0780013537e63fbc87e2973",
-        "issue-7.md": "11d6b9397ce9b2c7fb826b35ff71aecad8b4d937d70216a4c4b24d3b77b478c5"
+        "issue-7.md": "11d6b9397ce9b2c7fb826b35ff71aecad8b4d937d70216a4c4b24d3b77b478c5",
+        "issue-7.scope-origin.jsonl": "967fbcb90cc1aab608ce74e7bcb26a703e9a83a2e08945d7649eea98165a5716"
       },
       "changed": [],
       "directory_exists": true
