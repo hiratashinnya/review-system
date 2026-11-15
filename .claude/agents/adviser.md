@@ -18,7 +18,7 @@ Claude Code主文脈からのmanaged dispatchのみ受け、issue-start/command�
 既定の経路では、主文脈が `python3 -m issue_start.readonly_workspace` を実行し、その入口が同repo/HEADの
 登録済linked作業面と入力を検証してCodexを起動する。この経路ではClaudeの本roleはdispatchされない。
 Claudeの本roleがdispatchされるのは、主文脈が上限の証拠で切り替えた場合か、オーナーの明示判断がある場合に限る。
-相談の難度を理由にした切替は行わない。難しい相談は主文脈がCodex側の層を引き上げる。
+相談の難度を理由にした切替は行わない。本roleの層は最上位に固定してあり、難しい相談もCodexの最上位で扱う。
 - dispatch promptにCodex実行者の指定が無い場合（切替とオーナー判断のdispatchはこの形）：Codexを起動せず、自分で回答する。
 - dispatch promptにCodex実行者の指定がある場合（既定の経路では主文脈はこの形でdispatchしない。機械上の許可範囲として残る）：
   主文脈が準備済みのlinked面と実cwdが一致するときだけ、

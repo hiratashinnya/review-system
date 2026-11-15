@@ -103,7 +103,7 @@ profileのorigin/main pinは変更せず、未merge profileの拒否を成功dis
 - 高リスク信号のある実装も Codex 既定の例外にしない。Codex 側の層を引き上げる。
 - test-writer と issue-implementer は同じモデルファミリになる。独立性は、Claude 固定の pr-reviewer が 2a と 2b を別 dispatch で審査することで保つ。
 - read-only の Codex 経路は実 dispatch が未実測である（#652）。実測が済むまでも既定は Codex とし、上限の証拠が無い失敗は切り替えず STOP する。起動 gate の受理や unit の合格を実 dispatch の成功と報告しない。
-- adviser は相談の難度を理由に Claude へ切り替えない。難しい相談は Codex 側の層を引き上げる（オーナー決定・2026-11-16）。
+- adviser は相談の難度を理由に Claude へ切り替えない。adviser の層は最上位に固定してあり、難しい相談も Codex の最上位で扱う（オーナー決定・2026-11-16）。
 - この表は運用規範であり、機械では強制していない。`codex_worktree_exec` と起動 gate は Claude 固定の role の起動形も受理する。
 
 #### read-only の Codex 実行先
@@ -133,9 +133,9 @@ globやdirectory一括許可を使わず、
 | issue-implementer | 承認済み計画の適用 Lv3 | 中位 / 中 |
 | pr-reviewer | 評価 Lv5 | 最上位 / 中、既存のrisk signalで引上げ |
 | issue-fixer | レビュー指摘の根本原因の分析 Lv4 | 中位 / 中 |
-| adviser | 相談内容の主要認知行為 | 中位または最上位 / 相談ごとに引く |
+| adviser | 相談内容の主要認知行為 | 最上位 / 相談内容で引く |
 
-adviser の層と予算は、主文脈が相談ごとに、相談内容の主要認知行為から `.ai/skills/bloom-model-tier/SKILL.md` の閾値表で引く。層の下限は中位とする。難しい相談は Codex 側の層を最上位へ引き上げる。
+adviser の層は最上位に固定する（オーナー決定・2026-11-16）。推論予算だけを、主文脈が相談内容の主要認知行為から `.ai/skills/bloom-model-tier/SKILL.md` の閾値表で引く。
 
 具体ID/予算は `.ai/model-policy.json` と `model_policy/README.md` の既存resolverで解決し、
 policy/catalog hash、取得surface/方法/日時、resolved ID、実使用ID、確認結果を追跡する。
@@ -154,7 +154,8 @@ policy/catalog hash、取得surface/方法/日時、resolved ID、実使用ID、
   - read-only role：Codex を起動したのは主文脈の専用入口なので、主文脈が出力から逐語を確かめ、同じ role の Claude サブエージェントを dispatch する。
   - 回収・解放から dispatch までの既存契約はそのまま適用する。この再 dispatch の完走は未実測である。
 - **未 commit の変更が残ったときは、role が確かめてから引き継ぐ**（オーナー決定・2026-11-16）。対象は書込 role である。
-  - role は Codex が残した変更を差分と単体テストで確かめる。依頼範囲に収まると確かめられたら commit・push し、上限の逐語、commit、変更 path、テスト結果、残作業を handoff に記録して STOP を返す。主文脈は切替の再 dispatch へ進み、切替後の Claude role はその commit の続きから行う。
+  - role は Codex が残した変更を差分と単体テストで確かめる。依頼範囲に収まると確かめられたら、テストが赤くても commit・push し、上限の逐語、commit、変更 path、テスト結果、残作業を handoff に記録して STOP を返す。主文脈は切替の再 dispatch へ進み、切替後の Claude role はその commit の続きから行う。
+  - この引き継ぎ commit のコミットメッセージには、Codex 実行者の上限による途中停止の引き継ぎであることと、テストの状態を書く。テストが赤いときは、未完了のために赤いテストと、意図して赤くしてあるテスト（test-writer の Red テスト）を分けて書く。意図した Red だけを含む通常の commit にはこの記載を付けないので、記載の有無で引き継ぎの commit を見分けられる。
   - 依頼範囲外の変更が混じっているとき、または範囲に収まると確かめられないときは、role は commit せず、変更 path と理由を記録して STOP を返す。この場合、主文脈は切替の再 dispatch をせず、オーナーへ打ち上げる。
   - 未 commit の変更が無いときは、role は逐語を記録して STOP を返し、主文脈は切替へ進む。
 - **切替後の層と推論予算は Codex 実行者に指定していたもの以上にする。** 対応は下の表で引く。Claude 側の role 定義がそれを下回るなら、主文脈が dispatch で引き上げる。引き上げられなければ STOP する。主文脈による代行、層の降格、推論予算の引下げはしない。

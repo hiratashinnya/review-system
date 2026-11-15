@@ -38,7 +38,7 @@ deny 時は呼び出し元の dispatch の marker 付与漏れ・重複・field 
 - 起動は `python3 -m codex_worktree_exec --role issue-fixer -C <自分の worktree ルート> --prompt-file <依頼文> --output-file <最終応答> --model <指定値> --reasoning-effort <指定値>` の1コマンドだけとする。依頼文は Write で worktree の `tmp/` に書く。`codex exec` を直接呼ばず、agy の `codex_*` も使わない。
 - Codex は commit・push・PR 作成をしない。Codex の変更は `python3 -m gitgate diff` と単体テストで自分で確かめ、診断の範囲外の変更が混じっていたら commit せず STOP して報告する。commit・push は自分が行う。
 - 終了コード `2` は検査不合格（stderr の `CODEX_EXEC_*` 識別子で原因を確かめ、直せなければ STOP）、`124` は timeout。どちらも Claude 実行へ切り替える理由にならない。
-- Codex がレートリミットで止まったら、上限を示す出力の逐語をハンドオフに記録して STOP を返す。自分で是正へ切り替えず、降格もしない。Codex が未 commit の変更を残していたら、`python3 -m gitgate diff` と単体テストで確かめる。診断の `targets`／`finding_ids` の範囲に収まると確かめられたら commit・push し、commit、変更パス、テスト結果、残作業を逐語と一緒にハンドオフの `stop_reason` へ記録する。範囲外の変更が混じる、または確かめられないときは commit せず、変更パスと理由を記録する。切替は主文脈が行い、切替後の dispatch では commit 済みの続きから是正する（`.ai/skills/issue-pipeline/SKILL.md`「Codex 実行者が上限で止まったときの切替」）。逐語で示せなければ上限と扱わない。
+- Codex がレートリミットで止まったら、上限を示す出力の逐語をハンドオフに記録して STOP を返す。自分で是正へ切り替えず、降格もしない。Codex が未 commit の変更を残していたら、`python3 -m gitgate diff` と単体テストで確かめる。診断の `targets`／`finding_ids` の範囲に収まると確かめられたら、テストが赤くても commit・push し、commit、変更パス、テスト結果、残作業を逐語と一緒にハンドオフの `stop_reason` へ記録する。この commit のコミットメッセージには、上限による途中停止の引き継ぎであることと、未完了のために赤いテスト・意図して赤くしてある Red テストの別を書く。範囲外の変更が混じる、または確かめられないときは commit せず、変更パスと理由を記録する。切替は主文脈が行い、切替後の dispatch では commit 済みの続きから是正する（`.ai/skills/issue-pipeline/SKILL.md`「Codex 実行者が上限で止まったときの切替」）。逐語で示せなければ上限と扱わない。
 - 契約の正本は `docs/methods/codex-workspace-binding.md`。
 
 許可module/verbの機械SSoTは本PF hookの基底・role別表と `phase_role_permissions` 拡張であり、
