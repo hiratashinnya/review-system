@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@446f835d3edc -->
+<!-- synced-from: CLAUDE.md@8f31fa116287 -->
 <!--
   Issue #375（2026-10-31）: `.claude/rules/05-skills-agents.md` の戻り値のハンドオフ規約で `pr-reviewer`
   （Claude Code）を write 権限なし側から外し、項13へ `karte ingest-reviewer` と主文脈専用 verb を追記した。
