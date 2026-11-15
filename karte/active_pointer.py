@@ -46,7 +46,7 @@ def read_active(repo_root, *, required: bool = False) -> dict:
     return data
 
 
-def write_active(repo_root, issue: int, round_no: int, review_expect: dict | None = None) -> None:
+def write_active(repo_root, issue: int, round_no: int, review_expect: dict | None = None, *, ac_snapshot=None) -> None:
     """ポインタを置き換える。``review_expect``（review envelope の期待値）は ``activate`` だけが渡す。
 
     取り込みは渡さないので、取り込みの成功でポインタが進むと期待値は消える（1 回限り）。
@@ -55,4 +55,6 @@ def write_active(repo_root, issue: int, round_no: int, review_expect: dict | Non
     pointer: dict = {"issue": int(issue), "round": int(round_no)}
     if review_expect is not None:
         pointer["review_expect"] = review_expect
+    if ac_snapshot is not None:
+        pointer["ac_snapshot"] = ac_snapshot
     paths.write_text_atomic(path, json.dumps(pointer, ensure_ascii=False) + "\n")

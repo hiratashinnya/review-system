@@ -1,0 +1,49 @@
+"""Issue #801: ownerが凍結したAC snapshotをレビュー期待値に束縛する。"""
+
+from pathlib import Path
+
+from . import paths
+from .ac_snapshot import digest, from_issue_body
+from .errors import KarteUsageError
+
+
+def _archived(repo_root, issue, number):
+    directory = paths.karte_dir(repo_root, create=True)
+    return paths.resolve_within_repo(directory / f"issue-{issue}-ac-round-{number}.md", repo_root)
+
+
+def stage(repo_root, issue, round_no, source):
+    """信頼済みcallerのIssue本文を保存し、roundとの照合期待値を発行。"""
+    candidate = paths.resolve_within_repo(source, repo_root)
+    body = paths.read_text(candidate)
+    items = from_issue_body(body)
+    archived = _archived(repo_root, issue, round_no)
+    if archived.exists():
+        if paths.read_text(archived) != body:
+            raise KarteUsageError("同一roundのAC snapshotの差し替えを拒否")
+    else:
+        paths.write_text_atomic(archived, body)
+    return {"digest": digest(items), "count": len(items),
+            "source": str(archived.relative_to(Path(repo_root).resolve()))}
+
+
+def validate(repo_root, issue, round_no, report):
+    """レビューア本文のACはmainが凍結した原本と一致する場合に限り受理。"""
+    from .active_pointer import read_active
+    from .review_summary import parse_summary
+
+    record = read_active(repo_root, required=True).get("ac_snapshot")
+    if not isinstance(record, dict) or set(record) != {"digest", "count", "source"}:
+        raise KarteUsageError("mainによるAC snapshotの期待値が無い")
+    file = _archived(repo_root, issue, round_no)
+    if record["source"] != str(file.relative_to(Path(repo_root).resolve())):
+        raise KarteUsageError("AC snapshotの保存先が不一致")
+    items = from_issue_body(paths.read_text(file))
+    if record["digest"] != digest(items) or type(record["count"]) is not int or record["count"] != len(items):
+        raise KarteUsageError("AC snapshotの原本と期待値が不一致")
+    summary = parse_summary(report, issue)
+    if summary is None:
+        raise KarteUsageError("reviewerのReportにはReview Summaryが必須")
+    if summary.ac_snapshot_digest != record["digest"] or summary.ac_count != record["count"]:
+        raise KarteUsageError("レビューAC判定が凍結済みIssue ACと一致しない")
+    return summary

@@ -1,6 +1,6 @@
 """主文脈専用の verb ``activate`` / ``decide``。"""
 
-from . import handoff_header, karte_rounds, model, owner_decision, paths, review_expectation, scope_ledger, scope_ledger_repair
+from . import ac_snapshot_binding, handoff_header, karte_rounds, model, owner_decision, paths, review_expectation, scope_ledger, scope_ledger_repair
 from .active_pointer import write_active
 from .errors import KarteNotFound, KarteUsageError
 from .exit_codes import EXIT_OK
@@ -28,11 +28,20 @@ def cmd_activate(args, repo_root) -> int:
     except KarteNotFound:
         last = 0
     next_number = require_ascii_int(last + 1, KarteUsageError("次の round が桁数の上限を超える"))
-    write_active(repo_root, issue, last, expected)  # 原本は作らない（取り消せない保護モードを残さない・F-375-10）
+    snapshot_file = getattr(args, "ac_snapshot_file", None)
+    if snapshot_file and expected is None:
+        raise KarteUsageError("--ac-snapshot-file は review envelope 期待値と同時指定する")
+    snapshot = ac_snapshot_binding.stage(repo_root, issue, next_number, snapshot_file) if snapshot_file else None
+    if snapshot is not None:
+        write_active(repo_root, issue, last, expected, ac_snapshot=snapshot)
+    else:
+        write_active(repo_root, issue, last, expected)  # 従来起動との後方互換性
     print(f"=== activate: issue-{issue} round {last}（次の ingest-reviewer は round {next_number}）===")
     if expected is not None:
         print(f"  review envelope の期待値を記録（run_id={expected['run_id']} phase={expected['phase']}・"
               "取り込み成功で消える・待機中は主文脈の ingest-review を拒否）")
+        if snapshot is not None:
+            print(f"  AC snapshot: {snapshot[\'source\']} count={snapshot[\'count\']} sha256={snapshot[\'digest\']}")
         print("  レビューアの handoff 先頭へそのまま置くヘッダ（dispatch prompt に渡す）:")
         print("  " + handoff_header.render_header(next_number, expected))
     return EXIT_OK
@@ -75,6 +84,7 @@ def register(subparsers, add_issue) -> None:
         ("input-digest", "レビュー入力の sha256（64桁 hex）"), ("phase", "test_design | implementation"),
     ):
         activate.add_argument(f"--{flag}", help=f"review envelope の期待値: {text}（5 項目を同時に指定）")
+    activate.add_argument("--ac-snapshot-file", help="dispatch時に取得した元Issue本文のローカルUTF-8ファイル（AC凍結）")
     activate.set_defaults(func=cmd_activate)
     decide = subparsers.add_parser("decide", help="オーナー決定を台帳へ記録する（主文脈専用）")
     add_issue(decide)
