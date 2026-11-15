@@ -1,35 +1,33 @@
 # coverage HTML レポート生成
 
-`coverage` ライブラリ＋`unittest discover` で `review_system` パッケージのカバレッジを計測し、`htmlcov/index.html` を生成する。
-
-設定ファイル：`.coveragerc`（プロジェクトルート）。計測対象は `review_system/` のみ。
-
-> **coverage の実行経路は `uv run --with coverage` に限定する**：`coverage` はグローバル環境にも
-> venv にも事前インストールせず、`uv run --with coverage <command>` の使い捨て環境経由でのみ実行する。
-> **pip 等での事前導入・グローバルインストールは禁止**（環境を汚さず、導入可否を判断する余地自体を
-> 無くすため）。`uv` 自体が使えない（未インストール・ネットワーク到達不可等）場合は、代替として
-> pip 等で自動導入せず、その場で停止して uv 未導入である旨をオーナーに打ち上げる（導入可否・
-> 導入方法はオーナー判断）。PF固有の実行制約は各PF wrapperに置く。
+coverage・HTML・bytecode は checkout 外に生成する。coverage の導入・実行は
+`uv run --no-project --with coverage` に限定し、uv 不在なら停止（pip へのフォールバック禁止）。
 
 ## 手順
 
-1. **テスト実行＋計測**
+1. Git HEAD と tracked worktree が一致する作業面で、一時出力先を決める。
    ```bash
-   uv run --with coverage coverage run -m unittest discover -s tests -p "test_*.py"
+   COVERAGE_OUTPUT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/review-system-coverage.XXXXXXXX")" || exit 1
+   export COVERAGE_OUTPUT_DIR
    ```
-
-2. **HTML レポート生成**
+2. 同一コミット・interpreterによる **全** `unittest discover -s tests -t . -p "test_*.py"` を比較する。
    ```bash
-   uv run --with coverage coverage html
+   python3 -B -m codex_worktree_exec.coverage_parity --output "$COVERAGE_OUTPUT_DIR"
    ```
-   出力先：`htmlcov/index.html`（`.gitignore` 対象のため未追跡）
+   この処理は通常 unittest を隔離した detached worktree で、coverage unittest を
+   現作業面で実行する。通常側に `PYTHONDONTWRITEBYTECODE` や
+   `PYTHONPYCACHEPREFIX` を設定しない。coverage 側は
+   `PYTHONDONTWRITEBYTECODE=1`・`COVERAGE_FILE` を作業面外に指定し、
+   同一interpreterを `uv run --no-project --python` で固定する。
+   両実行の失敗test ID集合・終了コードを `parity.json` に記録する。
+   一致してもどちらかが非0なら未完了。失敗時はHTML/reportを生成せず停止する。
+3. 成功したら `$COVERAGE_OUTPUT_DIR/htmlcov/index.html` を表示・送付する。
+   通常側の detached worktree は検査終了時に除去する。元checkoutはbytecodeを生成しない。
 
-3. **ターミナルサマリー表示**
-   ```bash
-   uv run --with coverage coverage report
-   ```
+## done条件
+- [ ] 同一commit・同一interpreterでの全テストID集合が一致し、**両方の終了コードが0**
+- [ ] `$COVERAGE_OUTPUT_DIR/parity.json` および `htmlcov/index.html` が生成済み
+- [ ] 元checkout内に新しい `.coverage`、`htmlcov/`、`__pycache__` が増えない
+- [ ] 比較結果と作業面外レポートパスを報告済み
 
-## done 条件
-- [ ] 全テストが PASS（失敗があれば原因をユーザーに報告してから続行）
-- [ ] `htmlcov/index.html` が生成されている
-- [ ] カバレッジサマリーをチャットに表示済み
+補足：parity runner自身のimportによるbytecodeも、起動時の `python3 -B` により防止する。

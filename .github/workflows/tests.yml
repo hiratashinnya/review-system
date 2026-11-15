@@ -61,6 +61,12 @@ jobs:
       - name: Run Python test suite
         run: python3 -m unittest discover tests
 
+      - name: Issue 655 codex source regression suite
+        run: python3 -m unittest discover -s tests/codex_worktree_exec
+
+      - name: Issue 655 readonly preparation regression suite
+        run: python3 -m unittest discover -s tests/issue_start
+
       - name: Model family policy references and stopped templates
         run: python3 -m model_policy check
 
@@ -78,6 +84,8 @@ jobs:
 
       - name: Maintainability principles check (Issue #539)
         run: python3 -m maintainability_lint check
+
+
 
   typecheck:
     runs-on: ubuntu-latest

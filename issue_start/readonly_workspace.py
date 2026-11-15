@@ -1,7 +1,6 @@
 """trusted主文脈がread-only Codex実行を既存linked作業面へ固定する入口。"""
 import argparse
 import json
-import os
 import subprocess
 from pathlib import Path
 from codex_worktree_exec.arguments import parse_request
@@ -10,6 +9,7 @@ from codex_worktree_exec.committed_artifact import read_committed_artifact
 from codex_worktree_exec.worktree_binding import bind_worktree
 from codex_worktree_exec.source_snapshot import verify_untracked_sources
 from .gated_roles import READ_ONLY_ROLES
+from .gate_support import IssueStartError
 from .phase_dispatch import validate_phase_dispatch
 from .readonly_phase_dispatch import parse_readonly_phase
 
@@ -30,6 +30,13 @@ def _input_path(root, relative):
 
 
 def prepare_readonly_workspace(source, target, role, marker, prompt_file):
+    try:
+        return _prepare_readonly_workspace(source, target, role, marker, prompt_file)
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        raise IssueStartError("ISSUE_START_READONLY_WORKSPACE_INVALID", str(error)) from None
+
+
+def _prepare_readonly_workspace(source, target, role, marker, prompt_file):
     """role自身には渡さない準備API。新規worktree作成・trust/profile変更はしない。"""
     source, target = Path(source).resolve(), Path(target).resolve()
     if role not in READ_ONLY_ROLES:
@@ -82,11 +89,8 @@ def main(argv=None):
                                         marker, request.prompt_file)
     triage = (options.triage_pr, options.triage_phase, options.triage_round, options.triage_output)
     if any(value is not None for value in triage):
-        if any(value is None for value in triage) or options.triage_pr < 1 or options.triage_round < 1:
-            raise ValueError("complete triage capture options required")
-        from .triage_existing_capture import execute_with_capture
-        key = bytes.fromhex(os.environ["TRIAGER_REVIEW_KEY"])
-        return execute_with_capture(request, executor_args, target, marker, key, *triage, execute)
+        from .triage_existing_capture import execute_from_options
+        return execute_from_options(triage, request, executor_args, target, marker, execute)
     return execute(executor_args, cwd=target)
 
 

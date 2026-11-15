@@ -1,5 +1,6 @@
 """Capture the normal trusted reviewer execution without running another reviewer."""
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -49,3 +50,10 @@ def execute_with_capture(request, args, root, marker, key, pr, phase, round_no, 
     with target.open("x", encoding="utf-8") as stream:
         json.dump(binding, stream, ensure_ascii=False)
     return 0
+
+
+def execute_from_options(triage, request, args, root, marker, execute):
+    if any(value is None for value in triage) or triage[0] < 1 or triage[2] < 1:
+        raise ValueError("complete triage capture options required")
+    key = bytes.fromhex(os.environ["TRIAGER_REVIEW_KEY"])
+    return execute_with_capture(request, args, root, marker, key, *triage, execute)
