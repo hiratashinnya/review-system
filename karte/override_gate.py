@@ -12,7 +12,7 @@ def _valid(store, reference):
     return bool(LEDGER_ID_RE.fullmatch(reference) and store.by_id("ledger", reference))
 
 
-def __load_store(root):
+def _load_store(root):
     from feedback_ledger.store import load_store
 
     return load_store(root)
