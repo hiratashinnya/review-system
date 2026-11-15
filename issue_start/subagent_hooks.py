@@ -77,7 +77,7 @@ in-script 判定があるので、要実測事項 V-2（``matcher`` が ``agent_
   * :mod:`issue_start.worktree_ledger`（台帳 API・状態遷移）
   * :mod:`gitgate.worktree` の ``collect-worktree``（受理する台帳 status・引数スキーマ）
   * ``karte`` CLI の ``check``（終了コード 0=OK / 2=未検出 / 4=前提違反）
-  * ``karte/cli.py`` の進行ポインタ規約（``tmp/_karte/active.json`` の ``{issue, round}``）
+  * ``karte/active_pointer.py`` の進行ポインタ規約（``tmp/_karte/active.json`` の ``{issue, round}``）
 """
 
 from __future__ import annotations

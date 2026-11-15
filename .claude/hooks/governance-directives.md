@@ -1,7 +1,11 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@029b97e5adf3 -->
+<!-- synced-from: CLAUDE.md@446f835d3edc -->
 <!--
+  Issue #375（2026-10-31）: `.claude/rules/05-skills-agents.md` の戻り値のハンドオフ規約で `pr-reviewer`
+  （Claude Code）を write 権限なし側から外し、項13へ `karte ingest-reviewer` と主文脈専用 verb を追記した。
+  既存の中核規範（1〜12）は意味を保持。marker を再計算した。
+
   PR #712（2026-11-01）: `.claude/rules/05-skills-agents.md` の issue-fixer の診断前編集禁止に、PR base 取り込みの衝突解消の例外（`.ai/agents/issue-fixer.md`「取り込みとカルテ手順の順序」）への参照を括弧書きで足した。項13に同じ例外を括弧書きで反映し、marker を同期した。main の取り込み時の衝突（冒頭コメント欄）は両側の記録を残して解消し、marker を統合後の値へ更新した。
 
   `.ai/guidance/common.md` への項追加（2026-10-25・オーナー）: 「作業分離・判断境界」に、ドキュメントと既存コードが食い違うときはコードに従い食い違いを最後の返答で挙げる旨を追加。これを項14として配送する。
@@ -314,7 +318,10 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
     `plan-reviewer` は1a単独・1b整合、`pr-reviewer` は2a単独・2b PRをそれぞれ別dispatchで審査する。
     `issue-implementer` は承認済み単一work unitのGreen化・commit/push/draft PRを担当し、新規テストを著作しない。
     `issue-fixer` は既存PRの是正専任で、`karte render`→`karte append` の診断前に編集せず
-    （例外は PR base 取り込みの衝突解消だけ）、`ingest-review` は主文脈だけが行う。著作3role・implementer・fixerはpush可能だがmerge不可、
-    `pr-reviewer` はpush/merge不可。`adviser` はread-only相談のみで、編集・push・台帳変更・承認・STOP解除をしない。
+    （例外は PR base 取り込みの衝突解消だけ）、`ingest-review` は主文脈だけが行う（`decide`・`activate` も主文脈専用）。著作3role・implementer・fixerはpush可能だがmerge不可、
+    `pr-reviewer` はpush/merge不可（Claude Code では `tmp/_handoff/pr-reviewer--*.md` への Write と
+    `karte ingest-reviewer` だけを持ち、自分の finding を本人が取り込む。Codex経路では外側の
+    `codex_worktree_exec` が取り込み、`取り込み済み: <handoff path> (issue-N round R)` の1行と警告行を返す）。
+    `adviser` はread-only相談のみで、編集・push・台帳変更・承認・STOP解除をしない。
     全Issue工程roleは非対話であり、曖昧さはSTOPで主文脈へ返す。正本＝`.claude/rules/05-skills-agents.md`。
 14. **ドキュメントと既存コードの食い違い** — コードの書き方に従い、見つけた食い違いを最後の返答ですべて挙げる。

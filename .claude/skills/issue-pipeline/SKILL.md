@@ -166,9 +166,9 @@ Codex新profileと製品live dispatchの実測は #652 で追跡し、unitのhoo
 `karte ingest-review` / `karte close-attempt` の実行直後、通知機構が `karte status --json` の
 判定を AI の出力を経由せずオーナーのチャットへ届ける。
 
-- **発火対象**：`Bash` に加え、主文脈・`issue-implementer`・`issue-fixer`・`pr-reviewer`・
-  `dsv2-lookup` に付与済みの `ctx_execute`／`ctx_batch_execute` 経由の
-  `karte ingest-review` / `close-attempt` も同じ通知対象とする。
+- **発火対象**：`Bash` と主文脈・`issue-implementer`・`issue-fixer`・`pr-reviewer`・`dsv2-lookup` に付与済みの
+  `ctx_execute`／`ctx_batch_execute` では、karte コマンド `ingest-review`・`ingest-reviewer`・`close-attempt`・`decide` を通知する。
+  これとは別に、Codex wrapper 経路は `codex_worktree_exec` または `issue_start.readonly_workspace` の `--role pr-reviewer` を通知する。
 - **通知本文に含まれる内容**：未解消/直近解消の finding 一覧、verdict の3集合
   （`blocking_findings` ⊇ `blocking_harmful` ⊇ `undecided_disposition`）を常に含み、
   `escalate: yes` のときはその根拠（`stalled_findings`・`saturated_groups`）を含む。

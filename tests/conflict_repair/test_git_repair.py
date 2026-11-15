@@ -1,8 +1,11 @@
+import json
 import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+
+from maintainability_lint.scanner import empty_baseline
 
 from conflict_repair import git
 from conflict_repair.repair import regenerate
@@ -37,6 +40,9 @@ class RealGitTest(unittest.TestCase):
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / path, dest)
         render(self.repo)
+        baseline = self.repo / 'maintainability_lint/baseline.json'
+        baseline.parent.mkdir()
+        baseline.write_text(json.dumps(empty_baseline()) + '\n')
         save(self.repo, 'initial')
         cmd(self.repo, 'switch', '-c', 'feature')
 
