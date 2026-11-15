@@ -2,20 +2,25 @@
 
 scope 原本の出所は #800/#797 の trusted 記録だけで判定する。
 """
-from feedback_ledger.schema import LEDGER_ID_RE
-from feedback_ledger.store import load_store
-
 from . import scope_ledger, scope_origin
 from .errors import KarteUsageError
 
 
 def _valid(store, reference):
+    from feedback_ledger.schema import LEDGER_ID_RE
+
     return bool(LEDGER_ID_RE.fullmatch(reference) and store.by_id("ledger", reference))
+
+
+def __load_store(root):
+    from feedback_ledger.store import load_store
+
+    return load_store(root)
 
 
 def require_ref(root, reference):
     """書込み前に台帳の実在・ID 形式を確認（存在しなければ fail-close）。"""
-    if not _valid(load_store(root), reference):
+    if not _valid(_load_store(root), reference):
         raise KarteUsageError(f"override_ref が実在する feedback_ledger entry を指さない: {reference}")
 
 
@@ -24,7 +29,7 @@ def invalid_refs(root, accepted):
     refs = {entry.item.override_ref for entry in accepted if entry.item.override_ref}
     if not refs:
         return []
-    store = load_store(root)
+    store = _load_store(root)
     return [f"override_ref が実在する feedback_ledger entry を指さない: {ref}"
             for ref in sorted(refs) if not _valid(store, ref)]
 
@@ -36,14 +41,14 @@ def pending(karte, root):
     owner_scopes = scope_ledger.owner_scopes(karte.issue, root)
     open_items = karte.open_findings()
     refs = {item.override_ref for item in open_items if item.override_ref}
-    store = load_store(root) if refs else None
+    store = _load_store(root) if refs else None
     result = {}
     for item in open_items:
         fid = item.id
         requires = item.disposition == "waived"
         if fid in owner_scopes:
             if fid in declared:
-                requires |= owner_scopes[fid] != declared[fid][-1][1]
+                requires |= any(scope != owner_scopes[fid] for _round, scope in declared[fid])
             elif origins.get(fid) != "main":
                 result[fid] = "owner scope に対応する検証済み reviewer 申告原本がない"
                 continue
