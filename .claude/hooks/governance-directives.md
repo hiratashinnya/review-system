@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@8f31fa116287 -->
+<!-- synced-from: CLAUDE.md@9b009149f737 -->
 <!-- 変更・同期判断の履歴は .ai/rationale/governance-directives.md に保管。 -->
 
 
