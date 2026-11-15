@@ -38,3 +38,8 @@ def exit_code_for(policy, karte, absent) -> int:
     )
     print("未完了: 再掲漏れ " + ", ".join(missing), file=sys.stderr)
     return EXIT_INCOMPLETE
+
+
+def print_warnings(warnings, *, stderr=False):
+    for warning in warnings:
+        print(("警告: " if stderr else "  警告: ") + warning, file=sys.stderr if stderr else sys.stdout)
