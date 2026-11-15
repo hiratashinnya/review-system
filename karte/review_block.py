@@ -8,6 +8,7 @@ from .finding_handoff_keys import is_handoff_key
 from .format_error import KarteFormatError
 from .harm_detail_lint import check_harm_detail
 from .review_finding import ReviewFinding
+from .block_fields import optional_scalar
 from .value_codec import check_list, normalize_locus
 from .vocabulary import FINDING_STATUSES, HARM_LEVELS, NEW_FINDING_TITLES, SCOPES, SEVERITIES
 
@@ -84,4 +85,5 @@ def review_finding_from_block(block: Block, issue: int, finding_id) -> ReviewFin
         deferred_to=disposition.deferred_to,
         waived_by=disposition.waived_by,
         waived_reason=disposition.waived_reason,
+        override_ref=optional_scalar(block, "override_ref"),
     )
