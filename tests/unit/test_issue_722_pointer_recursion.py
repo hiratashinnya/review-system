@@ -2,9 +2,12 @@
 
 import io
 import json
+import os
+import subprocess
+import sys
 
 from issue_start import subagent_hooks
-from tests.unit.test_subagent_hooks import HookTestCase
+from tests.unit.test_subagent_hooks import ROOT, HookTestCase
 
 
 class ActivePointerRecursionRegressionTests(HookTestCase):
@@ -23,6 +26,26 @@ class ActivePointerRecursionRegressionTests(HookTestCase):
         self.assertIn("判定不能は fail-close", decision["reason"])
         self.assertIn("ACTIVE_POINTER_UNREADABLE", self.stderr.getvalue())
         self.assertEqual(self.runner_calls, [])
+
+    def test_cli_deep_pointer_blocks_with_exit_zero(self):
+        self.write_active("[" * 100000)
+        env = dict(os.environ)
+        env["PYTHONPATH"] = os.pathsep.join(
+            part for part in (str(ROOT), env.get("PYTHONPATH", "")) if part
+        )
+        completed = subprocess.run(
+            [sys.executable, "-m", "issue_start.subagent_hooks", "stop"],
+            input=json.dumps({"agent_type": "issue-fixer", "cwd": str(self.root)}),
+            cwd=self.root,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(json.loads(completed.stdout)["decision"], "block")
+        self.assertIn("ACTIVE_POINTER_UNREADABLE", completed.stderr)
+        self.assertNotIn("Traceback", completed.stderr)
 
     def test_deep_pointer_still_allows_reentrant_stop(self):
         self.write_active("[" * 100000)
