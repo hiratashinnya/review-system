@@ -49,6 +49,7 @@ def _finding_from_block(block: Block, issue: int) -> Finding:
         deferred_to=disposition.deferred_to,
         waived_by=disposition.waived_by,
         waived_reason=disposition.waived_reason,
+        override_ref=str(block.fields.get("override_ref", "")).strip(),
         rounds=_require_int_list(block, "rounds"),
         resolved_round=resolved,
         handoff=record_from_block(block),
