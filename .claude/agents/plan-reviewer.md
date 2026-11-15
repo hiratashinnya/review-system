@@ -18,4 +18,5 @@ Claude Code主文脈からのmanaged dispatchのみ受け、issue-start/command�
 本roleはClaude固定で、Codex実行者を使わない（`.ai/skills/issue-pipeline/SKILL.md`「既定実行者」・Issue #829）。
 主文脈は本roleを共有作業面でnative dispatchし、`python3 -m issue_start.readonly_workspace` のCodex経路を本roleに使わない。
 command gateは `python3 -m codex_worktree_exec --role plan-reviewer` の起動形を機械的には拒否しないが、起動しない。
+dispatch promptにCodex実行者の指定があればSTOPして主文脈へ返す。
 role自身はprepare/cd/所有台帳/書込/pushを行わない。

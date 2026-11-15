@@ -82,7 +82,7 @@ Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要�
 
 - **概要**: ロール別（`issue-implementer`／`issue-fixer`／`pr-reviewer`）に push 等の操作を制限し、全ロールに共有 merge 判定を適用する。ctx_execute 系 MCP ツールにも適用する。
 - **スコープ**: Bash、context-mode 実行系ツール。
-- **PF 間差異**: Claude は Bash＋ctx_execute 系の2 matcher。Codex は Bash のみ（ctx_execute 系は Codex に未導入）。Claude版だけが工程ロールと `issue-fixer` に `python3 -m codex_worktree_exec`（`--role` が自ロールと一致する形のみ）を許可し、Codex 版には入れない。この許可は機械上の範囲で、Claude 固定のロールが Codex 実行者を使わないことは運用規範（`.ai/skills/issue-pipeline/SKILL.md`「既定実行者」）で定める（Codex の中からの再帰起動は `.codex/rules/default.rules` とラッパー自身が拒否する・Issue #538 D6）。2ツリーは共通化しておらず内容が乖離している（PR-B 着手時点で `.claude/` 約78.7K／`.codex/` 約70K。共通化は Issue #538 の範囲外）。
+- **PF 間差異**: Claude は Bash＋ctx_execute 系の2 matcher。Codex は Bash のみ（ctx_execute 系は Codex に未導入）。Claude版だけが工程ロールと `issue-fixer` に `python3 -m codex_worktree_exec`（`--role` が自ロールと一致する形のみ）を許可し、Codex 版には入れない（Codex の中からの再帰起動は `.codex/rules/default.rules` とラッパー自身が拒否する・Issue #538 D6）。この許可は機械上の範囲で、Claude 固定のロールが Codex 実行者を使わないことは運用規範（`.ai/skills/issue-pipeline/SKILL.md`「既定実行者」）で定める。2ツリーは共通化しておらず内容が乖離している（PR-B 着手時点で `.claude/` 約78.7K／`.codex/` 約70K。共通化は Issue #538 の範囲外）。
 - **実装構成**: [`.claude/hooks/agent-command-gate.sh`](../.claude/hooks/agent-command-gate.sh)、[`.codex/hooks/agent-command-gate.sh`](../.codex/hooks/agent-command-gate.sh)（`.codex/hooks/README.md` の「PreToolUse command gate」節にも概要あり）。既知の限界は Issue #129。
 
 #### 3. issue-start-gate

@@ -59,7 +59,7 @@ read-onlyの `issue-investigator` / `plan-reviewer` / `pr-reviewer` / `adviser` 
 branch/handoff markerと所有台帳起票は持たないが、ISSUE_PHASE_INPUT_V1の入力・承認束縛は必須。
 直接Write/Edit/NotebookEditも拒否し、出力の保存は信頼された呼び出し元のcapture経路を使う。
 実行者は共通本文「既定実行者」で決まる。`plan-reviewer` / `pr-reviewer` はClaude固定、
-`issue-investigator` / `adviser` はCodex既定で、Claudeで実行するのは上限の証拠による切替のときだけとする。
+`issue-investigator` / `adviser` はCodex既定で、Claudeで実行するのは上限の証拠による切替か、オーナーの明示判断があるときだけとする。
 Claudeで実行する場合はその共有作業面でnative dispatchする。Codexで実行する場合は主文脈がrole起動前に
 `python3 -m issue_start.readonly_workspace` を使い、同一repo/HEADの登録済みlinked作業面へ
 binding/approval/promptとtmp入力だけを転送する。binding/approval/prompt/outputには
@@ -175,7 +175,7 @@ Codex 既定のロール（`issue-investigator`・`test-writer`・`issue-impleme
 
 - **発火対象**：`Bash` と主文脈・`issue-implementer`・`issue-fixer`・`pr-reviewer`・`dsv2-lookup` に付与済みの
   `ctx_execute`／`ctx_batch_execute` では、karte コマンド `ingest-review`・`ingest-reviewer`・`close-attempt`・`decide` を通知する。
-  これとは別に、Codex wrapper 経路は `codex_worktree_exec` または `issue_start.readonly_workspace` の `--role pr-reviewer` を通知する。
+  これとは別に、Codex wrapper 経路は `codex_worktree_exec` または `issue_start.readonly_workspace` の `--role pr-reviewer` を通知する（`pr-reviewer` は Claude 固定なので既定では通らない。機構として残る経路）。
 - **通知本文に含まれる内容**：未解消/直近解消の finding 一覧、verdict の3集合
   （`blocking_findings` ⊇ `blocking_harmful` ⊇ `undecided_disposition`）を常に含み、
   `escalate: yes` のときはその根拠（`stalled_findings`・`saturated_groups`）を含む。

@@ -37,6 +37,7 @@ effort: xhigh
 
 本roleはClaude固定で、工程の2a/2bレビューにCodex実行者を使わない（`.ai/skills/issue-pipeline/SKILL.md`「既定実行者」・Issue #829）。
 主文脈は本roleにCodexを選ばず、本roleも自己roleの `codex_worktree_exec` を起動しない。
+dispatch promptにCodex実行者の指定があればSTOPして主文脈へ返す。
 本書のCodex経路の記述は、機械上残っている起動・取り込み機構の説明であり、既定の経路ではない。
 機構としては、主文脈がCodexを選ぶ場合、role起動前に `python3 -m issue_start.readonly_workspace` の専用入口で
 同repo/HEADの登録済linked作業面と入力を準備し、D1/D5を保つ。これは主文脈専用であり、
