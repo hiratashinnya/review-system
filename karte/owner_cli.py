@@ -41,7 +41,7 @@ def cmd_activate(args, repo_root) -> int:
         print(f"  review envelope の期待値を記録（run_id={expected['run_id']} phase={expected['phase']}・"
               "取り込み成功で消える・待機中は主文脈の ingest-review を拒否）")
         if snapshot is not None:
-            print(f"  AC snapshot: {snapshot[\'source\']} count={snapshot[\'count\']} sha256={snapshot[\'digest\']}")
+            print(f"  AC snapshot: {snapshot['source']} count={snapshot['count']} sha256={snapshot['digest']}")
         print("  レビューアの handoff 先頭へそのまま置くヘッダ（dispatch prompt に渡す）:")
         print("  " + handoff_header.render_header(next_number, expected))
     return EXIT_OK
