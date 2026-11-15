@@ -61,6 +61,10 @@ jobs:
         with:
           python-version: "3.x"
 
+      - name: Issue 722 explicit RED regression test (expected to fail on pre-fix)
+        run: |
+          python3 -m unittest -v tests.unit.test_issue_722_pointer_recursion
+
       - name: Run Python test suite
         run: python3 -m unittest discover tests
 
