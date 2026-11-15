@@ -23,6 +23,7 @@ class OwnerFailureOrderTest(unittest.TestCase):
                                       waived_reason=None, scope="out")
             karte = mock.Mock()
             karte.findings = []
+            karte.review_rounds = []  # Issue #801: Kare mock にround receipt 属性を追加
             with mock.patch.object(owner_cli, "load_karte", return_value=(ledger, karte)), \
                  mock.patch.object(owner_decision, "record_decision", return_value=["scope: out"]), \
                  mock.patch.object(scope_ledger, "record_owner", side_effect=OSError("marker disk full")), \
