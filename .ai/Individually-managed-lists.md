@@ -118,7 +118,7 @@ Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要�
 
 #### 8. on-rate-limit（Claude）
 
-- **概要**: レートリミット検知時の自動復帰。Claude は StopFailure(rate_limit) で発火し、WSL＋tmux 環境でのみ `resume-watcher.sh` を setsid で起動する（クラウドでは no-op）。Codex 側の自動復帰機構は撤去済み（Codex は `codex exec` のサブ実行者であり、Issue #569）。工程ロールの Codex 実行者が上限で止まったときの扱いは `.ai/skills/issue-pipeline/SKILL.md`「Codex 実行者が上限で止まったときの切替」、`codex-review` は同じモデル・同じ構成での再投入のまま。
+- **概要**: レートリミット検知時の自動復帰。Claude は StopFailure(rate_limit) で発火し、WSL＋tmux 環境でのみ `resume-watcher.sh` を setsid で起動する（クラウドでは no-op）。Codex 側の自動復帰機構は撤去済み（Codex は `codex exec` のサブ実行者として起動される側であり、自分では復帰しない。Issue #569）。工程ロールの Codex 実行者が上限で止まったときの扱いは `.ai/skills/issue-pipeline/SKILL.md`「Codex 実行者が上限で止まったときの切替」に従う。`codex-review` は同じモデル・同じ構成での再投入のままである。
 - **PF 間差異**: Claude のみ。`on-rate-limit.sh`→`resume-watcher.sh`（`lib-pane-guard.sh` を共有ライブラリとして source）。
 - **実装構成**: [`.claude/hooks/README.md`](../.claude/hooks/README.md)（「レートリミット自動再開フック」節）
 

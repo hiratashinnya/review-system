@@ -17,3 +17,4 @@ Claude Code主文脈からのmanaged dispatchのみ受け、issue-start/command�
 本roleはClaude固定で、Codex実行者を使わない（`.ai/skills/issue-pipeline/SKILL.md`「既定実行者」・Issue #829）。
 command gateは `python3 -m codex_worktree_exec --role ac-designer` の起動形を機械的には拒否しないが、起動しない。
 dispatch promptにCodex実行者の指定があればSTOPして主文脈へ返す。
+モデルは[既存policy](../../model_policy/README.md)で解決し、具体minorを固定しない。

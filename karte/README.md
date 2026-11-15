@@ -239,7 +239,9 @@ verdict は動かず、未解消が実害なしだけなら `no-harm-only` と�
   1 行が必須。進行ポインタから決まる取り込み先の Issue と取り込み先の round（`--round` 省略時はポインタの次の round、
   明示時はその値。`check_header` は解決後の round と照合する）に一致しないもの（ヘッダ無し・別 Issue・
   古い／再利用した handoff）は取り込まない（`### new` だけのレポートで別 Issue へ書く取り違えを防ぐ）。
-- **Codex 起動手順**：既存の承認済み工程レビューは、trusted caller が primary checkout から
+- **Codex 起動の機構（現行手順ではない）**：`pr-reviewer` は Claude 固定で、工程の 2a/2b レビューに Codex 実行者を使わない
+  （`.ai/skills/issue-pipeline/SKILL.md`「既定実行者」・Issue #829）。以下は wrapper に残っている機構の動作である。
+  この機構では、trusted caller が primary checkout から
   `python3 -m issue_start.readonly_workspace --source <primary> --approval-file tmp/<approval>.json --role pr-reviewer -C <登録済みlinked worktree> --prompt-file tmp/<prompt>.md --output-file tmp/<未作成output>.md --binding-file tmp/<承認済みbinding>.json --model <model> --reasoning-effort <effort>` を実行する。
   readonly入口が承認・binding・入力を検査して linked worktree から executor を起動する。D5 により executor の `-C` と cwd の Git toplevel は一致しなければならず、primary checkout から `codex_worktree_exec` を直接起動する形は拒否される。
   prompt/output/binding は呼び出し側が既存契約に従って用意し、output は未作成の一意なパスを使う。一般 PR レビューで

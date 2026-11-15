@@ -97,40 +97,18 @@ profileのorigin/main pinは変更せず、未merge profileの拒否を成功dis
 
 - **Claude 固定の4 role は Codex 実行者を使わない。** 主文脈は Codex 実行者を指定せず、role も起動しない。
 - **Codex 既定の5 role は、主文脈が Codex 実行者を指定して起動する。** 指定の形は role の作業面で分かれ、PF wrapper に従う。
-  - 書込 role（test-writer・issue-implementer・issue-fixer）：主文脈が dispatch prompt に Codex 実行者とモデル・推論予算を書く。
-  - read-only role（issue-investigator・adviser）：主文脈が role 起動前に read-only の Codex 実行先（下記）を選ぶ。
+  - 書込 role（test-writer・issue-implementer・issue-fixer）：主文脈が dispatch prompt に Codex 実行者とモデル・推論予算を書き、role が自分の作業面で Codex を起動する。指定の無い dispatch では、role は Codex を起動せず自分で著作・実装・是正する。
+  - read-only role（issue-investigator・adviser）：主文脈が read-only の専用入口（下記「read-only の Codex 実行先」）を実行し、その入口が Codex を起動する。この経路では Claude の role サブエージェントを dispatch しない。主文脈が切替またはオーナー判断で Claude の role を dispatch するときは Codex 実行者を指定せず、role は Codex を起動せず自分で調査・回答する。
 - **AI が既定を外してよい例外は、Codex 実行者の上限の証拠による切替（下記）だけである。** それ以外の理由で Codex 既定の role を Claude で実行するには、書込・read-only のどちらの経路でもオーナーの明示判断を要する。
 - 高リスク信号のある実装も Codex 既定の例外にしない。Codex 側の層を引き上げる。
 - test-writer と issue-implementer は同じモデルファミリになる。独立性は、Claude 固定の pr-reviewer が 2a と 2b を別 dispatch で審査することで保つ。
 - read-only の Codex 経路は実 dispatch が未実測である（#652）。実測が済むまでも既定は Codex とし、上限の証拠が無い失敗は切り替えず STOP する。起動 gate の受理や unit の合格を実 dispatch の成功と報告しない。
-- adviser の相談を難度を理由に Claude へ切り替えてよいかは未決である。決まるまで切り替えない。
+- adviser は相談の難度を理由に Claude へ切り替えない。難しい相談は Codex 側の層を引き上げる（オーナー決定・2026-11-16）。
 - この表は運用規範であり、機械では強制していない。`codex_worktree_exec` と起動 gate は Claude 固定の role の起動形も受理する。
 
-#### Codex 実行者が上限で止まったときの切替
+#### read-only の Codex 実行先
 
-委譲先の Codex 実行者がレート制限／セッション上限で止まったときに限り、同じ role の Claude サブエージェントへ切り替えてよい。Claude の role 自身が上限で止まったときは切り替えず、同一構成で再投入する。`codex-review` の再投入規定にも適用しない。
-
-- **発動条件**：Codex 実行者が上限到達を示した出力の逐語があること。証拠となる出力の文字列・終了コードは実測なし・要実測で、ここでは定義しない。
-- **証拠が無い失敗は STOP する。** profile pin 拒否、timeout、権限拒否、起動失敗、検査不合格は上限の証拠ではない。遅い・無応答からの推測も証拠にしない。
-- **切替の主体は主文脈である。** role は自分で Claude 実行へ切り替えず、証拠の逐語を添えて STOP を返す。主文脈が、同じ role を Codex 実行者の指定なしで再 dispatch する。回収・解放から dispatch までの既存契約はそのまま適用する。この再 dispatch の完走は未実測である。
-- **切替後の層と推論予算は Codex 実行者に指定していたもの以上にする。** 対応は下の表で引く。Claude 側の role 定義がそれを下回るなら、主文脈が dispatch で引き上げる。引き上げられなければ STOP する。主文脈による代行、層の降格、推論予算の引下げはしない。
-
-| 抽象層 | Codex（`.ai/model-policy.json` の tier） | Claude |
-|---|---|---|
-| 低位 | low | haiku |
-| 中位 | mid | sonnet |
-| 最上位 | top | opus |
-
-Codex の low と mid は現在同じ系統に解決されるが、対応は抽象層で引く。推論予算は「最小／小／中／大／最大」の同じ段以上とする。Claude は「最大」を `xhigh` へ畳むので、Codex の「最大」には Claude の `xhigh` が対応する。
-
-- **切替時に記録する項目**：切替の理由、上限の証拠（出力の逐語）、切替前の Codex の層・推論予算と切替後の Claude の層・推論予算、作者とレビュー担当が同じモデルファミリになる影響、部分変更の扱い。
-- **途中停止で残った部分変更の扱いは未決である。** 決まるまで、role は Codex が残した未 commit の変更を commit せず、変更 path を記録して STOP する。主文脈は切替の再 dispatch をせず、オーナーへ打ち上げる。未 commit の変更が無いときは切替へ進んでよい。
-
-#### agy の振り分け方針
-
-agy へ回す作業の種別は、`.ai/agents/agy-delegate.md`「UC と必読規律」の UC（影響調査、参照・孤児調査、ノード素案、外部調査、スクラッチコード、画像生成、並列）に限る。工程 role の成果物は上の既定実行者が担い、agy を既定実行者にしない。agy の結果は素案であり、検証せずに採用しない。有効化は #606 の解除契約に従い、この方針は有効化の条件を変えない。有効化後に工程内の調査で Codex と agy のどちらを先に使うかは未決である。
-
-read-onlyのCodex実行先は主文脈が事前に選ぶ。primaryからは
+read-only role の Codex 実行先は主文脈が事前に選び、主文脈が専用入口を実行する。primaryからは
 `python3 -m issue_start.readonly_workspace --source <primary絶対path> --approval-file tmp/<approval>.json`
 へ通常のexecutor引数（`--role`、`-C <登録済みlinked絶対path>`、binding/prompt/output/model/effort）を渡す。
 主文脈が既存の信頼済みlinked作業面を準備し、同一repo/HEADと入力bytesを検証したうえで、
@@ -143,6 +121,7 @@ artifact digest/contextを凍結保持し、後段のsource変更はtrusted call
 globやdirectory一括許可を使わず、
 承認外path・bytes差分・未commitの変更は拒否する。期待値を成果物から無条件生成して承認しない。
 
+#### 層と推論予算
 
 | ロール | 主要認知行為・Bloom | 層 / 予算 |
 |---|---|---|
@@ -154,13 +133,47 @@ globやdirectory一括許可を使わず、
 | issue-implementer | 承認済み計画の適用 Lv3 | 中位 / 中 |
 | pr-reviewer | 評価 Lv5 | 最上位 / 中、既存のrisk signalで引上げ |
 | issue-fixer | レビュー指摘の根本原因の分析 Lv4 | 中位 / 中 |
-| adviser | 相談内容の主要認知行為 | 上位 / 個別判定 |
+| adviser | 相談内容の主要認知行為 | 中位または最上位 / 相談ごとに引く |
+
+adviser の層と予算は、主文脈が相談ごとに、相談内容の主要認知行為から `.ai/skills/bloom-model-tier/SKILL.md` の閾値表で引く。難しい相談は Codex 側の層を最上位へ引き上げる。
 
 具体ID/予算は `.ai/model-policy.json` と `model_policy/README.md` の既存resolverで解決し、
 policy/catalog hash、取得surface/方法/日時、resolved ID、実使用ID、確認結果を追跡する。
 共有資産・複数PF・権限/セキュリティ・fail-close・破壊的移行・永続状態・外部サービス・
 複数work unit・曖昧AC・既存決定との矛盾・下流手順無効化の信号で層を引き上げる。
 最上位を超える要求や必要層欠落はSTOPする。adviser利用を理由に元ロールを降格しない。
+
+#### Codex 実行者が上限で止まったときの切替
+
+委譲先の Codex 実行者がレート制限／セッション上限で止まったときに限り、同じ role の Claude サブエージェントへ切り替えてよい。Claude の role 自身が上限で止まったときは切り替えず、同一構成で再投入する。`codex-review` の再投入規定にも適用しない。
+
+- **発動条件**：Codex 実行者が上限到達を示した出力の逐語があること。主文脈がその逐語を切替の記録に残してから切り替える。これは逐語による暫定運用である（オーナー決定・2026-11-16）。上限を示す文字列・終了コードは、初回に実測できた出力をこの節へ追記して定める。
+- **証拠が無い失敗は STOP する。** profile pin 拒否、timeout、権限拒否、起動失敗、検査不合格は上限の証拠ではない。遅い・無応答からの推測も証拠にしない。
+- **切替の主体は主文脈である。** role は自分で Claude 実行へ切り替えない。
+  - 書込 role：role が証拠の逐語を handoff に記録して STOP を返す。主文脈が逐語を確かめ、同じ role を Codex 実行者の指定なしで再 dispatch する。
+  - read-only role：Codex を起動したのは主文脈の専用入口なので、主文脈が出力から逐語を確かめ、同じ role の Claude サブエージェントを dispatch する。
+  - 回収・解放から dispatch までの既存契約はそのまま適用する。この再 dispatch の完走は未実測である。
+- **未 commit の変更が残ったときは、role が確かめてから引き継ぐ**（オーナー決定・2026-11-16）。対象は書込 role である。
+  - role は Codex が残した変更を差分と単体テストで確かめる。依頼範囲に収まると確かめられたら commit・push し、上限の逐語、commit、変更 path、テスト結果、残作業を handoff に記録して STOP を返す。主文脈は切替の再 dispatch へ進み、切替後の Claude role はその commit の続きから行う。
+  - 依頼範囲外の変更が混じっているとき、または範囲に収まると確かめられないときは、role は commit せず、変更 path と理由を記録して STOP を返す。この場合、主文脈は切替の再 dispatch をせず、オーナーへ打ち上げる。
+  - 未 commit の変更が無いときは、role は逐語を記録して STOP を返し、主文脈は切替へ進む。
+- **切替後の層と推論予算は Codex 実行者に指定していたもの以上にする。** 対応は下の表で引く。Claude 側の role 定義がそれを下回るなら、主文脈が dispatch で引き上げる。引き上げられなければ STOP する。主文脈による代行、層の降格、推論予算の引下げはしない。
+
+| 抽象層 | Codex（`.ai/model-policy.json` の tier） | Claude |
+|---|---|---|
+| 低位 | low | haiku |
+| 中位 | mid | sonnet |
+| 最上位 | top | opus |
+
+Codex の low と mid は現在同じ系統に解決されるが、対応は抽象層で引く。推論予算は「最小／小／中／大／最大」の同じ段以上とする。Claude は「最大」を `xhigh` へ畳むので、Codex の「最大」には Claude の `xhigh` が対応する。
+
+- **切替時に記録する項目**：切替の理由、上限の証拠（出力の逐語）、切替前の Codex の層・推論予算と切替後の Claude の層・推論予算、作者とレビュー担当が同じモデルファミリになる影響、部分変更の扱い（引き継いだ commit、または打ち上げた理由）。
+
+#### agy の振り分け方針
+
+agy へ回す作業の種別は、`.ai/agents/agy-delegate.md`「UC と必読規律」の UC（影響調査、参照・孤児調査、ノード素案、外部調査、スクラッチコード、画像生成、並列）に限る。工程 role の成果物は上の既定実行者が担い、agy を既定実行者にしない。agy の結果は素案であり、検証せずに採用しない。有効化は #606 の解除契約に従い、この方針は有効化の条件を変えない。有効化後に工程内の調査で Codex と agy のどちらを先に使うかは未決である。
+
+#### 相談
 
 相談は構造化要求を主文脈が専用入口へ取り次ぎ、同じ担当roleへ返す。元role/run/phase/work unit、
 artifact digest/OID、質問・試行、回数/時間/コスト予算へ束縛し、model/回答/採否/理由/検証を記録する。
@@ -192,7 +205,7 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 ### ②-b 初回レビュー
 
 - 初回レビューのモデル層／推論予算はリスク信号で選ぶ。共有資産、広域変更、前例のない判断、権限境界、曖昧な仕様があれば判断ボトルネックとして高い側を選び、根拠を1行残す。具体的な設定キーと写像は各 PF wrapper に置く。
-- レビュー担当は各 finding の実害、根拠、期待値、再確認方法を構造化して返す（Claude Code は handoff へ書いて本人が取り込み、Codex は外側 wrapper が自動取り込みする。全文はチャットに返さない。手順は②-c）。構造化 finding は `harm`/`harm_detail`/`severity`/`scope`/`locus`/`summary`/`evidence`/`expected`/`recheck`/`status` をキーとして返す。レビューコメントには AI 対応であることと具体的な変更・根拠を残す。
+- レビュー担当は各 finding の実害、根拠、期待値、再確認方法を構造化して返す（Claude Code の pr-reviewer は handoff へ書いて本人が取り込む。全文はチャットに返さない。手順は②-c。Codex の外側 wrapper による自動取り込みは機構として残るが、既定では使わない）。構造化 finding は `harm`/`harm_detail`/`severity`/`scope`/`locus`/`summary`/`evidence`/`expected`/`recheck`/`status` をキーとして返す。レビューコメントには AI 対応であることと具体的な変更・根拠を残す。
 - **スコープ外の指摘も同じ finding の列に入れる**。別のセクション・チャットでの列挙へ逃がさない。スコープ内外は `scope: in | out` の申告として記録するだけで、`harm` の判定・記録台帳・clean 判定のいずれの免除にもならない。レビュー担当の `scope` は申告であって確定ではなく、これを覆せるのはオーナーだけである。
 - **レビュー結果（初回・再レビューとも）は主文脈が当該 PR へ AI 帰属明記で記録する。** 依頼内の通常操作についての確認・報告と権限境界は `.ai/guidance/common.md`「作業分離・判断境界」に従う。
 - 承認・却下・clean を偽らない。未解消 finding があれば処置ループへ進む。
@@ -217,12 +230,13 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
       - **INCOMPLETE（終了コード 5）**：台帳に round は記録済みで期待値も消費済み。**同じ handoff を再取り込みしない**。
         手順 2 のとおり `activate` で期待値を記録し直して再レビューし、次のレビューで未再掲 finding を再掲させる。
   2. Claude Code の `pr-reviewer` は `tmp/_handoff/pr-reviewer--<key>.md` の先頭へ渡されたヘッダ行を一字も変えずに置き、finding 本文を書いて、`python3 -m karte ingest-reviewer --from <path>` を実行する。別 run・古い snapshot・期待値なしの handoff は拒否される。レビューアが申告した是正対象の未解消 finding を再掲しない出力は、台帳へ引き継いだ上で終了コード 5（未完了）で返る。レビューは完了扱いにせず、取り込み済み round をやり直さず、レビューアの出力欠落として次のレビューで再掲させる（Codex wrapper は取り込み失敗（終了コード 2）と区別し、`CODEX_REVIEW_INGEST_INCOMPLETE`（終了コード 5）として「取り込み済み・未完了」を返す。同じ handoff は再取り込みせず、手順 1 の `activate` で期待値を記録し直して再レビューする）。`--issue` は指定せず、`--round` は通常省略する。明示値は台帳の最新 round と同じ場合に限り受け付けられるが、ポインタ書込み失敗時は手順 1 の回復を使う。
-  3. pr-reviewer は Claude 固定で、工程の 2a/2b レビューに Codex 実行者を使わない（「既定実行者」）。手順 3・4 は機構として残る Codex 経路の説明であり、既定の経路ではない。Codex を使う既存の承認済み工程レビューでは、trusted caller が primary checkout から `python3 -m issue_start.readonly_workspace --source <primary> --approval-file tmp/<approval>.json --role pr-reviewer -C <登録済みlinked worktree> --prompt-file tmp/<prompt>.md --output-file tmp/<未作成output>.md --binding-file tmp/<承認済みbinding>.json --model <model> --reasoning-effort <effort>` を実行する。readonly入口が承認・binding・入力を検証して linked worktree から executor を起動する。主文脈は同じ binding の `expected`（issue・run_id・target_key・snapshot_oid）と検証済み `artifact_digest`（`--input-digest`）、phase（TestDesign は `test_design`、ChangePlan は `implementation`）を手順 1 の `activate` へ渡す。wrapper が binding からヘッダを作り、`ingest-reviewer` が主文脈の記録と照合する。これにより D5 の `-C` と executor cwd の一致を保つ。primary から `codex_worktree_exec` を直接起動しない。prompt/output/binding は既存契約に従って用意し、output は新しい一意パスを使う。
-  4. Codex が正常終了すると executor wrapper が出力ファイルをそのまま読み、primary checkout の進行ポインタから Issue と次 round を決めて handoff を作り、既存 `ingest-reviewer` CLI で検証・取り込みする。Codex 本文から Issue/round を決めず、本文を解析・書換えず、別の LLM にも渡さない。全文は主文脈へ返さず、呼び出し側には `取り込み済み: <path> (issue-N round R)` の1行と警告行だけを返す（判定の要約は含めない）。承認済み binding の `expected.issue` は起動時の進行ポインタと照合し、取り込み直前にも Issue と round を再確認する。Codex 非ゼロ、空出力、ポインタ不在/不一致、ヘッダ不一致、取り込み失敗はすべて run 失敗とする。read-only profile、network 無効、Codex 側の karte 拒否は維持する。一般 PR レビューで承認済み artifact binding を用意する方法は確認できていないため、その場合は起動せず STOP する。
-  5. `harm: real` の finding についてオーナーの処置方針（`fix-here` / `deferred` / `waived`）を仰ぐ。`deferred` なら行き先 Issue、`waived` なら許可者と理由もオーナーから得る。レビュー担当の `scope` 申告に疑義があるときも、覆すかどうかは同じ場でオーナーに仰ぐ。
-  6. 主文脈がその決定を `python3 -m karte decide --finding <ID> --disposition <値> [--deferred-to <Issue> | --waived-by <許可者> --waived-reason <理由>] [--scope in|out]` で記録する。
-  7. `harm: none` を `deferred` で申し送るときは、先に `decide` で `deferred_to` を記録し、`handoff-preview` を実行してプレビュー全文（本文・宛先・警告）をチャットでオーナーへ提示し、明示承認を得てから `handoff-post` を実行する。確認トークンは内容の同一性の担保であり、承認の担保ではない。
-  8. 記録した決定は台帳に残り、次ラウンドの取り込みは `disposition` 系を上書きしない。オーナーが覆した `scope` も保持され、申告の原本は `tmp/_karte/issue-<N>.declared-scope.jsonl`（追記専用）に残る。レポートの専権キーは finding ブロック内なら空値も無視して警告する。前書きの専権キー行は拒否する。
+  3. `harm: real` の finding についてオーナーの処置方針（`fix-here` / `deferred` / `waived`）を仰ぐ。`deferred` なら行き先 Issue、`waived` なら許可者と理由もオーナーから得る。レビュー担当の `scope` 申告に疑義があるときも、覆すかどうかは同じ場でオーナーに仰ぐ。
+  4. 主文脈がその決定を `python3 -m karte decide --finding <ID> --disposition <値> [--deferred-to <Issue> | --waived-by <許可者> --waived-reason <理由>] [--scope in|out]` で記録する。
+  5. `harm: none` を `deferred` で申し送るときは、先に `decide` で `deferred_to` を記録し、`handoff-preview` を実行してプレビュー全文（本文・宛先・警告）をチャットでオーナーへ提示し、明示承認を得てから `handoff-post` を実行する。確認トークンは内容の同一性の担保であり、承認の担保ではない。
+  6. 記録した決定は台帳に残り、次ラウンドの取り込みは `disposition` 系を上書きしない。オーナーが覆した `scope` も保持され、申告の原本は `tmp/_karte/issue-<N>.declared-scope.jsonl`（追記専用）に残る。レポートの専権キーは finding ブロック内なら空値も無視して警告する。前書きの専権キー行は拒否する。
+  - **機構として残る Codex レビュー経路（現行手順ではない）**：pr-reviewer は Claude 固定で、工程の 2a/2b レビューに Codex 実行者を使わない（「既定実行者」）。主文脈はこの経路を選ばない。以下の2項は、wrapper と gate に残っている起動・取り込み機構の動作を記録したものである。
+    - 起動：trusted caller が primary checkout から `python3 -m issue_start.readonly_workspace --source <primary> --approval-file tmp/<approval>.json --role pr-reviewer -C <登録済みlinked worktree> --prompt-file tmp/<prompt>.md --output-file tmp/<未作成output>.md --binding-file tmp/<承認済みbinding>.json --model <model> --reasoning-effort <effort>` を実行する。readonly入口が承認・binding・入力を検証して linked worktree から executor を起動する。主文脈は同じ binding の `expected`（issue・run_id・target_key・snapshot_oid）と検証済み `artifact_digest`（`--input-digest`）、phase（TestDesign は `test_design`、ChangePlan は `implementation`）を手順 1 の `activate` へ渡す。wrapper が binding からヘッダを作り、`ingest-reviewer` が主文脈の記録と照合する。これにより D5 の `-C` と executor cwd の一致を保つ。primary から `codex_worktree_exec` を直接起動しない。prompt/output/binding は既存契約に従って用意し、output は新しい一意パスを使う。
+    - 取り込み：Codex が正常終了すると executor wrapper が出力ファイルをそのまま読み、primary checkout の進行ポインタから Issue と次 round を決めて handoff を作り、既存 `ingest-reviewer` CLI で検証・取り込みする。Codex 本文から Issue/round を決めず、本文を解析・書換えず、別の LLM にも渡さない。全文は主文脈へ返さず、呼び出し側には `取り込み済み: <path> (issue-N round R)` の1行と警告行だけを返す（判定の要約は含めない）。承認済み binding の `expected.issue` は起動時の進行ポインタと照合し、取り込み直前にも Issue と round を再確認する。Codex 非ゼロ、空出力、ポインタ不在/不一致、ヘッダ不一致、取り込み失敗はすべて run 失敗とする。read-only profile、network 無効、Codex 側の karte 拒否は維持する。一般 PR レビューで承認済み artifact binding を用意する方法は確認できていないため、その場合は起動せず STOP する。
   - 実装・是正担当の `out_of_scope_findings` は主文脈が finding レポートに写し、`python3 -m karte ingest-review --issue <N> --round <最新R> --from <path>` で追記する。申告原本がある Issue では保護モードとなり、主文脈 `ingest-review` は新規 finding の追記専用である。既存 ID の再掲は全件拒否し、未再掲の open finding は引き継いで警告する。専権キーは無視して警告する。主文脈による追加は申告原本に記録しない。 最初の書き手は `karte.scope_origin.first_writers`、レビューア申告は `reviewer_declarations` で区別し、未記録・unknown を reviewer 申告や覆しなしと扱わない（`karte/README.md`「scope の出所」）。最新 round の明示でレビュー round を進めず、次の `ingest-reviewer` は進行ポインタの次 round を使う。ポインタが遅れて省略 round が台帳最新値と一致した場合、主文脈経路は同じ round へ追記する。
   - `decide` / `activate` / `ingest-review` / `handoff-preview` / `handoff-post` / `handoff-recheck` は主文脈専用で、是正当事者ロールは実行できない。Codex 側 gate は `pr-reviewer` に karte verb を許可しない。Codex の取り込みは外側 wrapper が行う。
 - **是正担当が `integrate-base-abort` の後に STOP したら**、主文脈は報告をオーナーへ打ち上げたうえで、返された退避 tar から必要な内容を取り出し、是正担当を再 dispatch するときに渡す。主文脈は衝突解消の適用・確定を行わない。詳細の正本は `docs/tools/gitgate-base-integration.md`「中止と回復」で、ここへ複製しない。

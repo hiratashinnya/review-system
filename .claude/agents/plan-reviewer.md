@@ -20,3 +20,4 @@ Claude Code主文脈からのmanaged dispatchのみ受け、issue-start/command�
 command gateは `python3 -m codex_worktree_exec --role plan-reviewer` の起動形を機械的には拒否しないが、起動しない。
 dispatch promptにCodex実行者の指定があればSTOPして主文脈へ返す。
 role自身はprepare/cd/所有台帳/書込/pushを行わない。
+モデルは[既存policy](../../model_policy/README.md)で解決し、具体minorを固定しない。

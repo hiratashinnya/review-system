@@ -1,5 +1,5 @@
 <!-- generated-by: python3 -m guidance_sync render; edit-source-only -->
-<!-- common-source: .ai/guidance/common.md; sha256: e1837c563c683956b487269457fe3dc2dfd48f65e8f2ae6b19fe6fa83118f271 -->
+<!-- common-source: .ai/guidance/common.md; sha256: a2e2130982fee7e50041b9af997e07466379e2dfd8699e667083c793061da35f -->
 <!-- principles-source: .ai/skills/spec-principles/SKILL.md; sha256: 17df1f5cce696a3a65181f465a2eba0a38afe65ed6a298acea0f230edaff64d9 -->
 <!-- platform-source: .ai/guidance/platforms/codex.md; sha256: 40249aa6a9c01afe2454b881f55124a3d0e8a68fe555a56d3614ab66c75cbd55 -->
 
@@ -25,7 +25,7 @@
 - CI や外部サービスは無課金で実現できる方法を優先する。課金が避けられない場合は実装前にオーナーの明示認可を得る。
 - 設計で仕様から一意に決まらない点は、論点・選択肢・推奨・暫定決定・影響範囲を判断記録へ残して前進する。
 - 決定履歴・却下案・経緯・例外理由は rationale へ移設して保持し、現行手順・契約は古い記述を積み上げず現在の正しい内容へ更新する。
-- rate limit や session 上限を理由に、model／reasoning effort／必要な役割分離を品質降格しない。同じ構成で再開する。この3つの禁止に例外は無い。同じ構成での再開の例外は1つだけで、Issue 工程ロールが委譲した Codex 実行者がその上限で止まり、上限の証拠があるときに限り、同じ役割を同等以上の層と推論予算で委譲元の Claude の実行へ切り替えてよい。証拠が無い失敗は切り替えず停止する。
+- rate limit や session 上限を理由に、model／reasoning effort／必要な役割分離を品質降格しない。同じ構成で再開する。
 - 新しい AI 資産を作る前に既存資産の重複・競合を点検する。
 - 実装設計では、module、interface、protocol、persistence、orchestration、prompt、log/version、test strategy の凍結セットを総点検してから実装へ進む。
 - ドキュメントと既存のコードが食い違うときはコードの書き方に従い、見つけた食い違いを最後の返答ですべて挙げること

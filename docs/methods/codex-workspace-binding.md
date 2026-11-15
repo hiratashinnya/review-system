@@ -321,8 +321,11 @@ linked作業面を新設する必要があれば主文脈の既存worktree準備
 この入口自身にはworktree作成、branch採用、trust設定、profile pin更新をさせない。
 
 ```text
-python3 -m issue_start.readonly_workspace --source /repo/primary --approval-file tmp/review-approval.json --role pr-reviewer -C /repo/linked --binding-file tmp/review-binding.json --prompt-file tmp/review-prompt.md --output-file tmp/review-result.md --model MODEL --reasoning-effort high
+python3 -m issue_start.readonly_workspace --source /repo/primary --approval-file tmp/investigation-approval.json --role issue-investigator -C /repo/linked --binding-file tmp/investigation-binding.json --prompt-file tmp/investigation-prompt.md --output-file tmp/investigation-result.md --model MODEL --reasoning-effort high
 ```
+
+例は Codex 既定の read-only ロールで示す。入口は Claude 固定の `plan-reviewer`・`pr-reviewer` の `--role` も機械的には受理するが、
+主文脈はこの2ロールに使わない（`.ai/skills/issue-pipeline/SKILL.md`「既定実行者」）。
 
 入口はread-only 4ロールだけを受け付け、native readonly dispatchのavailabilityと入力承認を
 sourceで検査する。同じgit-common-dir、同じHEAD、両面のtracked cleanを要求する。
