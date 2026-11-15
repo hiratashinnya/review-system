@@ -20,6 +20,7 @@ def finding_rows(karte: model.Karte) -> list:
                 "deferred_to": finding.deferred_to,
                 "waived_by": finding.waived_by,
                 "waived_reason": finding.waived_reason,
+                **({"override_ref": finding.override_ref} if finding.override_ref else {}),
                 "locus": list(finding.locus),
                 "summary": finding.summary,
                 "evidence": finding.evidence,
