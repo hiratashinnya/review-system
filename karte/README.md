@@ -87,8 +87,7 @@ verdict は動かず、未解消が実害なしだけなら `no-harm-only` と�
 
 ### 既知の限界（多層防御の一枚であって sandbox ではない）
 
-**非保護モードの保護水準は `disposition` 系と `scope` で 1 段違う。** 前者は記録だけを強制し、
-後者は記録すら強制していない。保護モードの申告原本とオーナー確定の印は後述する。
+**`override_ref` は判断の記録と参照先の実在を機械検証するが、オーナー本人の承認を認証するものではない。** 未確認の判断は主文脈でエスカレーションする。
 
 #### `disposition` 系（`waived` / `deferred`）——記録は強制、オーナー判断は非強制
 
@@ -109,27 +108,7 @@ verdict は動かず、未解消が実害なしだけなら `no-harm-only` と�
 - `scope_origin.first_writers` と `scope_origin.reviewer_declarations` を使い、主文脈の legacy `ingest-review` 由来と検証済み reviewer 申告を区別する。オーナー確定 scope があるのに reviewer 原本が必要で未検証なら `clean` を止める。正常な implementer/fixer の `out_of_scope_findings` は原本が無いだけでは止めない。
 - **制限：人間が本当に承認したかは証明しない。** 認証済み FBK の存在と scope 原本との差分だけを機械で保証する。処置順・STOP 応答・merge の覆しは共有 SKILL の主文脈による捕捉契約（fail-open）に留める。
 
-<!-- 旧設計の経緯（#523 実装前の制限。現在の振舞いではない） -->
-  台帳は取り込まれた `scope` の値を受け取るだけで、それが誰の判断かも、レビューアの元の申告と
-  違うかも見ていない。**覆したこと自体を残させる欄も無い**ため、`waived_by` / `waived_reason`
-  に相当する「記録の強制」も現時点では掛かっていない。書き忘れても verdict は動かないので、
-  覆した値が黙ってレビューアの申告へ戻る（fail-open。再掲の規律＝
-  `.ai/skills/issue-pipeline/SKILL.md` ②-c）。
-- **検出できない窓は「その finding が台帳へ初めて取り込まれるラウンド」である**——
-  ラウンド番号ではなく「その finding について前ラウンドの記録が台帳にあるか」で決まる。
-  `pr-reviewer` の finding は主文脈を経て取り込みレポートになるため、**その finding についての
-  最初の `ingest-review` より前**に書き換えられると元の申告値がどこにも残らない。
-  `pr-reviewer` は各ラウンドで新しい finding を起票できる（ブロック見出しが
-  `### F-<issue>-<seq> または new`＝`.ai/agents/pr-reviewer.md`）ため、**round 3 で初出した
-  finding にも round 1 とまったく同じ窓が開く**。
-  - **Issue #375 がこの窓を塞ぐ**。Claude Code の `pr-reviewer` は handoff ファイルから
-    `ingest-reviewer` で取り込み、Codex を使う場合は信頼された外側の `codex_worktree_exec` が
-    保存済み出力をそのまま同じ verb へ渡す。申告 scope の原本が初出ラウンドから
-    `tmp/_karte/issue-<N>.declared-scope.jsonl`（追記専用）に残る。`decide --scope` の印がある
-    finding はオーナーの値を保持し、今回の申告と異なれば取り込み出力に列挙する。
-  - 覆しの `override_ref`＝`feedback_ledger` の台帳エントリ参照は Issue #523 で導入した。
-  - `codex_worktree_exec` は Codex 本体の read-only 権限を変えず、取り込みをラッパー側で実行する。
-    Codex の `pr-reviewer` 自身に karte の書込権限は与えない。
+`ingest-reviewer` が検証済み申告原本を記録し、`scope_origin` が最初の書き手を保持する（#800 / #797）。レビューア本人の取り込みの前に待機を取り消した後の旧 `ingest-review` は main 由来と記録される。その値を検証済み reviewer 申告と同一視しない。Codex の reviewer は読み取り専用のままとし、信頼済み wrapper が代わって `ingest-reviewer` を呼ぶ。
 
 ### `ingest-reviewer` / `decide` / `activate`（Issue #375）
 
