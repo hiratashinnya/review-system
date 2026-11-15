@@ -45,7 +45,7 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
 | （未記載） | 未決定 | — | **`clean` を妨げる** |
 | `fix-here` | 当該 PR で直す | — | 直って `status: resolved` になるまで `clean` を妨げる |
 | `deferred` | 別 Issue へ申し送る | `deferred_to` | 妨げない（`status` は `open` のまま） |
-| `waived` | オーナーが明示的に処置不要を許可 | `waived_by` / `waived_reason` | 妨げない（`status` は `open` のまま） |
+| `waived` | オーナーが明示的に処置不要を許可 | `waived_by` / `waived_reason` / 実在する `override_ref` | `override_ref` 確認後は妨げない（`status` は `open` のまま） |
 
 - `deferred_to` は `#123` / `123` / Issue の URL のいずれかで書く。散文（「別 Issue で対応」）は
   行き先を解決できないため拒否する。
@@ -103,9 +103,13 @@ verdict は動かず、未解消が実害なしだけなら `no-harm-only` と�
   無視され、いずれも除外が効かず計数に戻る。
 - **これらが保証するのは記録と検証であって、オーナー判断ではない。**
 
-#### 非保護モードの `scope` の覆し——記録の強制すら無い
+#### `scope` の覆しと `override_ref`（Issue #523）
 
-- **`scope` の覆しがオーナーの判断であることを機械側は検証していない**（Issue #531）。
+- `waived` またはオーナー確定 `scope` が検証済み reviewer 原本と異なる finding は、実在する `feedback_ledger` の `FBK-...` への `override_ref` が無い間 `karte status` の `verdict` が `clean` にならない。`karte decide --override-ref <FBK-ID>` は既存 finding へ後から記録することもでき、存在しない参照先は拒否する（Issue #523）。
+- `scope_origin.first_writers` と `scope_origin.reviewer_declarations` を使い、主文脈の legacy `ingest-review` 由来と検証済み reviewer 申告を区別する。オーナー確定 scope があるのに reviewer 原本が必要で未検証なら `clean` を止める。正常な implementer/fixer の `out_of_scope_findings` は原本が無いだけでは止めない。
+- **制限：人間が本当に承認したかは証明しない。** 認証済み FBK の存在と scope 原本との差分だけを機械で保証する。処置順・STOP 応答・merge の覆しは共有 SKILL の主文脈による捕捉契約（fail-open）に留める。
+
+<!-- 旧設計の経緯（#523 実装前の制限。現在の振舞いではない） -->
   台帳は取り込まれた `scope` の値を受け取るだけで、それが誰の判断かも、レビューアの元の申告と
   違うかも見ていない。**覆したこと自体を残させる欄も無い**ため、`waived_by` / `waived_reason`
   に相当する「記録の強制」も現時点では掛かっていない。書き忘れても verdict は動かないので、
@@ -123,7 +127,7 @@ verdict は動かず、未解消が実害なしだけなら `no-harm-only` と�
     保存済み出力をそのまま同じ verb へ渡す。申告 scope の原本が初出ラウンドから
     `tmp/_karte/issue-<N>.declared-scope.jsonl`（追記専用）に残る。`decide --scope` の印がある
     finding はオーナーの値を保持し、今回の申告と異なれば取り込み出力に列挙する。
-  - 覆しに `override_ref`＝`feedback_ledger` の台帳エントリ参照を要求する変更は Issue #523 のスコープ。
+  - 覆しの `override_ref`＝`feedback_ledger` の台帳エントリ参照は Issue #523 で導入した。
   - `codex_worktree_exec` は Codex 本体の read-only 権限を変えず、取り込みをラッパー側で実行する。
     Codex の `pr-reviewer` 自身に karte の書込権限は与えない。
 
@@ -142,7 +146,7 @@ verdict は動かず、未解消が実害なしだけなら `no-harm-only` と�
     （`..`・symlink 構成要素・別ディレクトリ・別名を拒否。規則は `karte/handoff_path.py` に 1 箇所で、
     Write フックと共有）。
   - 処置方針はオーナー専権であり、レポート中の `disposition` / `deferred_to` / `waived_by` /
-    `waived_reason` は finding ブロック内なら空値も含め無視して警告する。前書きの専権キー行は無視せず拒否する。
+    `waived_reason` / `override_ref` は finding ブロック内なら空値も含め無視して警告する。前書きの専権キー行は無視せず拒否する。
     台帳の値は保持する。
   - 保護モードの取り込みごとに、申告レポートで再掲されたかにかかわらず、オーナー印を台帳の全 finding へ
     再適用する。印がない finding の scope は新しい申告で更新する。
