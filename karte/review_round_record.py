@@ -1,0 +1,41 @@
+"""受理済み review round のレシート。finding 0 件の round も表現する。
+
+これは保存形式の準備のみ。review 出力の受理規約と AC 判定の形式は
+Issue #801 のオーナー判断が確定するまで変更しない。
+"""
+
+from dataclasses import dataclass
+import re
+
+from .format_error import KarteFormatError
+from .int_args import matched_int
+
+TITLE_RE = re.compile(r"^Review Round ([1-9][0-9]*)\Z")
+DIGEST_RE = re.compile(r"^[0-9a-f]{64}\Z")
+
+
+@dataclass(frozen=True)
+class ReviewRound:
+    number: int
+    digest: str
+
+
+def from_block(block) -> ReviewRound:
+    """未知キーや不正 digest は fail-close にする。"""
+    matched = TITLE_RE.fullmatch(block.title)
+    if matched is None:
+        raise KarteFormatError(f"{block.lineno} 行目: Review Round 見出しが不正: {block.title!r}")
+    if set(block.fields) != {"digest"}:
+        raise KarteFormatError(f"{block.lineno} 行目: Review Round のキーは digest のみ")
+    digest = block.fields["digest"]
+    if not isinstance(digest, str) or not DIGEST_RE.fullmatch(digest):
+        raise KarteFormatError(f"{block.lineno} 行目: Review Round の digest は sha256 の 64 桁小文字 hex")
+    number = matched_int(matched.group(1), KarteFormatError, "Review Round 番号")
+    return ReviewRound(number, digest)
+
+
+def render_round(record: ReviewRound) -> str:
+    """round の安全な書き出し。"""
+    if record.number < 1 or not DIGEST_RE.fullmatch(record.digest):
+        raise KarteFormatError("Review Round の番号または digest が不正")
+    return f"### Review Round {record.number}\ndigest: {record.digest}\n"

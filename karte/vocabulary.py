@@ -21,6 +21,7 @@ CLEARING_HARM = "real"
 NEW_FINDING_TITLES = ("new", "NEW", "new-finding")
 
 SECTION_FINDINGS = "Findings"
+SECTION_REVIEW_ROUNDS = "Review Rounds"
 SECTION_ATTEMPTS = "Attempts"
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*\Z")

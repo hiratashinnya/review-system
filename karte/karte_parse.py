@@ -7,7 +7,8 @@ from .block_records import _attempt_from_block, _finding_from_block, _result_fro
 from .format_error import KarteFormatError
 from .int_args import matched_int
 from .karte_record import Karte
-from .vocabulary import ATTEMPT_TITLE_RE, DOC_HEADER_RE, RESULT_TITLE_RE, SECTION_ATTEMPTS, SECTION_FINDINGS
+from .review_round_record import from_block as review_round_from_block
+from .vocabulary import ATTEMPT_TITLE_RE, DOC_HEADER_RE, RESULT_TITLE_RE, SECTION_ATTEMPTS, SECTION_FINDINGS, SECTION_REVIEW_ROUNDS
 
 
 def parse(text: str) -> Karte:
@@ -28,6 +29,8 @@ def parse(text: str) -> Karte:
     for block in parse_blocks(text):
         if block.section == SECTION_FINDINGS:
             karte.findings.append(_finding_from_block(block, issue))
+        elif block.section == SECTION_REVIEW_ROUNDS:
+            karte.review_rounds.append(review_round_from_block(block))
         elif block.section == SECTION_ATTEMPTS:
             if attempt_title := ATTEMPT_TITLE_RE.match(block.title):
                 karte.attempts.append(_attempt_from_block(block, attempt_title))
@@ -41,7 +44,7 @@ def parse(text: str) -> Karte:
         else:
             raise KarteFormatError(
                 f"{block.lineno} 行目: 未知のセクション {block.section!r} 配下のブロック "
-                f"{block.title!r}（許可されるのは '{SECTION_FINDINGS}' と '{SECTION_ATTEMPTS}'）"
+                f"{block.title!r}（許可されるのは '{SECTION_FINDINGS}'、'{SECTION_REVIEW_ROUNDS}' と '{SECTION_ATTEMPTS}'）"
             )
 
     seen = set()
@@ -49,6 +52,10 @@ def parse(text: str) -> Karte:
         if item.id in seen:
             raise KarteFormatError(f"finding ID が台帳内で重複している: {item.id}")
         seen.add(item.id)
+    round_numbers = [item.number for item in karte.review_rounds]
+    if len(round_numbers) != len(set(round_numbers)):
+        raise KarteFormatError("Review Round 番号が台帳内で重複している")
+    karte.review_rounds.sort(key=lambda item: item.number)
     numbers = set()
     for item in karte.attempts:
         if item.number in numbers:
