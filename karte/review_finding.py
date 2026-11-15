@@ -19,6 +19,8 @@ class ReviewFinding:
     recheck: str
     scope: str                    # ``in``/``out``（必須・Issue #495。免除力は持たない）
     lineno: int
+    reachability_path: str = ""  # 旧 reviewer は未記載。明示的な「根拠なし」と区別する
+    threat_assumption: str = ""
     status: str = "open"          # ``resolved`` と**明示**したときだけ解消（K-06）
     distinct_from: tuple = ()     # 再発番判定を無効化する相手 ID（K-05・ペア限定）
     disposition: str = ""         # 以下4欄はオーナー判断の記録（任意・未決定なら空）
