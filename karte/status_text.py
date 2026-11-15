@@ -43,6 +43,9 @@ def status_lines(issue, path, payload: dict) -> list[str]:
         "  実害あり・disposition 未決定（clean を妨げる／scope: out でも免除されない）: "
         f"{', '.join(payload['undecided_disposition']) or '(なし)'}"
     )
+    if payload.get("override_pending"):
+        lines.append("  override_ref の検証待ち: " + "; ".join(
+            f"{fid}: {reason}" for fid, reason in payload["override_pending"].items()))
     lines.append(
         "  申し送り（disposition: deferred・status は open のまま）: "
         + (
