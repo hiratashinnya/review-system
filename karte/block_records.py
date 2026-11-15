@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 
 from .attempt_record import Attempt, Result
-from .block_fields import optional_enum as _optional_enum, require_enum as _require_enum
+from .block_fields import optional_enum as _optional_enum, optional_scalar as _optional_scalar, require_enum as _require_enum
 from .block_fields import require_int_list as _require_int_list, require_nonempty as _require_nonempty
 from .block_parser import Block
 from .disposition import parse_disposition
@@ -52,6 +52,7 @@ def _finding_from_block(block: Block, issue: int) -> Finding:
         deferred_to=disposition.deferred_to,
         waived_by=disposition.waived_by,
         waived_reason=disposition.waived_reason,
+        override_ref=_optional_scalar(block, "override_ref"),
         rounds=_require_int_list(block, "rounds"),
         resolved_round=resolved,
         handoff=record_from_block(block),

@@ -11,6 +11,7 @@ worktree／handoff の回復手順は [issue-pipeline の troubleshooting](../..
 
 ## Claude Code 固有の dispatch 契約
 
+- **Issue #523 捕捉**：dispatch 前後のオーナー判断で AI 推奨を覆したら、主文脈がその場で逐語・推奨・差分・根拠を `feedback_ledger new-entry` へ保存する。`waived` / reviewer scope の覆しは実在する FBK ID を `karte decide --override-ref` に渡す。レビュー/実装ロールへ台帳の著作を委譲しない。処置順・STOP・merge 等の機械非可視判断は主文脈の記録契約（fail-open）とする。詳細・復旧は共有 SKILL ②-c と `karte/README.md` を参照。
 - 主文脈だけが `AskUserQuestion` を持ち、これを使ってオーナーの判断を仰ぐ。処置順の確定・先送り可否・スコープ拡張の起票要否・`scope` の覆し・`disposition` の決定はいずれもオーナーが決めるのであって主文脈が決めるのではない（`.ai/skills/issue-pipeline/SKILL.md`「役割分担」）。主文脈が担うのは原案の作成、`AskUserQuestion` での伺い、得られた決定の記録と実行である。`issue-implementer`、`issue-fixer`、`pr-reviewer` は `AskUserQuestion` を持たず、非対話で STOP 報告する。
 - `.claude/hooks/issue-start-gate.sh`、`agent-command-gate.sh`、worktree／karte の hook が有効な managed path を使い、契約エラーは迂回せず fail-close する。
 - 実装は `issue-implementer`、レビューは `pr-reviewer`、レビュー是正は `issue-fixer` に分ける。review が clean の場合も AI は fresh blocker report を作ってオーナーへ渡し、merge はオーナーが手動で行う。native deny は直接形の merge command prefix を拒否し、global option／wrapper／API／検査可能な間接実行は両 PF の共有 command hook が判定する。reviewer は push もできない。

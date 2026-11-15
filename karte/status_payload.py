@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from . import model
+from . import model, override_gate
 from .finding_handoff_exemption import is_stall_exempt
 from .saturation_groups import saturated_groups
 from .stall_detection import STALL_ROUNDS, stalled_ids
@@ -8,9 +8,15 @@ from .status_findings import finding_rows
 from .status_verdict import status_verdict
 
 
-def status_payload(karte: model.Karte) -> dict:
+def status_payload(karte: model.Karte, repo_root=None) -> dict:
     """verdict とエスカレーション材料を集計する。"""
     open_findings, harmful, blocking, undecided, blocking_harmful, verdict = status_verdict(karte)
+    pending = override_gate.pending(karte, repo_root) if repo_root is not None else {}
+    extra = [item for item in karte.open_findings() if item.id in pending and item not in blocking]
+    if extra:
+        blocking = [*blocking, *extra]
+        blocking_harmful = [item for item in blocking if item.harm == "real"]
+        verdict = "harmful-open" if blocking_harmful else "no-harm-only"
     findings = finding_rows(karte)
     stalled = stalled_ids(karte)
     # K-09: 表示（ここ）とゲート（append）は同じ判定関数を使う。`saturated_groups` は
@@ -46,6 +52,8 @@ def status_payload(karte: model.Karte) -> dict:
         "findings": findings,
     }
     exempt = [item.id for item in karte.remediation_findings() if is_stall_exempt(item)]
+    if pending:
+        payload["override_pending"] = pending
     if exempt:
         payload["handoff_exempt_findings"] = exempt
     return payload

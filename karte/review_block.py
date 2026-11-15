@@ -1,6 +1,6 @@
 """レビューレポートの 1 ブロックを :class:`ReviewFinding` へ読み替える（任意キーの検証を含む）。"""
 
-from .block_fields import require_enum, require_nonempty
+from .block_fields import optional_scalar, require_enum, require_nonempty
 from .block_parser import Block
 from .disposition import parse_disposition
 from .finding_id import parse_finding_id
@@ -87,4 +87,5 @@ def review_finding_from_block(block: Block, issue: int, finding_id) -> ReviewFin
         deferred_to=disposition.deferred_to,
         waived_by=disposition.waived_by,
         waived_reason=disposition.waived_reason,
+        override_ref=optional_scalar(block, "override_ref"),
     )

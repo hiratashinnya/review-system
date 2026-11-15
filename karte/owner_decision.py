@@ -9,14 +9,14 @@ from .errors import KarteUsageError
 DISPOSITION_OPTIONS = ("disposition", "deferred_to", "waived_by", "waived_reason")
 
 
-def record_decision(karte, finding_id, options, scope) -> list:
+def record_decision(karte, finding_id, options, scope, override_ref=None) -> list:
     """``karte`` の finding に決定を反映し、変更内容の説明行を返す（検証失敗は例外・何も書かない）。"""
     finding = karte.finding(finding_id)
     if finding is None:
         raise KarteUsageError(f"台帳に無い finding ID: {finding_id}")
     given = {key: value for key, value in options.items() if value}
-    if not given and not scope:
-        raise KarteUsageError("--disposition か --scope のどちらかは必要")
+    if not given and not scope and not override_ref:
+        raise KarteUsageError("--disposition / --scope / --override-ref のいずれかは必要")
     lines = []
     if given:
         decided = model.parse_disposition(model.Block(None, finding_id, given, 0))
@@ -32,6 +32,9 @@ def record_decision(karte, finding_id, options, scope) -> list:
             raise KarteUsageError(f"--scope は {list(model.SCOPES)} のいずれか: {scope!r}")
         finding.scope = scope
         lines.append(f"scope: {scope}（申告原本にオーナー印を記録し、台帳へ即時反映）")
+    if override_ref:
+        finding.override_ref = override_ref
+        lines.append(f"override_ref: {override_ref}")
     return lines
 
 

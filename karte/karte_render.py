@@ -25,6 +25,8 @@ def render_finding(finding: Finding) -> str:
     _emit(lines, "deferred_to", finding.deferred_to)
     _emit(lines, "waived_by", finding.waived_by)
     _emit(lines, "waived_reason", finding.waived_reason)
+    if finding.override_ref:
+        _emit(lines, "override_ref", finding.override_ref)
     _emit(lines, "locus", finding.locus)
     _emit(lines, "summary", finding.summary)
     _emit(lines, "evidence", finding.evidence)
