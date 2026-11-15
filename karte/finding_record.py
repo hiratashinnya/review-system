@@ -30,7 +30,6 @@ class Finding:
     scope: str = DEFAULT_SCOPE
     # ``disposition``＝オーナー判断の記録。空文字＝未決定。
     disposition: str = ""
-    diagnosis_owner: str = "fixer"  # 旧カルテは是正担当
     deferred_to: str = ""
     waived_by: str = ""
     waived_reason: str = ""
@@ -40,6 +39,7 @@ class Finding:
     handoff: HandoffRecord | None = None
     reachability_path: str = ""  # 旧形式の不在は空文字で保持する
     threat_assumption: str = ""
+    diagnosis_owner: str = "fixer"  # 旧カルテは是正担当。末尾追加で位置引数互換
 
     @property
     def seq(self) -> int:

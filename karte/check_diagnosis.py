@@ -8,7 +8,7 @@ def exemption_reason(finding, pending_overrides: dict) -> str | None:
     if not finding.is_open:
         return None
     if finding.cleared_by_disposition:
-        return f"disposition: {finding.disposition}"
+        return finding.disposition
     if finding.disposition == "fix-here" and finding.diagnosis_owner == "main":
         return "主文脈担当（fix-here は未解消のまま）"
     if finding.harm != "none":

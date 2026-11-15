@@ -23,7 +23,10 @@ def record_decision(karte, finding_id, options, scope, override_ref=None, diagno
         decided = model.parse_disposition(model.Block(None, finding_id, given, 0))
         if not decided.kind:
             raise KarteUsageError("付随キーだけでは決められない（--disposition を指定する）")
+        previous = finding.disposition
         finding.disposition = decided.kind
+        if decided.kind != "fix-here" or previous != "fix-here":
+            finding.diagnosis_owner = "fixer"
         finding.deferred_to = decided.deferred_to
         finding.waived_by = decided.waived_by
         finding.waived_reason = decided.waived_reason

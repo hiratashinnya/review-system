@@ -103,6 +103,9 @@ class TestCheckDiagnosis614(RootedCase):
         self.assertEqual("main", model.parse(doc).findings[0].diagnosis_owner)
         with self.assertRaises(KarteFormatError):
             model.parse(doc.replace("diagnosis_owner: main", "diagnosis_owner: invalid"))
+        owner_decision.record_decision(karte, f"F-{self.issue}-01",
+                                      {"disposition": "deferred", "deferred_to": "#900"}, None)
+        self.assertEqual("fixer", karte.findings[0].diagnosis_owner)
         with self.assertRaises(Exception):
             other = model.Karte(self.issue, [self.finding(1, disposition="deferred")])
             owner_decision.record_decision(other, f"F-{self.issue}-01", {}, None,
