@@ -23,8 +23,6 @@ class Finding:
     summary: str = ""
     # ``evidence``＝そう言える根拠（読んだファイル/行・実行したコマンドと結果）。
     evidence: str = ""
-    reachability_path: str = ""  # 旧形式の不在は空文字で保持する
-    threat_assumption: str = ""
     # ``expected``＝解消の条件、``recheck``＝次ラウンドの判定手順（ラウンドをまたぐため台帳に持つ）。
     expected: str = ""
     recheck: str = ""
@@ -38,6 +36,8 @@ class Finding:
     rounds: list = field(default_factory=list)
     resolved_round: int | None = None
     handoff: HandoffRecord | None = None
+    reachability_path: str = ""  # 旧形式の不在は空文字で保持する
+    threat_assumption: str = ""
 
     @property
     def seq(self) -> int:
