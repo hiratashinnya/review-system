@@ -59,7 +59,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.x"
+          python-version: "3.13" # Issue 722 RED: fix runtime to version with RecursionError on deeply nested incomplete array
 
       - name: Issue 722 explicit RED regression test (expected to fail on pre-fix)
         run: |
