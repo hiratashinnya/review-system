@@ -38,6 +38,12 @@ class CodexAcInputTest(unittest.TestCase):
         with self.assertRaises(CodexExecError):
             append_ac_snapshot("Review PR.", self.root, (801, 0, 1))
 
+    def test_malformed_snapshot_is_refused_as_codex_error(self):
+        archived = self.root / self.rec["source"]
+        archived.write_text(BODY.replace("verify Y", "verify X"), encoding="utf-8")
+        with self.assertRaises(CodexExecError):
+            append_ac_snapshot("Review PR.", self.root, (801, 0, 1))
+
     def test_wrong_pointer_rejected(self):
         write_active(self.root, 801, 1, {"marker": "trusted"}, ac_snapshot=self.rec)
         with self.assertRaises(CodexExecError):

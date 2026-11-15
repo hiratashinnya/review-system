@@ -4,6 +4,7 @@ import json
 
 from karte import ac_snapshot_binding, paths
 from karte.errors import KarteUsageError
+from karte.format_error import KarteFormatError
 
 from .errors import CodexExecError
 
@@ -16,7 +17,7 @@ def append_ac_snapshot(body: str, worktree, launch_target) -> str:
         if loaded is None:
             return body  # 旧経路との互換。新dispatchでは必ずactivate --ac-snapshot-file
         record, criteria = loaded
-    except (OSError, KarteUsageError, paths.KartePathError, ValueError) as exc:
+    except (OSError, KarteUsageError, KarteFormatError, paths.KartePathError, ValueError) as exc:
         raise CodexExecError("CODEX_REVIEW_INGEST_FAILED", f"AC snapshot を配布できない: {exc}") from None
     evidence = {
         "issue": issue, "round": round_no,
