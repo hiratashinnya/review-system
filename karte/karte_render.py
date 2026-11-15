@@ -22,6 +22,8 @@ def render_finding(finding: Finding) -> str:
     _emit(lines, "severity", finding.severity)
     _emit(lines, "scope", finding.scope)
     _emit(lines, "disposition", finding.disposition)
+    if finding.diagnosis_owner != "fixer":
+        _emit(lines, "diagnosis_owner", finding.diagnosis_owner)
     _emit(lines, "deferred_to", finding.deferred_to)
     _emit(lines, "waived_by", finding.waived_by)
     _emit(lines, "waived_reason", finding.waived_reason)

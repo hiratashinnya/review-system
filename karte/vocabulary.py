@@ -15,6 +15,7 @@ SCOPES = ("in", "out")
 DEFAULT_SCOPE = "in"
 
 DISPOSITIONS = ("fix-here", "deferred", "waived")
+DIAGNOSIS_OWNERS = ("fixer", "main")
 CLEARING_DISPOSITIONS = ("deferred", "waived")
 CLEARING_HARM = "real"
 

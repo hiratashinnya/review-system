@@ -30,6 +30,7 @@ class Finding:
     scope: str = DEFAULT_SCOPE
     # ``disposition``＝オーナー判断の記録。空文字＝未決定。
     disposition: str = ""
+    diagnosis_owner: str = "fixer"  # 旧カルテは是正担当
     deferred_to: str = ""
     waived_by: str = ""
     waived_reason: str = ""

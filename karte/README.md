@@ -340,7 +340,7 @@ Codex gate は MCP ツール一般を検査しない。`agy` 経由で karte ver
 倒すと「**別 Issue へ移したと書くだけで指摘が台帳から消える**」経路ができ、本 Issue が塞ごうと
 している穴が形を変えて再発する。よって `deferred`/`waived` は `status: open` のまま台帳に残し、
 `harm: real` の場合は **「是正を要する finding」の集合からだけ外す**（`Finding.needs_remediation` が偽になる）。
-verdict と `check` はこの集合を共有する。無進捗はさらに検証済み handoff を除外する。
+verdict と `check` はこの集合を入口として共有する。`check` だけは #614 の担当・検証済み処置による追加除外を行う。無進捗はさらに検証済み handoff を除外する。
 
 ### verdict・check と無進捗の除外規則（Issue #503・#683）
 
@@ -350,12 +350,12 @@ verdict と `check` はこの集合を共有する。無進捗はさらに検証
 | 判定経路 | 集合の入口 |
 |---|---|
 | `status` の verdict | `Karte.remediation_findings()`（`blocking_findings`） |
-| `check` の診断網羅要求 | 同集合を当該ラウンドで絞る |
+| `check` の診断網羅要求 | 同集合を当該ラウンドで絞り、`check_diagnosis.exemption_reason` で診断対象外を除く |
 | 無進捗検知（`escalate`） | 同集合から `finding_handoff_exemption.is_stall_exempt` を追加で除く `karte/stall_detection.py::stalled_ids` |
 
 `render` の `★無進捗` も `stalled_ids` から引く。
 
-### `check` の判定規則（Issue #503）
+### `check` の判定規則（Issue #503・#614）
 
 ```
 python3 -m karte check [--issue <N>] [--round <R>]
@@ -366,26 +366,41 @@ python3 -m karte check [--issue <N>] [--round <R>]
 
 1. **当該ラウンドの Attempt が、診断が要る未解消 finding を網羅している。**
    - 対象は「当該ラウンドで挙げられた（`rounds` に `R` を含む）」かつ
-     「`Finding.needs_remediation` が真」の finding。
+     「`Finding.needs_remediation` が真」から診断対象外を除いた finding。
    - **`harm: real` で `disposition` が `deferred` / `waived` の finding は対象から外れる**（上表の集約）。
      診断を求めるべきなのは「これから直す finding」であって「直さないと決まった finding」
      ではない。後者に診断を書かせることは、`.claude/rules/03-operational.md`
      「スコープ拡大禁止」に反する記録を台帳へ入れさせることでもある。
-   - 除外した finding は黙って落とさず、`診断不要（disposition で …）` 行として出力に出す。
+   - 除外した finding は黙って落とさず、`診断不要（…）` 行として理由を出力する。
    - 当該ラウンドの Attempt が 1 件も無ければ `EXIT_ERROR`。
 2. **カルテ上の全 Attempt が `close-attempt` 済み**（`### Result k` を持つ）。
    当該ラウンド以前だけでなく、**先のラウンドを名乗った Attempt も含めて全件**
    （`append --round <大きい値>` を逃げ道にしない）。
 
-`status` の verdict と `check` は `disposition` について**同じ規則**で動く
-（片方だけが `deferred` を要求する状態＝同じ台帳から機械が 2 つの異なる結論を出す状態を作らない）。
-ただし両者が答える問いは別である——`check` は「**このラウンドの是正が診断を伴っていたか**」、
-`status` は「**この PR を clean と呼べるか**」。したがって `check` が `EXIT_OK` でも
-`disposition: fix-here` の未修正が残っていれば `status` は `harmful-open` のままになる。
+### 診断対象の追加除外（Issue #614）
 
-**互換性**：判定規則の変更のみでカルテのフォーマットは不変。ただし**これまで `EXIT_ERROR` に
-なっていたラウンドが `EXIT_OK` になる**ため、`check` の終了コードに依存する CI・フックの
-挙動は変わる（＝`deferred` を含むラウンドで毎回 1 回鳴っていた block が鳴らなくなる）。
+`harm: none` に `status` の解除力を与えない原則を維持する。ただし `check` は
+「是正担当が割当分を診断したか」を検査するため、次を診断対象外とする。
+診断免除は `karte/check_diagnosis.py` に集約する。
+
+- `harm: none / deferred` は #683 の検証済み handoff（`handoff_state: verified`、
+  内容ハッシュ・行き先整合）だけ対象外。未検証・変更済みのものは診断必須。
+- `harm: none / waived` は #523 の有効な `override_ref` により
+  `override_gate.pending` で保留されない場合だけ対象外。
+  `waived_by` 自己申告のみでは免除しない。
+- `fix-here` は主文脈専用 `karte decide --finding F-... --diagnosis-owner main`
+  で明示的に割り当てた未解消 finding だけ是正担当の診断対象外。
+  値は `fixer | main`。旧カルテで未記載の場合は `fixer`。
+  解消または `fix-here` 以外の disposition へ移った際は `fixer` に戻る。
+
+`scope: out` は免除条件にしない。すべて `status` の未解消集合・verdict・
+escalate を変えない。診断対象が空でも当該ラウンドに Attempt がなければ NG、
+未クローズ Attempt が残れば NG。役割割当は解消の証拠ではない。
+設計理由と制約は `.ai/rationale/karte-check-diagnosis-614.md` を参照。
+
+**互換性**：従来のカルテは新しいフィールドなしで読める。
+`diagnosis_owner: main` の指定がある場合だけ新しい行を保存する。
+条件を満たした `check` が OK になっても `status` は従来どおりブロックし得る。
 
 ### `change_kind` の語彙（Issue #503 観測2）
 

@@ -17,7 +17,7 @@ from .finding_record import Finding
 from .format_error import KarteFormatError
 from .int_args import matched_int, require_ascii_int
 from .value_codec import check_list, normalize_locus
-from .vocabulary import CHANGE_KINDS, DEFAULT_SCOPE, FINDING_STATUSES, HARM_LEVELS, OUTCOMES, SCOPES, SEVERITIES
+from .vocabulary import CHANGE_KINDS, DIAGNOSIS_OWNERS, DEFAULT_SCOPE, FINDING_STATUSES, HARM_LEVELS, OUTCOMES, SCOPES, SEVERITIES
 
 
 def _finding_from_block(block: Block, issue: int) -> Finding:
@@ -49,6 +49,7 @@ def _finding_from_block(block: Block, issue: int) -> Finding:
         threat_assumption=read_basis(block, THREAT_ASSUMPTION, ledger=True),
         scope=_optional_enum(block, "scope", SCOPES, DEFAULT_SCOPE),
         disposition=disposition.kind,
+        diagnosis_owner=_optional_enum(block, "diagnosis_owner", DIAGNOSIS_OWNERS, "fixer"),
         deferred_to=disposition.deferred_to,
         waived_by=disposition.waived_by,
         waived_reason=disposition.waived_reason,
