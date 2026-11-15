@@ -1,7 +1,6 @@
 """受理済み review round のレシート。finding 0 件の round も表現する。
 
-これは保存形式の準備のみ。review 出力の受理規約と AC 判定の形式は
-Issue #801 のオーナー判断が確定するまで変更しない。
+Review Summary つきのレビュー原本を同じカルテ保存領域へ保管し、\nround・原本相対パス・digestを記録する。旧形式のdigestのみも読める。
 """
 
 from dataclasses import dataclass
@@ -33,7 +32,7 @@ def from_block(block, issue: int) -> ReviewRound:
         raise KarteFormatError(f"{block.lineno} 行目: Review Round の digest は sha256 の 64 桁小文字 hex")
     number = matched_int(matched.group(1), KarteFormatError, "Review Round 番号")
     source = block.fields.get("source", "")
-    if source and source != f"tmp/_karte/issue-{issue}-review-round-{number}.md":
+    if not isinstance(source, str) or (source and source != f"tmp/_karte/issue-{issue}-review-round-{number}.md"):
         raise KarteFormatError(f"{block.lineno} 行目: Review Round の原本参照が不正")
     return ReviewRound(number, digest, source)
 
@@ -42,7 +41,7 @@ def render_round(record: ReviewRound) -> str:
     """round の安全な書き出し。"""
     if record.number < 1 or not DIGEST_RE.fullmatch(record.digest):
         raise KarteFormatError("Review Round の番号または digest が不正")
-    if record.source and not record.source.endswith(f"-review-round-{record.number}.md"):
+    if not isinstance(record.source, str) or (record.source and not record.source.endswith(f"-review-round-{record.number}.md")):
         raise KarteFormatError("Review Round の source が不正")
     extra = f"source: {record.source}\n" if record.source else ""
     return f"### Review Round {record.number}\ndigest: {record.digest}\n{extra}"

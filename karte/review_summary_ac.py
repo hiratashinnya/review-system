@@ -50,7 +50,8 @@ def judgment(block, issue, existing, harm):
     refs = block.fields["finding_refs"]
     if not isinstance(result, str) or result not in RESULTS or not isinstance(evidence, str) or not evidence.strip():
         raise KarteFormatError(f"{block.lineno} 行目: AC 判定または根拠が不正")
-    if not isinstance(refs, list) or len(refs) != len(set(refs)):
+    if (not isinstance(refs, list) or any(not isinstance(ref, str) for ref in refs)
+            or len(refs) != len(set(refs))):
         raise KarteFormatError(f"{block.lineno} 行目: finding_refs は重複なしリスト")
     if (result == "satisfied" and refs) or (result != "satisfied" and not refs):
         raise KarteFormatError(f"{block.lineno} 行目: AC判定とfinding_refsが矛盾")

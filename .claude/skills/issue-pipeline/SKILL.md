@@ -11,6 +11,9 @@ worktree／handoff の回復手順は [issue-pipeline の troubleshooting](../..
 
 ## Claude Code 固有の dispatch 契約
 
+- **#801 AC契約**：主文脈は2bのreviewer起動前に元IssueのAC全文をsnapshotとして凍結し `karte activate ... --ac-snapshot-file` に与える。Claude reviewerはAC全件のSummaryとfindingをhandoffへ記入し、Codex reviewerはネットワークに頼らずwrapperが注入した同一snapshotを審査する。clean後のACcheckbox更新は**主文脈のみ**が本文再取得・snapshot照合・更新後read-backを行う。文言変更やチェック取り外しは自動実施しない。
+
+
 - 主文脈だけが `AskUserQuestion` を持ち、これを使ってオーナーの判断を仰ぐ。処置順の確定・先送り可否・スコープ拡張の起票要否・`scope` の覆し・`disposition` の決定はいずれもオーナーが決めるのであって主文脈が決めるのではない（`.ai/skills/issue-pipeline/SKILL.md`「役割分担」）。主文脈が担うのは原案の作成、`AskUserQuestion` での伺い、得られた決定の記録と実行である。`issue-implementer`、`issue-fixer`、`pr-reviewer` は `AskUserQuestion` を持たず、非対話で STOP 報告する。
 - `.claude/hooks/issue-start-gate.sh`、`agent-command-gate.sh`、worktree／karte の hook が有効な managed path を使い、契約エラーは迂回せず fail-close する。
 - 実装は `issue-implementer`、レビューは `pr-reviewer`、レビュー是正は `issue-fixer` に分ける。review が clean の場合も AI は fresh blocker report を作ってオーナーへ渡し、merge はオーナーが手動で行う。native deny は直接形の merge command prefix を拒否し、global option／wrapper／API／検査可能な間接実行は両 PF の共有 command hook が判定する。reviewer は push もできない。
