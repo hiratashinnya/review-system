@@ -36,7 +36,9 @@ def read_for_dispatch(repo_root, issue, round_no):
         raise KarteUsageError("review dispatchのAC snapshotと進行ポインタが不一致")
     record = active.get("ac_snapshot")
     if record is None:
-        return None
+        if active.get("legacy_finding_only") is True:
+            return None  # 明示した既存findingのみの互換経路。AC判定を保証しない。
+        raise KarteUsageError("AC snapshot無しのreview envelopeは受理しない")
     if not isinstance(record, dict) or set(record) != {"digest", "count", "source"}:
         raise KarteUsageError("AC snapshotの期待値が不正")
     path = _archived(repo_root, issue, round_no)

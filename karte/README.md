@@ -69,8 +69,8 @@ finding_refs: [new@1]
   保存先は `tmp/_karte/issue-N-ac-round-R.md`、Codexには同じ凍結済み本文とdigestをtrusted callerがpromptへ含める。
   main以外のロールはIssueチェック編集禁止。owner報告時の更新案生成には `karte.ac_check_update.plan`、更新後には `verify_written` を用いる。
 - **移行状態・既知の制約**：旧来の指摘ありレポートはSummaryなしでも受理する。
-  現在のreview envelopeではAC snapshotを省略できるため、全レビューのAC照合が強制されるわけではない。
-  Codexへのsnapshot渡しは実装されているが、snapshotなしの起動経路が残る。
+  review envelopeにAC snapshotが必須で、無しの起動・取り込み・Codex起動は拒否する。
+  旧finding-only経路は `activate --legacy-finding-only` の明示指定を要し、0件Review Summaryとしての受理を禁止する。
   owner reportのチェック更新はCLI書込入口への強制結線がなく、書込前の機械停止を保証しない。
   これらはPR #846の未完了条件である。経緯・方式選択の理由は
   [rationale](../.ai/rationale/issue-801-review-round-ac.md) を参照する。

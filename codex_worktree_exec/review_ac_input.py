@@ -15,7 +15,7 @@ def append_ac_snapshot(body: str, worktree, launch_target) -> str:
         issue, _last, round_no = launch_target
         loaded = ac_snapshot_binding.read_for_dispatch(root, issue, round_no)
         if loaded is None:
-            return body  # 旧経路との互換。新dispatchでは必ずactivate --ac-snapshot-file
+            return body  # 明示 --legacy-finding-only のみ。AC Summaryは取り込み側が拒否。
         record, criteria = loaded
     except (OSError, KarteUsageError, KarteFormatError, paths.KartePathError, ValueError) as exc:
         raise CodexExecError("CODEX_REVIEW_INGEST_FAILED", f"AC snapshot を配布できない: {exc}") from None

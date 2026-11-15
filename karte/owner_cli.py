@@ -29,13 +29,20 @@ def cmd_activate(args, repo_root) -> int:
         last = 0
     next_number = require_ascii_int(last + 1, KarteUsageError("次の round が桁数の上限を超える"))
     snapshot_file = getattr(args, "ac_snapshot_file", None)
+    legacy = bool(getattr(args, "legacy_finding_only", False))
     if snapshot_file and expected is None:
         raise KarteUsageError("--ac-snapshot-file は review envelope 期待値と同時指定する")
+    if legacy and (expected is None or snapshot_file):
+        raise KarteUsageError("--legacy-finding-only はreview envelopeのみ・AC snapshotとの併用禁止")
+    if expected is not None and not snapshot_file and not legacy:
+        raise KarteUsageError("review envelopeにはAC snapshot必須（旧形式は--legacy-finding-onlyを明示）")
     snapshot = ac_snapshot_binding.stage(repo_root, issue, next_number, snapshot_file) if snapshot_file else None
     if snapshot is not None:
         write_active(repo_root, issue, last, expected, ac_snapshot=snapshot)
+    elif legacy:
+        write_active(repo_root, issue, last, expected, legacy_finding_only=True)
     else:
-        write_active(repo_root, issue, last, expected)  # 従来起動との後方互換性
+        write_active(repo_root, issue, last, expected)  # envelope無しの主文脈経路
     print(f"=== activate: issue-{issue} round {last}（次の ingest-reviewer は round {next_number}）===")
     if expected is not None:
         print(f"  review envelope の期待値を記録（run_id={expected['run_id']} phase={expected['phase']}・"
@@ -85,6 +92,8 @@ def register(subparsers, add_issue) -> None:
     ):
         activate.add_argument(f"--{flag}", help=f"review envelope の期待値: {text}（5 項目を同時に指定）")
     activate.add_argument("--ac-snapshot-file", help="dispatch時に取得した元Issue本文のローカルUTF-8ファイル（AC凍結）")
+    activate.add_argument("--legacy-finding-only", action="store_true",
+                          help="旧レビュー形式専用（AC判定なし・0件clean禁止）")
     activate.set_defaults(func=cmd_activate)
     decide = subparsers.add_parser("decide", help="オーナー決定を台帳へ記録する（主文脈専用）")
     add_issue(decide)
