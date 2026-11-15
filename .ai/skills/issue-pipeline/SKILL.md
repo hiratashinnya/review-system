@@ -75,9 +75,60 @@ PF固有markerと起動手順はClaude wrapperに従う。native有効化と新p
 
 Claude Codeが主文脈と工程roleを保持し、Codexは `codex_worktree_exec` の実行者として使う。
 退役したCodex issue-pipeline/custom agentを復活させず、read-only roleへ書込profileを流用しない。
-agyは #606/#628 とrole別実測が成立するまで無効とし、利用不能経路を成功扱いしない。
+agyは #606 の解除契約とrole別実測が成立するまで無効とし、利用不能経路を成功扱いしない。
 起動gate/profile/入力束縛はPF wrapperと `docs/methods/codex-workspace-binding.md` を適用する。
 profileのorigin/main pinは変更せず、未merge profileの拒否を成功dispatchと報告しない。
+
+#### 既定実行者
+
+実行者は role ごとに次の表で決まる（オーナー決定・2026-11-15・Issue #829）。
+
+| ロール | 既定実行者 | 理由 |
+|---|---|---|
+| issue-investigator | Codex | 事実・原因・影響の調査は委譲し、Claude のトークンを節約する |
+| ac-designer | Claude 固定 | 検証設計は設計判断であり Claude で押さえる |
+| change-planner | Claude 固定 | 解決計画と ADR は設計判断であり Claude で押さえる |
+| plan-reviewer | Claude 固定 | 設計の独立レビューは Claude で押さえる |
+| test-writer | Codex | 承認済み VD/CP に沿う Red テストの著作は委譲する |
+| issue-implementer | Codex | 承認済み計画の適用は委譲する |
+| pr-reviewer | Claude 固定 | 2a/2b の独立レビューは Claude で押さえる |
+| issue-fixer | Codex | 診断の範囲に限った是正の編集とテスト実行は委譲する |
+| adviser | Codex | 相談への回答は委譲する |
+
+- **Claude 固定の4 role は Codex 実行者を使わない。** 主文脈は Codex 実行者を指定せず、role も起動しない。
+- **Codex 既定の5 role は、主文脈が Codex 実行者を指定して起動する。** 指定の形は role の作業面で分かれ、PF wrapper に従う。
+  - 書込 role（test-writer・issue-implementer・issue-fixer）：主文脈が dispatch prompt に Codex 実行者とモデル・推論予算を書く。
+  - read-only role（issue-investigator・adviser）：主文脈が role 起動前に read-only の Codex 実行先（下記）を選ぶ。
+- **既定を外してよい例外は、Codex 実行者の上限の証拠による切替（下記）だけである。** それ以外の理由で Codex 既定の role を Claude で実行するには、オーナーの明示判断を要する。
+- 高リスク信号のある実装も Codex 既定の例外にしない。Codex 側の層を引き上げる。
+- test-writer と issue-implementer は同じモデルファミリになる。独立性は、Claude 固定の pr-reviewer が 2a と 2b を別 dispatch で審査することで保つ。
+- read-only の Codex 経路は実 dispatch が未実測である（#652）。実測が済むまでも既定は Codex とし、上限の証拠が無い失敗は切り替えず STOP する。起動 gate の受理や unit の合格を実 dispatch の成功と報告しない。
+- adviser の相談を難度を理由に Claude へ切り替えてよいかは未決である。決まるまで切り替えない。
+- この表は運用規範であり、機械では強制していない。`codex_worktree_exec` と起動 gate は Claude 固定の role の起動形も受理する。
+
+#### Codex 実行者が上限で止まったときの切替
+
+委譲先の Codex 実行者がレート制限／セッション上限で止まったときに限り、同じ role の Claude サブエージェントへ切り替えてよい。Claude の role 自身が上限で止まったときは切り替えず、同一構成で再投入する。`codex-review` の再投入規定にも適用しない。
+
+- **発動条件**：Codex 実行者が上限到達を示した出力の逐語があること。証拠となる出力の文字列・終了コードは実測なし・要実測で、ここでは定義しない。
+- **証拠が無い失敗は STOP する。** profile pin 拒否、timeout、権限拒否、起動失敗、検査不合格は上限の証拠ではない。遅い・無応答からの推測も証拠にしない。
+- **切替の主体は主文脈である。** role は自分で Claude 実行へ切り替えず、証拠の逐語を添えて STOP を返す。主文脈が、同じ role を Codex 実行者の指定なしで再 dispatch する。回収・解放から dispatch までの既存契約はそのまま適用する。この再 dispatch の完走は未実測である。
+- **切替後の層と推論予算は Codex 実行者に指定していたもの以上にする。** 対応は下の表で引く。Claude 側の role 定義がそれを下回るなら、主文脈が dispatch で引き上げる。引き上げられなければ STOP する。主文脈による代行、層の降格、推論予算の引下げはしない。
+
+| 抽象層 | Codex（`.ai/model-policy.json` の tier） | Claude |
+|---|---|---|
+| 低位 | low | haiku |
+| 中位 | mid | sonnet |
+| 最上位 | top | opus |
+
+Codex の low と mid は現在同じ系統に解決されるが、対応は抽象層で引く。推論予算は「最小／小／中／大／最大」の同じ段以上とする。Claude は「最大」を `xhigh` へ畳むので、Codex の「最大」には Claude の `xhigh` が対応する。
+
+- **切替時に記録する項目**：切替の理由、上限の証拠（出力の逐語）、切替前の Codex の層・推論予算と切替後の Claude の層・推論予算、作者とレビュー担当が同じモデルファミリになる影響、部分変更の扱い。
+- **途中停止で残った部分変更の扱いは未決である。** 決まるまで、role は Codex が残した未 commit の変更を commit せず、変更 path を記録して STOP する。主文脈は切替の再 dispatch をせず、オーナーへ打ち上げる。未 commit の変更が無いときは切替へ進んでよい。
+
+#### agy の振り分け方針
+
+agy へ回す作業の種別は、`.ai/agents/agy-delegate.md`「UC と必読規律」の UC（影響調査、参照・孤児調査、ノード素案、外部調査、スクラッチコード、画像生成、並列）に限る。工程 role の成果物は上の既定実行者が担い、agy を既定実行者にしない。agy の結果は素案であり、検証せずに採用しない。有効化は #606 の解除契約に従い、この方針は有効化の条件を変えない。有効化後に工程内の調査で Codex と agy のどちらを先に使うかは未決である。
 
 read-onlyのCodex実行先は主文脈が事前に選ぶ。primaryからは
 `python3 -m issue_start.readonly_workspace --source <primary絶対path> --approval-file tmp/<approval>.json`
@@ -102,6 +153,7 @@ globやdirectory一括許可を使わず、
 | test-writer | 境界・反例の分析 Lv4 | 中位 / 中 |
 | issue-implementer | 承認済み計画の適用 Lv3 | 中位 / 中 |
 | pr-reviewer | 評価 Lv5 | 最上位 / 中、既存のrisk signalで引上げ |
+| issue-fixer | レビュー指摘の根本原因の分析 Lv4 | 中位 / 中 |
 | adviser | 相談内容の主要認知行為 | 上位 / 個別判定 |
 
 具体ID/予算は `.ai/model-policy.json` と `model_policy/README.md` の既存resolverで解決し、
@@ -244,7 +296,7 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 | 可逆性 | 容易に差し戻せる | 不可逆・広範囲に波及 |
 | 仕様の明確さ | 受入基準が一意 | 曖昧・利害 trade-off・解釈の余地 |
 
-迷ったら大きい推論予算側に倒し、選定根拠を1行残す。レート制限やセッション上限を理由に降格しない。再レビューは既定の推論予算とし、初回のリスク信号で降格しない。
+迷ったら大きい推論予算側に倒し、選定根拠を1行残す。レート制限やセッション上限を理由に降格しない（Codex 実行者の上限時の切替も層と推論予算を下げない＝「実行先、モデル、相談」）。再レビューは既定の推論予算とし、初回のリスク信号で降格しない。
 
 ## done
 

@@ -35,7 +35,10 @@ effort: xhigh
 
 ## 選択済みread-only Codex実行
 
-主文脈がCodexを選ぶ場合、role起動前に `python3 -m issue_start.readonly_workspace` の専用入口で
+本roleはClaude固定で、工程の2a/2bレビューにCodex実行者を使わない（`.ai/skills/issue-pipeline/SKILL.md`「既定実行者」・Issue #829）。
+主文脈は本roleにCodexを選ばず、本roleも自己roleの `codex_worktree_exec` を起動しない。
+本書のCodex経路の記述は、機械上残っている起動・取り込み機構の説明であり、既定の経路ではない。
+機構としては、主文脈がCodexを選ぶ場合、role起動前に `python3 -m issue_start.readonly_workspace` の専用入口で
 同repo/HEADの登録済linked作業面と入力を準備し、D1/D5を保つ。これは主文脈専用であり、
 本roleにprepare、cd、所有台帳、編集、pushを許可しない。自己roleの `codex_worktree_exec` は
 既に準備済みlinked面と実cwdが一致する場合に限り使い、primaryから `-C` だけを変えて代替しない。

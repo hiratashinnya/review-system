@@ -58,7 +58,9 @@ exact 6 fieldsと `isolation: "worktree"` を維持する。handoffは本体arti
 read-onlyの `issue-investigator` / `plan-reviewer` / `pr-reviewer` / `adviser` は共有作業面を読み、
 branch/handoff markerと所有台帳起票は持たないが、ISSUE_PHASE_INPUT_V1の入力・承認束縛は必須。
 直接Write/Edit/NotebookEditも拒否し、出力の保存は信頼された呼び出し元のcapture経路を使う。
-Claudeを選ぶ場合はその共有作業面でnative dispatchする。Codexを選ぶ場合は主文脈がrole起動前に
+実行者は共通本文「既定実行者」で決まる。`plan-reviewer` / `pr-reviewer` はClaude固定、
+`issue-investigator` / `adviser` はCodex既定で、Claudeで実行するのは上限の証拠による切替のときだけとする。
+Claudeで実行する場合はその共有作業面でnative dispatchする。Codexで実行する場合は主文脈がrole起動前に
 `python3 -m issue_start.readonly_workspace` を使い、同一repo/HEADの登録済みlinked作業面へ
 binding/approval/promptとtmp入力だけを転送する。binding/approval/prompt/outputには
 repo相対のtmp配下pathを使い、`-C`と`--source`には絶対pathを渡す。
@@ -153,12 +155,17 @@ Codex新profileと製品live dispatchの実測は #652 で追跡し、unitのhoo
 
 ### Codex 実行者経路（Claude Code 固有・Issue #538）
 
-各工程ロールと既存 `issue-fixer` は、自分の linked worktree で元ロールの権限を維持してCodexへ実行を委譲できる。read-only roleは編集profileを使わない。経路は `python3 -m codex_worktree_exec`（`codex exec -C <worktree>` の薄いラッパー）だけで、契約は `docs/methods/codex-workspace-binding.md` を正とする。
+Codex 既定のロール（`issue-investigator`・`test-writer`・`issue-implementer`・`issue-fixer`・`adviser`）は、linked worktree で元ロールの権限を維持してCodexへ実行を委譲する。Claude 固定のロール（`ac-designer`・`change-planner`・`plan-reviewer`・`pr-reviewer`）は Codex 実行者を使わない。どのロールがどちらかは共通本文「既定実行者」を正とする。read-only roleは編集profileを使わない。経路は `python3 -m codex_worktree_exec`（`codex exec -C <worktree>` の薄いラッパー）だけで、契約は `docs/methods/codex-workspace-binding.md` を正とする。
 
-- **使うかどうかとモデル・推論予算は主文脈が dispatch prompt に書く。** 例：`Codex 実行者: --model <モデル> --reasoning-effort <low|medium|high|xhigh|max>`。選定はリスク信号表に従い、Codex 側のモデル名と推論予算は `.ai/Individually-managed-lists.md`「Bloom の model mapping」の Codex 行で写像する。書かなければロールは従来どおり自分で実装・是正する。
+- **書込ロール（`test-writer`・`issue-implementer`・`issue-fixer`）の既定は、主文脈が dispatch prompt に Codex 実行者とモデル・推論予算を書くことで指定する。** 例：`Codex 実行者: --model <モデル> --reasoning-effort <low|medium|high|xhigh|max>`。選定はリスク信号表に従い、Codex 側のモデル名と推論予算は `.ai/Individually-managed-lists.md`「Bloom の model mapping」の Codex 行で写像する。書かなければロールは自分で著作・実装・是正するが、主文脈が書かずに dispatch してよいのは、上限の証拠による切替の再 dispatch と、オーナーが明示判断した場合だけである。
+- **read-only ロール（`issue-investigator`・`adviser`）の既定は、主文脈が role 起動前に `python3 -m issue_start.readonly_workspace` で Codex を起動することで指定する**（上記「工程の入力と独立レビュー束縛」）。この経路の実 dispatch は未実測である（#652）。
+- **Claude 固定のロールの dispatch prompt には Codex 実行者を書かない。** gate と `codex_worktree_exec` はこれらのロールの起動形も受理するので、機械では止まらない。規律として守る。
 - dispatch の marker・`isolation: "worktree"`・`handoff_path` の契約は変わらない。commit・pushは許可された著作ロール、PR作成はissue-implementerが行い、Codexは行わない。新ロールは `--binding-file` を指定する。`issue-fixer` は karte の診断を済ませてから起動する。
 - **主文脈は自分でラッパーや `codex exec` を起動して実装・是正を代行しない。** 主文脈の起動は gate のロール専用層の対象外で機械では止められないため（設計の暫定決定 D7）、規律として守る。
-- ロールがレートリミットやセッション上限で止まったら、Codex のモデル・推論予算も含めて同じ構成で再投入する。
+- Claude のロール自身がレートリミットやセッション上限で止まったら、Codex のモデル・推論予算も含めて同じ構成で再投入する。
+- **Codex 実行者が上限で止まったら、ロールは上限の証拠（Codex の出力の逐語）を handoff に記録して STOP を返す。** ロールは自分で実行へ切り替えない。主文脈が証拠を確かめ、同じロールを `Codex 実行者:` の行なしで再 dispatch する。read-only 経路では主文脈が自分で証拠を確かめ、同じロールを native dispatch する。marker・`isolation: "worktree"`・回収と解放の契約は変わらない。
+- 切替後の `model`／`effort` は、Codex 実行者に指定していた層と推論予算以上にする（対応表は共通本文「Codex 実行者が上限で止まったときの切替」）。ロール定義の値が下回るなら主文脈が dispatch で引き上げ、引き上げられなければ STOP する。
+- 証拠の無い失敗（終了コード `2` の検査不合格、`124` の timeout、権限拒否、起動失敗）では切り替えず STOP する。証拠となる出力の定義は実測なし・要実測。発動条件、記録項目、未 commit の部分変更が残ったときの STOP は共通本文に従う。
 - 実起動の検証設計は `tests/designs/TD-codex-worktree-exec-538-001.md`。TR とログは主文脈が検証専用環境で残す。
 
 ### karte 判定の直接通知（Claude Code 固有）
@@ -178,4 +185,4 @@ Codex新profileと製品live dispatchの実測は #652 で追跡し、unitのhoo
 
 ## agyの有効化条件
 
-#606/#628とロール別制限の実測が揃うまで、工程ロールからagyへの通常委譲は無効とする。疎通成功だけで起動を許可しない。未検証の経路を成功扱いせず、roleの権限と承認点を維持できない場合はSTOPする。運用状態の正本は .ai/agents/agy-delegate.md。
+#606の解除契約とロール別制限の実測が揃うまで、工程ロールからagyへの通常委譲は無効とする。振り分け方針は共通本文「agy の振り分け方針」に従い、方針は有効化の条件を変えない。疎通成功だけで起動を許可しない。未検証の経路を成功扱いせず、roleの権限と承認点を維持できない場合はSTOPする。運用状態の正本は .ai/agents/agy-delegate.md。

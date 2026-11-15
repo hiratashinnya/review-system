@@ -14,7 +14,6 @@ Claude Code主文脈からのmanaged dispatchのみ受け、issue-start/command�
 生Git読取は共通契約が参照する両PF hookの固定許可範囲だけとする。
 許可module/verbは共通契約の権限節と、本PF hookの基底・role別表/`phase_role_permissions` 拡張を参照し、
 他roleの書込許可を継承しない。必須artifact検査は `issue_envelope` のread-only 6verb、`maintainability_lint` は `check` だけ。
-外部実行は `python3 -m codex_worktree_exec --role ac-designer -C <自分のworktree>
---prompt-file <入力> --output-file <capture先> --binding-file <信頼callerの束縛JSON> --model <主文脈の指定>
---reasoning-effort <主文脈の指定>` の専用入口だけを使い、profileや入力束縛を変更しない。
-モデルは[既存policy](../../model_policy/README.md)で解決し、具体minorを固定しない。
+本roleはClaude固定で、Codex実行者を使わない（`.ai/skills/issue-pipeline/SKILL.md`「既定実行者」・Issue #829）。
+command gateは `python3 -m codex_worktree_exec --role ac-designer` の起動形を機械的には拒否しないが、起動しない。
+dispatch promptにCodex実行者の指定があればSTOPして主文脈へ返す。

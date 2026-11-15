@@ -14,7 +14,9 @@ Claude Code主文脈からのmanaged dispatchのみ受け、issue-start/command�
 生Git読取は共通契約が参照する両PF hookの固定許可範囲だけとする。
 許可module/verbは共通契約の権限節と、本PF hookの基底・role別表/`phase_role_permissions` 拡張を参照し、
 他roleの書込許可を継承しない。必須artifact検査は `issue_envelope` のread-only 6verb、`maintainability_lint` は `check` だけ。
-Codex実行を選ぶ主文脈がrole起動前に `python3 -m issue_start.readonly_workspace` で同repo/HEADの
+本roleの既定実行者はCodexである（`.ai/skills/issue-pipeline/SKILL.md`「既定実行者」・Issue #829）。
+Claudeでのnative dispatchは、上限の証拠による切替を主文脈が行った場合に限る。
+主文脈がrole起動前に `python3 -m issue_start.readonly_workspace` で同repo/HEADの
 登録済linked作業面と入力を準備する。role自身はprepare/cd/所有台帳/書込/pushを行わない。
 次の自己role専用入口は既に準備済みlinked面と実cwdが一致する場合だけ使い、primaryの `-C` 変更で代替しない。
 外部実行は `python3 -m codex_worktree_exec --role issue-investigator -C <主文脈が選択・検証したlinked作業面>

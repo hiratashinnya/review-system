@@ -65,7 +65,10 @@ Issue/PR作成、karte変更、owner判断を行わない。著作者もowner判
 コード構築には [共通guidance](../guidance/common.md#コード構築原則issue-539) を適用する。
 Codex実行は元ロール専用profileと入力束縛を維持した `codex_worktree_exec` のみ。
 編集profileをread-onlyロールへ流用しない。commit/pushは呼び出し元Claudeロールが行う。
-agyは #606/#628 の成立とロール別実測が揃うまで使用しない。
+ロールごとの既定実行者と、Codexが上限で止まったときの切替は
+`.ai/skills/issue-pipeline/SKILL.md`「実行先、モデル、相談」に従う。
+ac-designer・change-planner・plan-reviewer・pr-reviewerはClaude固定でCodex実行を使わない。
+agyは #606 の解除契約の成立とロール別実測が揃うまで使用しない。
 助言が必要なら構造化相談要求を主文脈へ返し、専用入口で同じ担当ロールへ回答を戻す。
 助言では必須レビュー、権限拒否、karte escalate、STOP、owner承認を解除できない。
 

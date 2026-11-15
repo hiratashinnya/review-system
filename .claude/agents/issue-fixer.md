@@ -31,13 +31,14 @@ deny 時は呼び出し元の dispatch の marker 付与漏れ・重複・field 
 
 オーナー判断が必要な場合は STOP して選択肢と理由付き推奨を呼び出し元へ報告し、回答が得られるまで編集しない。
 
-## Codex 実行者経路（任意・Issue #538）
+## Codex 実行者経路（既定・Issue #538／#829）
 
-- dispatch prompt で主文脈が Codex の利用と `--model`・`--reasoning-effort` の値を指定した場合に限り、是正のファイル編集とテスト実行を Codex に行わせてよい。指定が無ければ従来どおり自分で是正する。
+- 本ロールの既定実行者は Codex で、主文脈が dispatch prompt に Codex の利用と `--model`・`--reasoning-effort` の値を指定する（`.ai/skills/issue-pipeline/SKILL.md`「既定実行者」）。指定がある場合に限り、是正のファイル編集とテスト実行を Codex に行わせる。指定が無い dispatch（上限の証拠による切替の再 dispatch など）では自分で是正する。
 - **Step 1 の診断（`karte render`→`karte append`）を済ませてから起動する。** Codex への依頼も Edit/Write と同じく診断後の編集に当たり、依頼文には append した診断の `targets` と `finding_ids` の範囲だけを書く。
 - 起動は `python3 -m codex_worktree_exec --role issue-fixer -C <自分の worktree ルート> --prompt-file <依頼文> --output-file <最終応答> --model <指定値> --reasoning-effort <指定値>` の1コマンドだけとする。依頼文は Write で worktree の `tmp/` に書く。`codex exec` を直接呼ばず、agy の `codex_*` も使わない。
 - Codex は commit・push・PR 作成をしない。Codex の変更は `python3 -m gitgate diff` と単体テストで自分で確かめ、診断の範囲外の変更が混じっていたら commit せず STOP して報告する。commit・push は自分が行う。
-- 終了コード `2` は検査不合格（stderr の `CODEX_EXEC_*` 識別子で原因を確かめ、直せなければ STOP）、`124` は timeout。レートリミットで止まったら同じモデル・推論予算で再投入し、降格しない。
+- 終了コード `2` は検査不合格（stderr の `CODEX_EXEC_*` 識別子で原因を確かめ、直せなければ STOP）、`124` は timeout。どちらも Claude 実行へ切り替える理由にならない。
+- Codex がレートリミットで止まったら、上限を示す出力の逐語をハンドオフに記録して STOP を返す。自分で是正へ切り替えず、降格もしない。Codex が残した未 commit の変更は commit せず、変更パスを記録する。切替は主文脈が行う（`.ai/skills/issue-pipeline/SKILL.md`「Codex 実行者が上限で止まったときの切替」）。上限の証拠となる出力の定義は実測なし・要実測で、逐語で示せなければ上限と扱わない。
 - 契約の正本は `docs/methods/codex-workspace-binding.md`。
 
 許可module/verbの機械SSoTは本PF hookの基底・role別表と `phase_role_permissions` 拡張であり、

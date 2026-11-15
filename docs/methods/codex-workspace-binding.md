@@ -8,8 +8,11 @@ Issue #452 の Codex repo supervisor 方式は Issue #538 の PR-A で退役し�
 
 - **Codex は主文脈にしない。** 主文脈は Claude Code であり、Codex はサブ実行者として使う
   （オーナー決定・2026-09-22・Issue #538）。
-- **Claude の工程ロールと `issue-fixer` は、自分の linked worktree で元ロールの権限を維持してCodexを起動できる。**
-  read-only の `pr-reviewer` も、承認済みbindingを伴うレビューに限り同じexecutorを使える。経路は
+- **Codex 既定のロール（`issue-investigator`・`test-writer`・`issue-implementer`・`issue-fixer`・`adviser`）は、
+  linked worktree で元ロールの権限を維持してCodexを起動する。** Claude 固定のロール（`ac-designer`・`change-planner`・
+  `plan-reviewer`・`pr-reviewer`）は Codex 実行者を使わない（オーナー決定・2026-11-15・Issue #829。ロールごとの既定は
+  `.ai/skills/issue-pipeline/SKILL.md`「既定実行者」が正本）。これは運用規範で、ラッパーと gate の許可集合（D4）は
+  Claude 固定のロールも含んだままである。`pr-reviewer` の Codex 出力取り込みも機構としては残る。経路は
   `python3 -m codex_worktree_exec`（`codex exec -C <worktree>` の薄いラッパー）だけである（D12）。
 - **Codex は commit・push・PR 作成をしない。** network は無効で、`.git` へは書けない。commit・push・PR 作成は
   呼び出し側の Claude ロールが既存の `agent-command-gate` の下で行う。
@@ -210,7 +213,7 @@ audit 推奨・オーナー承認の暫定決定。番号は audit の番号を�
 | D7 | 主文脈による直接起動は機械では止められない（gate のロール専用層は主文脈に掛からない）。「主文脈は実装を代行しない」を契約文に明記し、規律で守る。ラッパーは main checkout を `-C` に取らないため、主文脈が自分の checkout で起動しても止まる。 | 機械で止めるには、主文脈を識別するハーネス機能が要る（2026-07-11 のオーナー判断で gate 単独では不可と確定済み）。 |
 | D8 | 依頼文はファイル引数、最終応答は `--output-last-message` の出力ファイルで受け渡す（層1が `<` `>` `|` を禁じるため）。両ファイルの実パスは検査済み worktree の `tmp/` 内に限り、境界外は `CODEX_EXEC_PROMPT_UNREADABLE`／`CODEX_EXEC_OUTPUT_INVALID` で起動前に拒否する。 | stdin やパイプで渡す形に変えるなら gate の層1の例外設計が要る。 |
 | D9 | ラッパーが timeout を持つ。既定 540 秒（Claude の Bash tool の上限 600 秒に収まる値）、上限 3600 秒。timeout ではプロセスグループへ SIGTERM、10 秒の猶予後に残存グループへ SIGKILL を送り、`CODEX_EXEC_TIMEOUT`（終了コード 124）で止める。leader が先に正常終了しても、残る子は同じ対象とする。540 秒を超える実行は Bash の `run_in_background` で起動する（実起動で確認する項目）。 | 既定値を変えると、Bash tool の timeout と食い違って結果を回収できなくなりうる。 |
-| D10 | モデルと推論予算は呼び出し側が引数で指定し、ラッパーは既定値を持たない。レートリミットで止まったら同じ構成で再投入する（降格しない）。 | 既定値を持たせると、選定根拠（リスク信号表）を経ないモデルで走りうる。 |
+| D10 | モデルと推論予算は呼び出し側が引数で指定し、ラッパーは既定値を持たない。ラッパーはレートリミットを識別しない。Codex が上限で止まったときの扱い（上限の証拠があれば同じロールの Claude 実行へ同等以上の層で切替、証拠が無ければ STOP、降格しない）は `.ai/skills/issue-pipeline/SKILL.md`「Codex 実行者が上限で止まったときの切替」に従う。 | 既定値を持たせると、選定根拠（リスク信号表）を経ないモデルで走りうる。 |
 | D11 | `issue-fixer` は Step 1 の診断（`karte render`→`karte append`）を済ませてからラッパーを起動する。Codex への依頼は Edit/Write と同じく診断後の編集に当たる。 | 前置しないと、診断を経ない是正が Codex 経由で入る。 |
 | D12 | Codex にリポジトリを書かせる経路はこのラッパーだけとする。agy の `codex_*`（workspace-write）は使わない。 | 別経路を認めると、profile・`-C` 束縛・base 一致の検査を経ない書込みが生じる。 |
 

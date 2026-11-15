@@ -43,7 +43,7 @@ Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要�
 
 - Claude は Task/Agent dispatch、`isolation: "worktree"`、`issue-start-gate.sh` 等の hook、ロール別 command gate を持つ。
 - Codex は `spawn_agent` と `.codex/hooks.json` を持ち、そこに登録した PreToolUse hook（`agent-command-gate.sh`。下記「ライフサイクル hook 一覧」の行 1）を使う。issue-start hook は Codex 側に登録しない（行 3）。Claude の worktree bind/stop hook は配置しない。
-- Claude のIssue工程ロールは、`python3 -m codex_worktree_exec` で自分の linked worktree に Codex を実行者として起動できる（Issue #538 PR-B・契約は `docs/methods/codex-workspace-binding.md`）。Codex／Copilot にこの起動経路は無い。Codex は起動される側で、権限境界は `.codex/config.toml` の permission profile が担い、Codex 用 hook は追加しない。
+- Claude のIssue工程ロールのうち Codex 既定のロール（`issue-investigator`・`test-writer`・`issue-implementer`・`issue-fixer`・`adviser`）は、`python3 -m codex_worktree_exec` で linked worktree に Codex を実行者として起動する。Claude 固定のロール（`ac-designer`・`change-planner`・`plan-reviewer`・`pr-reviewer`）は Codex 実行者を使わない（Issue #538 PR-B・Issue #829。契約は `docs/methods/codex-workspace-binding.md`、ロールごとの既定は `.ai/skills/issue-pipeline/SKILL.md`「既定実行者」）。Codex／Copilot にこの起動経路は無い。Codex は起動される側で、権限境界は `.codex/config.toml` の permission profile が担い、Codex 用 hook は追加しない。
 - Copilot は Prompt の明示起動と Agent の選択・委譲を使う。Claude/Codex 相当の project hook、PreToolUse、worktree bind は配置しない。
 
 ## Hook 構成一覧
@@ -82,7 +82,7 @@ Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要�
 
 - **概要**: ロール別（`issue-implementer`／`issue-fixer`／`pr-reviewer`）に push 等の操作を制限し、全ロールに共有 merge 判定を適用する。ctx_execute 系 MCP ツールにも適用する。
 - **スコープ**: Bash、context-mode 実行系ツール。
-- **PF 間差異**: Claude は Bash＋ctx_execute 系の2 matcher。Codex は Bash のみ（ctx_execute 系は Codex に未導入）。Claude版だけが工程ロールと `issue-fixer` に `python3 -m codex_worktree_exec`（`--role` が自ロールと一致する形のみ）を許可し、Codex 版には入れない（Codex の中からの再帰起動は `.codex/rules/default.rules` とラッパー自身が拒否する・Issue #538 D6）。2ツリーは共通化しておらず内容が乖離している（PR-B 着手時点で `.claude/` 約78.7K／`.codex/` 約70K。共通化は Issue #538 の範囲外）。
+- **PF 間差異**: Claude は Bash＋ctx_execute 系の2 matcher。Codex は Bash のみ（ctx_execute 系は Codex に未導入）。Claude版だけが工程ロールと `issue-fixer` に `python3 -m codex_worktree_exec`（`--role` が自ロールと一致する形のみ）を許可し、Codex 版には入れない。この許可は機械上の範囲で、Claude 固定のロールが Codex 実行者を使わないことは運用規範（`.ai/skills/issue-pipeline/SKILL.md`「既定実行者」）で定める（Codex の中からの再帰起動は `.codex/rules/default.rules` とラッパー自身が拒否する・Issue #538 D6）。2ツリーは共通化しておらず内容が乖離している（PR-B 着手時点で `.claude/` 約78.7K／`.codex/` 約70K。共通化は Issue #538 の範囲外）。
 - **実装構成**: [`.claude/hooks/agent-command-gate.sh`](../.claude/hooks/agent-command-gate.sh)、[`.codex/hooks/agent-command-gate.sh`](../.codex/hooks/agent-command-gate.sh)（`.codex/hooks/README.md` の「PreToolUse command gate」節にも概要あり）。既知の限界は Issue #129。
 
 #### 3. issue-start-gate
@@ -118,7 +118,7 @@ Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要�
 
 #### 8. on-rate-limit（Claude）
 
-- **概要**: レートリミット検知時の自動復帰。Claude は StopFailure(rate_limit) で発火し、WSL＋tmux 環境でのみ `resume-watcher.sh` を setsid で起動する（クラウドでは no-op）。Codex 側の自動復帰機構は撤去済み（Codex は `codex exec` のサブ実行者であり、レートリミット時は同じモデル・同じ構成で再投入する。Issue #569）。
+- **概要**: レートリミット検知時の自動復帰。Claude は StopFailure(rate_limit) で発火し、WSL＋tmux 環境でのみ `resume-watcher.sh` を setsid で起動する（クラウドでは no-op）。Codex 側の自動復帰機構は撤去済み（Codex は `codex exec` のサブ実行者であり、Issue #569）。工程ロールの Codex 実行者が上限で止まったときの扱いは `.ai/skills/issue-pipeline/SKILL.md`「Codex 実行者が上限で止まったときの切替」、`codex-review` は同じモデル・同じ構成での再投入のまま。
 - **PF 間差異**: Claude のみ。`on-rate-limit.sh`→`resume-watcher.sh`（`lib-pane-guard.sh` を共有ライブラリとして source）。
 - **実装構成**: [`.claude/hooks/README.md`](../.claude/hooks/README.md)（「レートリミット自動再開フック」節）
 

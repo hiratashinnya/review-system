@@ -18,3 +18,6 @@ Claude Code主文脈からのmanaged dispatchのみ受け、issue-start/command�
 --prompt-file <入力> --output-file <capture先> --binding-file <信頼callerの束縛JSON> --model <主文脈の指定>
 --reasoning-effort <主文脈の指定>` の専用入口だけを使い、profileや入力束縛を変更しない。
 モデルは[既存policy](../../model_policy/README.md)で解決し、具体minorを固定しない。
+本roleの既定実行者はCodexで、主文脈がdispatch promptにCodex実行者を指定する（`.ai/skills/issue-pipeline/SKILL.md`「既定実行者」・Issue #829）。
+Codexが上限で止まったら、上限を示す出力の逐語をhandoffに記録してSTOPを返し、自分でClaude実行へ切り替えない。
+Codexが残した未commitの変更はcommitせず、変更pathを記録する。上限の証拠が無い失敗もSTOPする。
