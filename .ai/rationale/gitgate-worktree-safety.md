@@ -119,3 +119,12 @@ symlink 構成要素・repo-root 外へ解決されるパスはすべて git を
   ※ いずれも out-of-graph（版なし）。本モジュールは
     `.claude/rules/02-decision-process.md`「起票先はプロジェクト区分で決める」の
     **汎用開発ハーネス**区分（Issue 運用パイプライン）に属する。
+
+## G-02 collect/release 分割の境界（#758）
+
+- `worktree.py` は既存の公開入口と sweep/forget を保持する。G-03 の sweep 機能や動作は変更しない。
+- collect は対象と status を FS/Git 操作より先に検査し、handoff の読取り → 排他的作成 → sha256 読み戻し検証 → 台帳 collected 記録 → 解放の順を維持する。照合失敗時だけ未完成の回収先を消し、解放しない。
+- `released`/`abandoned` は回収で終端 no-op、`running` は強制指定でも拒否する。`release_pending` は回収をやり直さず削除だけ再試行する。
+- git worktree remove のロック由来失敗は、`collected_to` が記録された場合に限り `release_pending` として後続へ遅延する。それ以外の失敗は例外を維持する。
+- ローカル branch ref は fresh fetch と ancestry 確認を経た場合だけ削除し、判定不能なら台帳に理由を残して fail-open。ネットワーク fetch を毎 dispatch 経路から外す `cleanup_branch_ref=False` 契約は維持する。
+- `gitgate.worktree._write_collected` の実行時差替えを維持するため、facade が writer を回収パイプラインへ明示注入する。壁時計参照の追加はない。
