@@ -6,6 +6,7 @@
 from .block_parser import parse_blocks
 from .format_error import KarteFormatError
 from .review_block import review_finding_from_block, review_finding_id
+from .review_summary import parse_summary
 from .vocabulary import SECTION_FINDINGS
 
 
@@ -26,13 +27,16 @@ def parse_review(text: str, issue: int) -> list:
     ``disposition`` / ``deferred_to`` / ``waived_by`` / ``waived_reason``（オーナー判断の記録）。
     """
     blocks = parse_blocks(text, allow_preamble=True)
-    if not blocks:
+    summary = parse_summary(text, issue)
+    if not blocks and summary is None:
         raise KarteFormatError(
             "レビューレポートに finding ブロック（`### F-<issue>-<seq>` か `### new`）が無い"
         )
     findings: list = []
     errors: list = []
     for block in blocks:
+        if block.section == "Review Summary" and summary is not None:
+            continue
         if block.section not in (None, SECTION_FINDINGS):
             errors.append(
                 f"{block.lineno} 行目: レビューレポートのセクションは "

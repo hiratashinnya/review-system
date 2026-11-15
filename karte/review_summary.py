@@ -63,7 +63,9 @@ def _judgment(block, issue, existing, harm):
     matched = AC_TITLE_RE.fullmatch(block.title)
     if not matched:
         raise KarteFormatError(f"{block.lineno} 行目: AC 見出しは 'AC <番号>' のみ")
-    number = _integer(type("B", (), {"fields":{"number":matched.group(1)},"lineno":block.lineno})(), "number")
+    number = ascii_int_or_none(matched.group(1))
+    if number is None:
+        raise KarteFormatError(f"{block.lineno} 行目: AC番号が大きすぎる")
     if set(block.fields) != {"result", "evidence", "finding_refs"}:
         raise KarteFormatError(f"{block.lineno} 行目: AC のキーは result/evidence/finding_refs のみ")
     result = block.fields["result"]
@@ -88,7 +90,7 @@ def parse_summary(text: str, issue: int) -> ReviewSummary | None:
     blocks = parse_blocks(text, allow_preamble=True)
     items = [block for block in blocks if block.section == SECTION]
     if not items:
-        if FINISH_MARKER in text:
+        if FINISH_MARKER in text or any(line.strip() == "## Review Summary" for line in text.splitlines()):
             raise KarteFormatError("review-complete マーカーだけで Review Summary がない")
         return None
     if not text.rstrip().endswith(FINISH_MARKER):

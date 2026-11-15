@@ -4,10 +4,13 @@
 """
 
 import sys
+from hashlib import sha256
+
+from .review_round_record import ReviewRound
 
 from . import (
     ingest_accept, ingest_apply, ingest_checks, ingest_notes, ingest_report, karte_rounds, model, paths,
-    review_expectation, scope_ledger, scope_origin,
+    review_expectation, review_summary, scope_ledger, scope_origin,
 )
 from .active_pointer import write_active
 from .errors import KarteUsageError
@@ -42,10 +45,12 @@ def ingest_locked(repo_root, issue, round_no, report_text, policy=None, *, allow
             "回復は再取り込みではなく karte/README.md「進行ポインタの書込みが台帳より後に失敗した窓」を参照"
         )
 
+    original_report_text = report_text
     warnings = []
     if policy:
         report_text, warnings = ignore_owner_keys(report_text)
     review = model.parse_review(report_text, issue)
+    summary = review_summary.parse_summary(report_text, issue)
     previously_open = karte.open_ids()
     collected = ingest_accept.collect_accepted(karte, review, issue)
     errors = list(collected.errors)
@@ -83,6 +88,12 @@ def ingest_locked(repo_root, issue, round_no, report_text, policy=None, *, allow
             if finding.id in policy.owner_scopes:
                 finding.scope = policy.owner_scopes[finding.id]
     karte.findings.sort(key=lambda item: item.seq)
+    if summary is not None:
+        # Summary を持つ report の 0 件 round も最新ラウンドとして記録する。
+        digest = sha256(original_report_text.encode("utf-8")).hexdigest()
+        karte.review_rounds = [r for r in karte.review_rounds if r.number != round_no]
+        karte.review_rounds.append(ReviewRound(round_no, digest))
+        karte.review_rounds.sort(key=lambda r: r.number)
     origin = scope_origin.begin(issue, repo_root, collected.accepted, "reviewer" if policy and policy.record_declarations else "main", round_no)
     if policy:
         policy.persist(round_no)  # 台帳より先に原本を残す
