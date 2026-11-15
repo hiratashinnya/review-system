@@ -1,6 +1,6 @@
 """read-only工程の直接編集ツールを拒否するPreToolUse入口。
 
-例外は `pr-reviewer` の Write だけで、`tmp/_handoff/pr-reviewer--*.md` への書込みに限る（Issue #375）。
+例外は `pr-reviewer` の Write だけで、`tmp/_handoff/pr-reviewer--*.md` の新規ファイルへの書込みに限る（Issue #375）。
 拒否の理由は「パスが不正」と「ゲート自体の故障」を区別して返す（故障は stderr にも原因を出す）。
 """
 import json
@@ -42,12 +42,18 @@ def _handoff_write_denial(payload):
         return _deny("Write の入力不正: tool_input.file_path は文字列で指定してください。")
     try:
         root = main_worktree_root(os.environ.get("CLAUDE_PROJECT_DIR") or payload["cwd"])
-        resolve_reviewer_handoff(file_path, root)
+        target = resolve_reviewer_handoff(file_path, root)
     except KartePathError as exc:
         return _deny(f"パス不正: pr-reviewer が書けるのは tmp/_handoff/pr-reviewer--<key>.md だけです（{exc}）。")
     except Exception as exc:  # noqa: BLE001 — git・ファイル系の失敗などはゲートの故障として扱う
         return _gate_failure(exc)
-    return None
+    try:
+        os.lstat(target)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        return _gate_failure(exc)
+    return _deny("既存ファイルは上書きできません。新しい key で handoff を書いてください。")
 
 
 def decision(payload):

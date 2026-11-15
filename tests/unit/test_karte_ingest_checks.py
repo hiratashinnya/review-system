@@ -2,7 +2,8 @@
 
 * 解消済み（resolved）の finding は ``open_ids`` に入らず、次ラウンドで再掲しなくても拒否されない
   （K-06「不在＝解消ではない」の対象は**未解消**だけ）。重複判定（ID 再発番）の比較対象にも入らない。
-* 同一レポート内の重複（locus が交差し summary が一致する新規 2 件）は ID 再発番で拒否される。
+* 同一レポート内の重複は ID 再発番で拒否される。summary の正規化文字列が完全一致すれば locus を問わず、
+  それ以外は locus が交差し summary の類似度が閾値以上のときに同一とする。
   ``distinct_from`` は同一レポート内で先に現れたブロックも名指しできる。
 * 明示 ID の新規（``F-9-02``）の後ろに置いた ``new`` は、その次の番号を受ける。
 """
@@ -15,7 +16,7 @@ from tests.unit.karte_support import RootedCase, finding, required_finding
 ISSUE = 9
 FIRST = finding("a/b.py::first", "first が入力検査をしていない")
 SECOND = finding("c/d.py::second", "second が戻り値を握りつぶしている")
-# locus が交差し summary が一致する指摘。同一レポート内の新規 2 件として並べる。
+# summary が完全一致する指摘（locus を問わず同一判定）。同一レポート内の新規 2 件として並べる。
 TWIN = finding("e/f.py::twin", "twin が例外を握りつぶして成功を返す")
 
 

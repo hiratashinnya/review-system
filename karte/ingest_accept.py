@@ -23,7 +23,8 @@ def _assign_id(karte, issue, item, next_seq):
 def _duplicate_error(item, finding_id, duplicate) -> str:
     return (
         f"{item.lineno} 行目: ID 再発番を検出: {finding_id} は既存の未解消 "
-        f"{duplicate} と同一の指摘（locus が交差し summary が一致）。"
+        f"{duplicate} と同一の指摘（summary の正規化文字列が完全一致すれば locus を問わず、"
+        "それ以外は locus が交差し summary の類似度が閾値以上）。"
         "未解消の指摘を再度挙げるときは同じ ID を再利用すること"
         f"（別物なら当該ブロックに `distinct_from: {duplicate}` を書いて名指しする）"
     )

@@ -707,7 +707,8 @@ python 側に一本化したまま複製しない。
 read-onlyの調査・plan-reviewer・pr-reviewer・adviserは所有台帳を作らず、直接Write/Edit/NotebookEditも
 `phase-tool-gate.sh`（`python3 -P -m issue_start.phase_tool_gate`）で拒否する。例外は`pr-reviewer`のWriteだけで、
 `tmp/_handoff/pr-reviewer--<key>.md`（`karte/handoff_path.py`の規則。realpath・symlink・`..`・
-ファイル名を検査し、検査不能は拒否）に限り通す（Issue #375）。shell/MCP経由でも既存command gateのロール別権限を維持する。
+ファイル名を検査し、検査不能は拒否）の新規ファイルのみ通す（既存は拒否し、新しい key で書く・Issue #375）。
+shell/MCP経由でも既存command gateのロール別権限を維持する。
 任意再委譲、直接の review 台帳書込、merge、read-onlyのpushは許可しない。`pr-reviewer` の `ingest-reviewer` は例外として許可する。
 worktree継承は `FBK-20261017-工程別worktreeへ同一branchを継承する` に従い、各作者専用worktreeへ同branch/remote exact OIDを継承する。
 前roleの完了receipt、終了・push、collect/release完了を照合し、使用中worktreeは奪取しない。

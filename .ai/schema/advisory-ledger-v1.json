@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hiratashinnya/review-system/blob/main/.ai/schema/advisory-ledger-v1.json",
+  "title": "Advisory canonical record v1 (Python validator is normative)",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "topic",
+    "created_on",
+    "status",
+    "sources",
+    "evidence",
+    "recommendation",
+    "triage_rationale",
+    "policy_version",
+    "related_ids",
+    "duplicate_reason",
+    "promoted_issue",
+    "base_sha256",
+    "revision",
+    "history"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "advisory/v1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^ADV-[0-9]{8}-.+$"
+    },
+    "topic": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 30
+    },
+    "created_on": {
+      "type": "string",
+      "format": "date"
+    },
+    "status": {
+      "enum": [
+        "open",
+        "triaged",
+        "promoted",
+        "closed"
+      ]
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "evidence": {
+      "type": "string",
+      "minLength": 1
+    },
+    "recommendation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "triage_rationale": {
+      "type": "string",
+      "minLength": 1
+    },
+    "policy_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "related_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^ADV-"
+      }
+    },
+    "duplicate_reason": {
+      "type": "string"
+    },
+    "promoted_issue": {
+      "type": "string"
+    },
+    "base_sha256": {
+      "type": "string"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "history": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/event"
+      }
+    }
+  },
+  "$defs": {
+    "event": {
+      "type": "object",
+      "required": [
+        "action",
+        "from_status",
+        "to_status",
+        "actor",
+        "at",
+        "reason",
+        "policy_version",
+        "previous",
+        "payload_digest",
+        "digest"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "create",
+            "amend",
+            "transition",
+            "promote"
+          ]
+        },
+        "from_status": {
+          "type": "string"
+        },
+        "to_status": {
+          "enum": [
+            "open",
+            "triaged",
+            "promoted",
+            "closed"
+          ]
+        },
+        "actor": {
+          "const": "main-thread"
+        },
+        "at": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_version": {
+          "type": "string"
+        },
+        "previous": {
+          "type": "string"
+        },
+        "payload_digest": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

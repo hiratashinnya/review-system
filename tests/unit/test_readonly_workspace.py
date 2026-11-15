@@ -103,7 +103,7 @@ class ReadOnlyWorkspaceTests(unittest.TestCase):
                         extra = root / relative
                         extra.write_text("unapproved = True\n")
                         with self.subTest(role=role, root=root, relative=relative), self.assertRaisesRegex(
-                                ValueError, "untracked source"):
+                                IssueStartError, "ISSUE_START_READONLY_WORKSPACE_INVALID.*untracked source"):
                             main(args)
                         extra.unlink()
                 with self.subTest(role=role), contextlib.redirect_stdout(io.StringIO()), patch("issue_start.readonly_workspace.execute",
@@ -116,7 +116,7 @@ class ReadOnlyWorkspaceTests(unittest.TestCase):
     def test_primary_target_and_writer_cannot_use_prepare(self):
         with tempfile.TemporaryDirectory() as temporary:
             source, target = make_repository(Path(temporary))
-            with self.assertRaises(ValueError):
+            with self.assertRaisesRegex(IssueStartError, "ISSUE_START_READONLY_WORKSPACE_INVALID"):
                 prepare_readonly_workspace(source, target, "issue-implementer", {}, "tmp/prompt.md")
             with self.assertRaises(CodexExecError):
                 prepare_readonly_workspace(source, source, "pr-reviewer", {}, "tmp/prompt.md")
@@ -125,5 +125,5 @@ class ReadOnlyWorkspaceTests(unittest.TestCase):
             (source / "source.py").write_text("new committed input")
             git(source, "add", "source.py")
             git(source, "commit", "-qm", "source changed")
-            with self.assertRaisesRegex(ValueError, "HEAD mismatch"):
+            with self.assertRaisesRegex(IssueStartError, "ISSUE_START_READONLY_WORKSPACE_INVALID.*HEAD mismatch"):
                 prepare_readonly_workspace(source, target, "issue-investigator", {}, "tmp/prompt.md")

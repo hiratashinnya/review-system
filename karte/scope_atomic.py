@@ -19,6 +19,8 @@ def _temporary_text(path, directory, text):
         with os.fdopen(fd, "w", encoding="utf-8") as stream:
             fd = None
             stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
         directory.check()
         yield name
     finally:
@@ -42,6 +44,7 @@ def write_scope_text(path, directory, text, *, expected):
             os.replace(name, path.name, src_dir_fd=directory.fd, dst_dir_fd=directory.fd)
         except (TypeError, NotImplementedError) as exc:
             raise KartePathError("申告 scope の原本を安全に更新する OS 機能がない") from exc
+        os.fsync(directory.fd)
         directory.check()
 
 
@@ -60,5 +63,6 @@ def write_scope_backup(path, directory, text):
                 continue
             except (TypeError, NotImplementedError) as exc:
                 raise KartePathError("申告 scope の backup を安全に保存する OS 機能がない") from exc
+            os.fsync(directory.fd)
             directory.check()
             return

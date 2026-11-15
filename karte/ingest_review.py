@@ -1,4 +1,4 @@
-"""``ingest-review`` の取り込み本体（共有 writer lock を取った呼び出し元から呼ぶ）。
+"""``ingest-review`` / ``ingest-reviewer`` 共通の取り込み本体（共有 writer lock の内側から呼ぶ）。
 
 設計理由（K-06 ほか）は [.ai/rationale/karte-module-split.md](../.ai/rationale/karte-module-split.md)。
 """
@@ -7,7 +7,7 @@ import sys
 
 from . import (
     ingest_accept, ingest_apply, ingest_checks, ingest_notes, ingest_report, karte_rounds, model, paths,
-    review_expectation, scope_ledger,
+    review_expectation, scope_ledger, scope_origin,
 )
 from .active_pointer import write_active
 from .errors import KarteUsageError
@@ -17,7 +17,7 @@ from .reviewer_policy import ReviewerIngestPolicy, ignore_owner_keys
 
 
 def ingest_locked(repo_root, issue, round_no, report_text, policy=None, *, allow_same_round=False) -> int:
-    """検証に 1 件でも掛かれば**一切書かず** ``EXIT_ERROR``。通れば台帳を置き換えて ``EXIT_OK``。
+    """検証で拒否したら台帳・ポインタを書かず ``EXIT_ERROR``（4。``tmp/_karte/`` と ``.writer.lock`` は残る）。通れば台帳を置き換えて ``EXIT_OK``。
 
     ``policy`` がある場合と申告原本がある場合はオーナー決定を保護する。レビューア本人の取り込みで
     再掲漏れがあれば台帳は書くが ``EXIT_INCOMPLETE``（:func:`ingest_notes.exit_code_for`）。
@@ -28,7 +28,6 @@ def ingest_locked(repo_root, issue, round_no, report_text, policy=None, *, allow
         policy = ReviewerIngestPolicy(repo_root, issue, round_no, record_declarations=False)
     path = paths.karte_path(issue, repo_root, create_dir=True)
     karte = model.parse(paths.read_text(path)) if path.is_file() else model.new_karte(issue)
-
     last_round = karte_rounds.last_round(karte)
     if policy is not None and policy.record_declarations and allow_same_round and round_no != last_round:
         raise KarteUsageError(
@@ -38,7 +37,9 @@ def ingest_locked(repo_root, issue, round_no, report_text, policy=None, *, allow
     if round_no < last_round or (round_no == last_round and not same_round_allowed):
         raise KarteUsageError(
             f"round は単調増加させる（取り込み済みの最新ラウンドは {last_round}・"
-            f"指定は {round_no}）。同じラウンドの再取り込みは台帳の状態遷移を壊す"
+            f"指定は {round_no}）。同じラウンドの再取り込みは、保護モードの主文脈 ingest-review と"
+            "レビューアの --round 明示（台帳の最新ラウンドと同じ値）以外では拒否する。"
+            "回復は再取り込みではなく karte/README.md「進行ポインタの書込みが台帳より後に失敗した窓」を参照"
         )
 
     warnings = []
@@ -82,9 +83,11 @@ def ingest_locked(repo_root, issue, round_no, report_text, policy=None, *, allow
             if finding.id in policy.owner_scopes:
                 finding.scope = policy.owner_scopes[finding.id]
     karte.findings.sort(key=lambda item: item.seq)
+    origin = scope_origin.begin(issue, repo_root, collected.accepted, "reviewer" if policy and policy.record_declarations else "main", round_no)
     if policy:
-        policy.persist(round_no)  # 台帳より先に原本を残す（台帳が未更新なら同じ round で再試行できる）
+        policy.persist(round_no)  # 台帳より先に原本を残す
     paths.write_text_atomic(path, model.dumps(karte))
+    scope_origin.commit(issue, repo_root, origin)
     write_active(repo_root, issue, round_no)
     for warning in warnings:
         print(f"警告: {warning}", file=sys.stderr)

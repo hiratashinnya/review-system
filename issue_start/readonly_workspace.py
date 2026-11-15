@@ -9,6 +9,7 @@ from codex_worktree_exec.committed_artifact import read_committed_artifact
 from codex_worktree_exec.worktree_binding import bind_worktree
 from codex_worktree_exec.source_snapshot import verify_untracked_sources
 from .gated_roles import READ_ONLY_ROLES
+from .gate_support import IssueStartError
 from .phase_dispatch import validate_phase_dispatch
 from .readonly_phase_dispatch import parse_readonly_phase
 
@@ -29,6 +30,13 @@ def _input_path(root, relative):
 
 
 def prepare_readonly_workspace(source, target, role, marker, prompt_file):
+    try:
+        return _prepare_readonly_workspace(source, target, role, marker, prompt_file)
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        raise IssueStartError("ISSUE_START_READONLY_WORKSPACE_INVALID", str(error)) from None
+
+
+def _prepare_readonly_workspace(source, target, role, marker, prompt_file):
     """role自身には渡さない準備API。新規worktree作成・trust/profile変更はしない。"""
     source, target = Path(source).resolve(), Path(target).resolve()
     if role not in READ_ONLY_ROLES:

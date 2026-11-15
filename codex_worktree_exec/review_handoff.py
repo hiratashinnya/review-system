@@ -13,6 +13,7 @@ from karte.errors import KarteUsageError
 
 from .errors import CodexExecError
 from . import ingest_diagnostics, ingest_outcome
+from .review_ingest_process import run_ingest
 from .review_target import progress_target
 
 WARNING_RE = re.compile(
@@ -44,12 +45,13 @@ def _save_handoff(root: Path, body: str, issue: int, round_no: int, envelope: di
 
 
 def _ingest(worktree: Path, path: Path) -> tuple[int, str, tuple[str, ...]]:
-    result = subprocess.run(
-        [sys.executable, "-m", "karte", "ingest-reviewer", "--from", str(path)],
-        cwd=worktree, capture_output=True, text=True, check=False,
-    )
-    lines = (result.stderr + "\n" + result.stdout).splitlines()
+    result = run_ingest(subprocess.run, worktree, path)
+    lines = result.stderr.splitlines() + result.stdout.splitlines()
     warnings = tuple(dict.fromkeys(line.strip() for line in lines if WARNING_RE.match(line.strip())))
+    if result.returncode == 0:
+        for line in lines:
+            if not WARNING_RE.match(line.strip()):
+                print(line, file=sys.stderr)
     rejected = [i for i, line in enumerate(lines) if line.strip().startswith("拒否（fail-close）:")]
     detail = ingest_diagnostics.rejection_detail(lines, rejected) if rejected else next(
         (line.strip() for line in reversed(lines) if line.strip()), "karte ingest-reviewer が失敗"

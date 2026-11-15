@@ -34,6 +34,30 @@ class TestReviewerHandoffWrite(unittest.TestCase):
     def test_reviewer_may_write_its_handoff_file(self):
         self.assertIsNone(self._write("pr-reviewer", self.root / "tmp/_handoff/pr-reviewer--k1.md"))
 
+    def test_reviewer_cannot_overwrite_existing_handoff(self):
+        path = self.root / "tmp/_handoff/pr-reviewer--k1.md"
+        path.write_text("original review", encoding="utf-8")
+        result = self._write("pr-reviewer", path)
+        self.assertTrue(self._denied(result))
+        self.assertIn("既存", self._reason(result))
+        self.assertIn("新しい key", self._reason(result))
+        self.assertEqual("original review", path.read_text(encoding="utf-8"))
+        self.assertIsNone(self._write("pr-reviewer", path.with_name("pr-reviewer--k2.md")))
+
+    def test_handoff_lstat_oserror_is_a_gate_failure_with_cause_on_stderr(self):
+        path = self.root / "tmp/_handoff/pr-reviewer--k1.md"
+        err = io.StringIO()
+        with mock.patch("karte.handoff_path.resolve_reviewer_handoff", return_value=path), \
+                mock.patch("karte.paths.main_worktree_root", return_value=self.root), \
+                mock.patch("issue_start.phase_tool_gate.os.lstat", side_effect=PermissionError("inspect denied")) as stat:
+            with contextlib.redirect_stderr(err):
+                result = self._write("pr-reviewer", path)
+        self.assertTrue(self._denied(result))
+        self.assertIn("ゲート自体の故障", self._reason(result))
+        self.assertIn("PermissionError", err.getvalue())
+        self.assertIn("inspect denied", err.getvalue())
+        stat.assert_called_once_with(path)
+
     def test_reviewer_write_requires_exact_directory_and_filename(self):
         for target, reason in (
             ("docs/_handoff/pr-reviewer--k.md", "直下ではない"),

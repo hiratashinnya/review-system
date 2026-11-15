@@ -171,6 +171,46 @@ class CodexReviewerHandoffTests(unittest.TestCase):
             _code, _detail, warnings = _ingest(self.worktree, self.output)
         self.assertEqual((warning,), warnings)
 
+    def test_ingest_subprocess_has_a_sixty_second_timeout(self):
+        result = subprocess.CompletedProcess([], 0, stdout="done\n", stderr="")
+        with patch("codex_worktree_exec.review_handoff.subprocess.run", return_value=result) as run:
+            with contextlib.redirect_stderr(io.StringIO()):
+                _ingest(self.worktree, self.output)
+        self.assertEqual(60, run.call_args.kwargs["timeout"])
+
+    def test_ingest_timeout_is_a_failure_with_unknown_ledger_state(self):
+        from codex_worktree_exec.review_handoff import ingest_codex_output
+        self.ingest.stop()
+        self.output.write_text(REPORT, encoding="utf-8")
+        with patch("codex_worktree_exec.review_handoff.subprocess.run",
+                   side_effect=subprocess.TimeoutExpired("karte", 60)):
+            with self.assertRaises(CodexExecError) as caught:
+                ingest_codex_output(self.worktree, self.output, 375, (375, 0, 1), self.envelope)
+        self.assertEqual("CODEX_REVIEW_INGEST_FAILED", caught.exception.error_id)
+        detail = str(caught.exception)
+        for text in ("60 秒", "書込みロック", "台帳・期待値の状態は不明", "karte status",
+                     "tmp/_karte/active.json", "pr-reviewer--"):
+            self.assertIn(text, detail)
+        self.assertNotIn("INCOMPLETE", detail)
+        self.assertEqual(1, len(detail.splitlines()))
+
+    def test_success_relays_non_warning_output_to_stderr_without_duplicating_warnings(self):
+        from codex_worktree_exec.review_handoff import ingest_codex_output
+        self.ingest.stop()
+        self.output.write_text(REPORT, encoding="utf-8")
+        warning = "  警告: scope を保持"
+        result = subprocess.CompletedProcess(
+            [], 0, stdout=f"  取り込み詳細\n{warning}\n", stderr=f"診断\n{warning}\n"
+        )
+        err = io.StringIO()
+        with patch("codex_worktree_exec.review_handoff.subprocess.run", return_value=result):
+            with contextlib.redirect_stderr(err):
+                message = ingest_codex_output(self.worktree, self.output, 375, (375, 0, 1), self.envelope)
+        self.assertEqual("診断\n  取り込み詳細\n", err.getvalue())
+        self.assertEqual(1, message.count(warning.strip()))
+        self.assertTrue(message.startswith("取り込み済み: "))
+        self.assertEqual(2, len(message.splitlines()))
+
     def test_ingest_failure_selects_refusal_and_bullets_not_neighboring_lines(self):
         from types import SimpleNamespace
         refusal = "拒否（fail-close）: レビューレポートの検証に失敗"

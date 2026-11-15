@@ -8,7 +8,7 @@ from pathlib import Path
 from guidance_sync.sources import COMMON_SOURCE, PRINCIPLES_SOURCE, TARGETS
 
 
-def run(repo, *args, check=True, extra_env=None):
+def run(repo, *args, check=True, extra_env=None, binary=False):
     env = os.environ.copy()
     env.update({'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': os.devnull,
                 'GIT_TERMINAL_PROMPT': '0'})
@@ -20,7 +20,7 @@ def run(repo, *args, check=True, extra_env=None):
                     'GIT_CONFIG_VALUE_0': '', 'GIT_CONFIG_KEY_1': 'http.https://github.com/.extraheader',
                     'GIT_CONFIG_VALUE_1': f'Authorization: basic {auth}'})
     result = subprocess.run(['git', '-c', 'core.hooksPath=/dev/null', *args],
-                            cwd=repo, env=env, text=True, capture_output=True)
+                            cwd=repo, env=env, text=not binary, capture_output=True)
     if check and result.returncode:
         raise RuntimeError(f"git {args[0]}: {result.stderr.strip()}")
     return result

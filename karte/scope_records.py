@@ -25,7 +25,8 @@ def ledger_path(issue, repo_root, *, create=False):
         return path
 
 
-def is_regular_or_missing(path) -> bool:
+def has_regular_file(path) -> bool:
+    """通常ファイルが存在すれば True、不在なら False、通常ファイル以外は KartePathError。"""
     with open_scope_directory(path) as directory:
         return scope_entry(path, directory) is not None
 
@@ -34,7 +35,7 @@ def exists(issue, repo_root) -> bool:
     """この Issue に原本があるか（置き場が無ければ無い）。"""
     try:
         path = ledger_path(issue, repo_root)
-        return is_regular_or_missing(path)
+        return has_regular_file(path)
     except paths.KarteMissing:
         return False
 
