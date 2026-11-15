@@ -33,6 +33,7 @@ class Finding:
     deferred_to: str = ""
     waived_by: str = ""
     waived_reason: str = ""
+    override_ref: str = ""
     rounds: list = field(default_factory=list)
     resolved_round: int | None = None
     handoff: HandoffRecord | None = None
