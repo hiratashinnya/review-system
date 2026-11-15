@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from karte_notify import hook, notify
+from karte_notify import hook, notify, trigger
 
 
 def finding(fid, status, *, harm="real", disposition="fix-here", summary="dummy"):
@@ -39,53 +39,245 @@ def payload(issue, *, verdict="clean", escalate=False, findings=None):
 class DetectTriggerTests(unittest.TestCase):
     def test_matches_ingest_review(self):
         self.assertEqual(
-            notify.detect_trigger("python3 -m karte ingest-review --issue 512 --round 1 --from -"),
+            trigger.detect_trigger("python3 -m karte ingest-review --issue 512 --round 1 --from -"),
             "ingest-review",
         )
 
+    def test_matches_reviewer_ingest_and_owner_decision(self):
+        # Issue #375: レビューア本人の取り込みとオーナー決定の記録も verdict 通知の契機にする。
+        for verb, command in [
+            ("ingest-reviewer", "python3 -m karte ingest-reviewer --from tmp/_handoff/pr-reviewer--k.md"),
+            ("decide", "python3 -m karte decide --finding F-1-01 --scope out"),
+        ]:
+            self.assertEqual(trigger.detect_trigger(command), verb)
+
+    def test_matches_only_codex_pr_reviewer_wrappers(self):
+        for command in (
+            "python3 -m codex_worktree_exec --role pr-reviewer -C wt",
+            "python3 -m issue_start.readonly_workspace --role pr-reviewer -C wt",
+        ):
+            with self.subTest(command=command):
+                self.assertEqual("ingest-reviewer", trigger.detect_trigger(command))
+        self.assertIsNone(trigger.detect_trigger(
+            "python3 -m issue_start.readonly_workspace --role plan-reviewer -C wt"
+        ))
+
+    def test_codex_role_flag_forms_and_prompt_file_false_positive(self):
+        for command in (
+            "python3 -m codex_worktree_exec --role=pr-reviewer -C wt",
+            'python3 -m codex_worktree_exec --role "pr-reviewer" -C wt',
+            'python3 -m issue_start.readonly_workspace --role="pr-reviewer" -C wt',
+        ):
+            with self.subTest(command=command):
+                self.assertEqual("ingest-reviewer", trigger.detect_trigger(command))
+        self.assertIsNone(trigger.detect_trigger(
+            'python3 -m codex_worktree_exec --role adviser --prompt-file "--role pr-reviewer"'
+        ))
+
+    def test_codex_reviewer_role_survives_attached_shell_operators(self):
+        for module in ("codex_worktree_exec", "issue_start.readonly_workspace"):
+            for role in ("--role pr-reviewer", "--role=pr-reviewer"):
+                for operator in (";", "&&", "||", "|", "&", ")"):
+                    command = f"python3 -m {module} {role}{operator} echo done"
+                    with self.subTest(command=command):
+                        self.assertEqual("ingest-reviewer", trigger.detect_trigger(command))
+        self.assertIsNone(trigger.detect_trigger(
+            'python3 -m codex_worktree_exec --role "pr-reviewer;other"'
+        ))
+        self.assertIsNone(trigger.detect_trigger(
+            'python3 -m codex_worktree_exec --role "pr-reviewer&&other"'
+        ))
+
+    def test_role_in_later_command_or_echo_argument_is_not_a_reviewer(self):
+        for separator in (";", "&&", "||", "|", "&", "\n"):
+            command = (
+                "python3 -m codex_worktree_exec --role issue-fixer"
+                f"{separator} echo --role pr-reviewer"
+            )
+            with self.subTest(command=command):
+                self.assertIsNone(trigger.detect_trigger(command))
+        for command in (
+            "echo python3 -m codex_worktree_exec --role pr-reviewer",
+            'printf %s "python3 -m codex_worktree_exec --role pr-reviewer"',
+            "python3 -m codex_worktree_exec --role issue-fixer && echo --role=pr-reviewer",
+        ):
+            with self.subTest(command=command):
+                self.assertIsNone(trigger.detect_trigger(command))
+
+    def test_reviewer_after_boundary_or_redirection_remains_visible(self):
+        reviewer = "python3 -m codex_worktree_exec --role pr-reviewer"
+        commands = (
+            f"echo done;{reviewer}",
+            f"echo done\n{reviewer}",
+            f"CODEX_SETTING=1 {reviewer}",
+            f"env CODEX_SETTING=1 {reviewer}",
+            f"rtk proxy {reviewer}",
+            f"CODEX_SETTING=1 rtk proxy {reviewer}",
+            f"{reviewer}>/tmp/out",
+            "python3 -m codex_worktree_exec --role=pr-reviewer>/tmp/out",
+            "python3 -m codex_worktree_exec 2>&1 --role pr-reviewer",
+            "python3 -m codex_worktree_exec > /tmp/out --role pr-reviewer",
+            'python3 -m codex_worktree_exec --prompt-file ";" --role pr-reviewer',
+            "python3 -m codex_worktree_exec \\\n --role pr-reviewer",
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertEqual("ingest-reviewer", trigger.detect_trigger(command))
+
+    def test_rtk_nonexecution_prefixes_do_not_count_as_reviewer(self):
+        reviewer = "python3 -m codex_worktree_exec --role pr-reviewer"
+        for prefix in ("echo rtk proxy", "rtk proxy echo", "rtk unrelated", "proxy"):
+            with self.subTest(prefix=prefix):
+                self.assertIsNone(trigger.detect_trigger(f"{prefix} {reviewer}"))
+
+    def test_codex_other_role_equals_forms_are_not_triggers(self):
+        for command in (
+            "python3 -m codex_worktree_exec --role=plan-reviewer -C wt",
+            'python3 -m codex_worktree_exec --role="adviser" -C wt',
+        ):
+            with self.subTest(command=command):
+                self.assertIsNone(trigger.detect_trigger(command))
+
+    def test_codex_reviewer_survives_comment_and_unclosed_quote_on_other_line(self):
+        commands = (
+            "python3 -m codex_worktree_exec --role pr-reviewer -C wt # don't run elsewhere",
+            'python3 -m codex_worktree_exec --role pr-reviewer -C wt\npython3 -c "unfinished',
+            'python3 -m codex_worktree_exec --prompt-file a#b --role pr-reviewer -C wt',
+            'python3 -m codex_worktree_exec --prompt-file p.md --role pr-reviewer -C wt # don\'t run\npython3 -c "unfinished',
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertEqual("ingest-reviewer", trigger.detect_trigger(command))
+
+    def test_codex_reviewer_command_after_shell_operator_comment_is_ignored(self):
+        reviewer = "python3 -m codex_worktree_exec --role pr-reviewer -C wt --prompt-file p"
+        for command in (
+            f"echo hi;# {reviewer}",
+            f"true&&# {reviewer}",
+            f"true|# {reviewer}",
+            f"(# {reviewer}",
+        ):
+            with self.subTest(command=command):
+                self.assertIsNone(trigger.detect_trigger(command))
+
+    def test_codex_reviewer_quoted_and_escaped_hashes_are_not_comments(self):
+        command = 'python3 -m codex_worktree_exec --prompt-file "x #y" --role pr-reviewer'
+        self.assertEqual("ingest-reviewer", trigger.detect_trigger(command))
+        single_quoted = "python3 -m codex_worktree_exec --prompt-file 'x #y' --role pr-reviewer"
+        self.assertEqual("ingest-reviewer", trigger.detect_trigger(single_quoted))
+        escaped = r"python3 -m codex_worktree_exec --prompt-file x\#y --role pr-reviewer"
+        self.assertEqual("ingest-reviewer", trigger.detect_trigger(escaped))
+
+    def test_multiline_quoted_hash_does_not_hide_following_reviewer_invocation(self):
+        command = (
+            'printf "%s\\n" "first line\n'
+            '# literal quoted text\n'
+            'last line"; python3 -m codex_worktree_exec --role pr-reviewer'
+        )
+        self.assertEqual("ingest-reviewer", trigger.detect_trigger(command))
+
+    def test_multiline_quoted_hash_line_keeps_quote_state_through_reviewer_invocation(self):
+        command = 'echo "a\n# b" && python3 -m codex_worktree_exec --role pr-reviewer'
+        self.assertEqual("ingest-reviewer", trigger.detect_trigger(command))
+
+    def test_heredoc_apostrophe_does_not_hide_following_reviewer_invocation(self):
+        command = (
+            "cat <<'EOF'\nIt's\nEOF\n"
+            "python3 -m codex_worktree_exec --role pr-reviewer -C wt  # reviewer's run"
+        )
+        self.assertEqual("ingest-reviewer", trigger.detect_trigger(command))
+
+    def test_quoted_or_escaped_heredoc_operator_does_not_hide_reviewer(self):
+        reviewer = "python3 -m codex_worktree_exec --role pr-reviewer"
+        for literal in ("'<<EOF'", '"<<EOF"', r"\<<EOF"):
+            with self.subTest(literal=literal):
+                self.assertEqual("ingest-reviewer", trigger.detect_trigger(f"echo {literal}\n{reviewer}"))
+        self.assertEqual("ingest-reviewer", trigger.detect_trigger(f"cat <<< data\n{reviewer}"))
+
+    def test_real_heredoc_body_does_not_trigger_reviewer(self):
+        command = "cat <<'END'\npython3 -m codex_worktree_exec --role pr-reviewer\nEND\n"
+        self.assertIsNone(trigger.detect_trigger(command))
+
+    def test_heredoc_delimiters_with_escapes_or_redirection_do_not_hide_reviewer(self):
+        reviewer = "python3 -m codex_worktree_exec --role pr-reviewer"
+        for operator, end in ((r"<<\EOF", "EOF"), ("<<EOF>/tmp/out", "EOF"),
+                              ("<<'EO'F", "EOF"), (r"<<E\ OF", "E OF"),
+                              (r"<<-\EOF", "\tEOF")):
+            with self.subTest(operator=operator):
+                command = f"cat {operator}\ntext\n{end}\n{reviewer}\n"
+                self.assertEqual("ingest-reviewer", trigger.detect_trigger(command))
+                body_only = f"cat {operator}\n{reviewer}\n{end}\necho ok\n"
+                self.assertIsNone(trigger.detect_trigger(body_only))
+
+    def test_comment_line_does_not_hide_reviewer_invocation_on_next_line(self):
+        command = "# note\npython3 -m codex_worktree_exec --role pr-reviewer"
+        self.assertEqual("ingest-reviewer", trigger.detect_trigger(command))
+
+    def test_comment_at_command_start_hides_reviewer_invocation(self):
+        command = "# python3 -m codex_worktree_exec --role pr-reviewer"
+        self.assertIsNone(trigger.detect_trigger(command))
+
+    def test_codex_prompt_file_value_is_skipped_before_role(self):
+        command = "python3 -m codex_worktree_exec --prompt-file tmp/review.md --role pr-reviewer"
+        self.assertEqual("ingest-reviewer", trigger.detect_trigger(command))
+        option_as_value = "python3 -m codex_worktree_exec --prompt-file --role pr-reviewer"
+        self.assertIsNone(trigger.detect_trigger(option_as_value))
+
+    def test_codex_value_options_skip_role_option_as_their_value(self):
+        for option in (
+            "--output-file", "--binding-file", "--reasoning-effort", "--timeout-seconds",
+            "--approval-file", "--source", "-C", "--model",
+        ):
+            command = (
+                "python3 -m codex_worktree_exec "
+                f"{option} --role pr-reviewer --role adviser"
+            )
+            with self.subTest(option=option):
+                self.assertIsNone(trigger.detect_trigger(command))
+
     def test_matches_close_attempt(self):
         self.assertEqual(
-            notify.detect_trigger("python3 -m karte close-attempt --issue 512 --outcome fixed"),
+            trigger.detect_trigger("python3 -m karte close-attempt --issue 512 --outcome fixed"),
             "close-attempt",
         )
 
     def test_matches_python_without_trailing_digit(self):
         self.assertEqual(
-            notify.detect_trigger("python -m karte ingest-review --issue 1 --round 1 --from -"),
+            trigger.detect_trigger("python -m karte ingest-review --issue 1 --round 1 --from -"),
             "ingest-review",
         )
 
     def test_no_match_for_other_verbs(self):
-        self.assertIsNone(notify.detect_trigger("python3 -m karte status --issue 512 --json"))
-        self.assertIsNone(notify.detect_trigger("python3 -m karte render --issue 512"))
-        self.assertIsNone(notify.detect_trigger("python3 -m karte append --issue 512"))
+        self.assertIsNone(trigger.detect_trigger("python3 -m karte status --issue 512 --json"))
+        self.assertIsNone(trigger.detect_trigger("python3 -m karte render --issue 512"))
+        self.assertIsNone(trigger.detect_trigger("python3 -m karte append --issue 512"))
 
     def test_no_match_for_unrelated_command(self):
-        self.assertIsNone(notify.detect_trigger("gh pr create --title x --body y"))
+        self.assertIsNone(trigger.detect_trigger("gh pr create --title x --body y"))
 
     def test_word_boundary_rejects_suffixed_verb(self):
         # `close-attempt2` のような偽の一致を作らない（\b の境界検査）。
-        self.assertIsNone(notify.detect_trigger("python3 -m karte close-attempt2 --issue 1"))
+        self.assertIsNone(trigger.detect_trigger("python3 -m karte close-attempt2 --issue 1"))
 
 
 class IssueFromCommandTests(unittest.TestCase):
     def test_extracts_issue_number(self):
         self.assertEqual(
-            notify.issue_from_command("python3 -m karte ingest-review --issue 512 --round 1"),
+            trigger.issue_from_command("python3 -m karte ingest-review --issue 512 --round 1"),
             512,
         )
 
     def test_extracts_with_equals_form(self):
         self.assertEqual(
-            notify.issue_from_command("python3 -m karte close-attempt --issue=512 --outcome fixed"),
+            trigger.issue_from_command("python3 -m karte close-attempt --issue=512 --outcome fixed"),
             512,
         )
 
     def test_returns_none_when_absent(self):
-        self.assertIsNone(notify.issue_from_command("python3 -m karte close-attempt --outcome fixed"))
+        self.assertIsNone(trigger.issue_from_command("python3 -m karte close-attempt --outcome fixed"))
 
     def test_returns_none_for_invalid_issue(self):
-        self.assertIsNone(notify.issue_from_command("python3 -m karte ingest-review --issue 0"))
+        self.assertIsNone(trigger.issue_from_command("python3 -m karte ingest-review --issue 0"))
 
 
 class ExtractCommandsTests(unittest.TestCase):
@@ -93,13 +285,13 @@ class ExtractCommandsTests(unittest.TestCase):
 
     def test_bash_extracts_single_command(self):
         self.assertEqual(
-            notify.extract_commands("Bash", {"command": "python3 -m karte close-attempt --issue 1"}),
+            trigger.extract_commands("Bash", {"command": "python3 -m karte close-attempt --issue 1"}),
             ["python3 -m karte close-attempt --issue 1"],
         )
 
     def test_ctx_execute_extracts_code(self):
         self.assertEqual(
-            notify.extract_commands(
+            trigger.extract_commands(
                 "mcp__plugin_context-mode_context-mode__ctx_execute",
                 {
                     "language": "shell",
@@ -110,7 +302,7 @@ class ExtractCommandsTests(unittest.TestCase):
         )
 
     def test_ctx_batch_execute_extracts_all_commands(self):
-        commands = notify.extract_commands(
+        commands = trigger.extract_commands(
             "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
             {
                 "commands": [
@@ -122,20 +314,45 @@ class ExtractCommandsTests(unittest.TestCase):
         self.assertEqual(commands, ["gh pr view 1", "python3 -m karte close-attempt --issue 1"])
 
     def test_unsupported_tool_returns_empty(self):
-        self.assertEqual(notify.extract_commands("Write", {"file_path": "x"}), [])
+        self.assertEqual(trigger.extract_commands("Write", {"file_path": "x"}), [])
 
     def test_malformed_input_returns_empty(self):
-        self.assertEqual(notify.extract_commands("Bash", {"command": 123}), [])
+        self.assertEqual(trigger.extract_commands("Bash", {"command": 123}), [])
         self.assertEqual(
-            notify.extract_commands(
+            trigger.extract_commands(
                 "mcp__plugin_context-mode_context-mode__ctx_batch_execute", {"commands": "nope"}
             ),
             [],
         )
         self.assertEqual(
-            notify.extract_commands("mcp__plugin_context-mode_context-mode__ctx_execute", {"code": 1}),
+            trigger.extract_commands("mcp__plugin_context-mode_context-mode__ctx_execute", {"code": 1}),
             [],
         )
+
+
+class ExtractCommandsBatchTypeGuardTests(unittest.TestCase):
+    """Issue #720 T09 / #728: ``ctx_batch_execute`` 分岐の型検査を固定する（変異で落ちること）。"""
+
+    BATCH = "mcp__plugin_context-mode_context-mode__ctx_batch_execute"
+
+    def test_non_string_command_is_ignored(self):
+        for value in (5, None, ["x"], {"a": 1}):
+            with self.subTest(command=value):
+                self.assertEqual(
+                    trigger.extract_commands(self.BATCH, {"commands": [{"command": value}]}), []
+                )
+
+    def test_only_valid_commands_remain_among_invalid_items(self):
+        commands = trigger.extract_commands(
+            self.BATCH,
+            {"commands": [{"command": 5}, "bare", {"label": "x"}, {"command": "gh pr view 1"}]},
+        )
+        self.assertEqual(commands, ["gh pr view 1"])
+
+    def test_commands_that_are_not_a_list_are_empty_even_if_iterable(self):
+        # tuple は反復できるので、list 検査を外すと拾われてしまう（"nope" のような文字列では差が出ない）。
+        item = {"command": "python3 -m karte close-attempt --issue 1"}
+        self.assertEqual(trigger.extract_commands(self.BATCH, {"commands": (item,)}), [])
 
 
 class NotificationContentTests(unittest.TestCase):
@@ -197,6 +414,16 @@ class SnapshotPathTests(unittest.TestCase):
             root = Path(directory)
             path = root / "tmp" / "_karte" / "notified" / "issue-1.json"
             self.assertIsNone(notify.read_snapshot(path))
+
+    def test_deeply_nested_snapshot_is_treated_as_unreadable_not_a_crash(self):
+        """fail-open の約束：深くネストした JSON でも RecursionError でフックを落とさない。"""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "issue-1.json"
+            path.write_text("[" * 200000, encoding="utf-8")
+            self.assertIsNone(notify.read_snapshot(path))
+
+    def test_deeply_nested_hook_payload_is_treated_as_unreadable(self):
+        self.assertIsNone(hook._load_payload(io.StringIO("[" * 200000)))
 
 
 class DecideTests(unittest.TestCase):
@@ -362,6 +589,34 @@ class HookRunTests(unittest.TestCase):
         self.assertIn("F-512-01", decision["systemMessage"])
         snapshot_path = self.root / "tmp" / "_karte" / "notified" / "issue-512.json"
         self.assertTrue(snapshot_path.is_file())
+
+    def test_codex_reviewer_wrapper_emits_the_same_owner_notification(self):
+        status = payload(512, verdict="harmful-open", findings=[finding("F-512-01", "open")])
+        for command in (
+            "python3 -m codex_worktree_exec --role pr-reviewer -C /repo/wt",
+            "python3 -m issue_start.readonly_workspace --role pr-reviewer -C /repo/wt",
+        ):
+            with self.subTest(command=command):
+                self.stdout = io.StringIO()
+                code = self.invoke(
+                    {"tool_name": "Bash", "tool_input": {"command": command}},
+                    self.runner_returning(status),
+                )
+                self.assertEqual(0, code)
+                self.assertIn("F-512-01", json.loads(self.stdout.getvalue())["systemMessage"])
+
+    def test_tool_response_text_is_not_copied_into_notification(self):
+        status = payload(512, verdict="harmful-open", findings=[finding("F-512-01", "open")])
+        code = self.invoke(
+            {
+                "tool_name": "Bash",
+                "tool_input": {"command": "python3 -m codex_worktree_exec --role pr-reviewer"},
+                "tool_response": "PRIVATE-TOOL-RESPONSE-MARKER",
+            },
+            self.runner_returning(status),
+        )
+        self.assertEqual(0, code)
+        self.assertNotIn("PRIVATE-TOOL-RESPONSE-MARKER", self.stdout.getvalue())
 
     def test_second_call_with_unchanged_open_finding_still_notifies(self):
         status = payload(512, verdict="harmful-open", findings=[finding("F-512-01", "open")])

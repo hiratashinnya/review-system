@@ -1239,10 +1239,8 @@ class AgentCommandGateTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_denied(run_gate(payload("issue-fixer", command)))
 
-    def test_karte_module_is_exclusive_to_issue_fixer(self):
-        # カルテの書き手を issue-fixer に一本化する設計（Issue #308）を層2 で機械的に担保する。
-        # pr-reviewer に許すと read-only（Write 非付与）の fail-close が書込経路で崩れ、
-        # issue-implementer に許すと初回実装が是正ラウンドの状態を触れてしまう。
+    def test_fixer_karte_verbs_are_exclusive_to_issue_fixer(self):
+        # 是正用 verb を issue-fixer に限る。pr-reviewer の ingest-reviewer は別に検証する。
         for verb in ["render --issue 308", "append --issue 308", "status --issue 308"]:
             with self.subTest(verb=verb):
                 self.assert_allowed(run_gate(payload("issue-fixer", f"python3 -m karte {verb}")))
@@ -1698,6 +1696,50 @@ class AgentCommandGateTests(unittest.TestCase):
         ]:
             with self.subTest(command=command):
                 self.assert_denied(run_gate(payload("issue-fixer", command)))
+
+    def test_pr_reviewer_may_only_run_karte_ingest_reviewer(self):
+        # Issue #375: 取り込みは「指摘した側」のレビューア本人が専用 verb で行う。
+        # 主文脈専用の ingest-review / decide / activate と、是正当事者の verb は許さない。
+        self.assert_allowed(run_gate(payload(
+            "pr-reviewer", "python3 -m karte ingest-reviewer --from tmp/_handoff/pr-reviewer--k1.md")))
+        for verb in ["ingest-review --issue 1 --round 1 --from r.md", "decide --finding F-1-01 --scope out",
+                     "activate --issue 1", "append --issue 1", "render --issue 1", "check", "status"]:
+            with self.subTest(verb=verb):
+                self.assert_denied(run_gate(payload("pr-reviewer", f"python3 -m karte {verb}")))
+
+    def test_ingest_reviewer_and_main_context_verbs_are_denied_for_other_gated_roles(self):
+        for role in ["issue-fixer", "issue-implementer"]:
+            for verb in ["ingest-reviewer --from tmp/_handoff/pr-reviewer--k1.md",
+                         "decide --finding F-1-01 --scope out", "activate --issue 1"]:
+                with self.subTest(role=role, verb=verb):
+                    self.assert_denied(run_gate(payload(role, f"python3 -m karte {verb}")))
+
+    def test_all_gated_roles_have_explicit_karte_verb_permissions(self):
+        from issue_start.gated_roles import GATED_ROLES
+
+        expected = {
+            "ac-designer": set(), "change-planner": set(), "test-writer": set(),
+            "issue-implementer": set(),
+            "issue-fixer": {"render", "append", "close-attempt", "check", "status"},
+            "issue-investigator": set(), "plan-reviewer": set(),
+            "pr-reviewer": {"ingest-reviewer"}, "adviser": set(),
+        }
+        verbs = ("ingest-reviewer", "ingest-review", "decide", "activate", "render",
+                 "append", "close-attempt", "check", "status")
+        self.assertEqual(set(expected), GATED_ROLES)
+        for role, allowed in expected.items():
+            for verb in verbs:
+                with self.subTest(role=role, verb=verb):
+                    result = run_gate(payload(role, f"python3 -m karte {verb}"))
+                    if verb in allowed:
+                        self.assert_allowed(result)
+                    else:
+                        self.assert_denied(result)
+                        assert result is not None
+                        reason = result["hookSpecificOutput"]["permissionDecisionReason"]
+                        expected_reason = ("`python3 -m karte` only allows" if role in {"issue-fixer", "pr-reviewer"}
+                                           else "`python3` is only allowed in the form")
+                        self.assertIn(expected_reason, reason)
 
     def test_bare_karte_and_unknown_karte_verbs_are_denied(self):
         for command in [
@@ -2222,6 +2264,32 @@ class CodexWorktreeExecGrantTests(unittest.TestCase):
         # D7: 主文脈（agent_type なし）はロール専用層の対象外。止めるのは規律（契約文）であって機械ではない。
         self.assertIsNone(run_gate({"tool_input": {"command": codex_exec_command("--role issue-implementer")}}))
 
+
+
+@unittest.skipUnless(_HAS_BASH, "bash バイナリが必要")
+class HandoffCommandGateTests(unittest.TestCase):
+    def assert_denied(self, result):
+        self.assertIsNotNone(result)
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+
+    def test_handoff_verbs_denied_and_existing_permissions_preserved(self):
+        self.assert_denied(run_gate(payload("issue-implementer", "python3 -m karte")))
+        for role in ("issue-fixer", "pr-reviewer", "issue-implementer"):
+            for verb in ("handoff-preview", "handoff-post", "handoff-recheck"):
+                with self.subTest(role=role, verb=verb):
+                    self.assert_denied(run_gate(payload(role, f"python3 -m karte {verb} --issue 7")))
+        for verb in ("render", "append", "close-attempt", "check", "status"):
+            with self.subTest(verb=verb):
+                self.assertIsNone(run_gate(payload("issue-fixer", f"python3 -m karte {verb}")))
+                self.assert_denied(run_gate(payload("issue-implementer", f"python3 -m karte {verb}")))
+        self.assertIsNone(run_gate(payload("pr-reviewer", "python3 -m karte ingest-reviewer")))
+
+    def test_context_execution_denies_handoff_post(self):
+        command = "python3 -m karte handoff-post --issue 7"
+        for role in ("issue-fixer", "pr-reviewer", "issue-implementer"):
+            with self.subTest(role=role):
+                self.assert_denied(run_gate(ctx_execute_payload(role, command)))
+                self.assert_denied(run_gate(ctx_batch_payload(role, [command])))
 
 if __name__ == "__main__":
     unittest.main()

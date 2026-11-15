@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import Mock, call, patch
 
 from codex_worktree_exec.errors import CodexExecError
-from codex_worktree_exec.launcher import _terminate, run_codex
+from codex_worktree_exec.launcher import _stderr_tail, _terminate, run_codex
 from codex_worktree_exec.nesting_guard import NESTING_MARKER
 from tests.unit.codex_worktree_exec_support import clean_environ, make_fake_codex
 
@@ -38,6 +38,25 @@ class LauncherTests(unittest.TestCase):
         for code in (0, 1, 7):
             with self.subTest(code=code):
                 self.assertEqual(self.run_fake(exit_code=code), code)
+
+    def test_stderr_tail_removes_controls_and_enforces_line_and_character_caps(self):
+        raw = ("\033[31m" + "x" * 250 + "\033[0m\x00\n") * 20
+        tail = _stderr_tail(raw.encode())
+        self.assertLessEqual(len(tail), 1000)
+        self.assertLessEqual(len(tail.splitlines()), 6)
+        self.assertNotIn("\033", tail)
+        self.assertNotIn("\x00", tail)
+        self.assertNotIn("[31m", tail)
+
+    def test_stderr_tail_line_cap_applies_to_short_lines(self):
+        tail = _stderr_tail(("x\n" * 50).encode())
+        self.assertLessEqual(len(tail.splitlines()), 6)
+
+    def test_stderr_tail_keeps_the_end_of_an_oversized_single_line(self):
+        tail = _stderr_tail(("START-MARKER" + "x" * 1400 + "END-MARKER").encode())
+        self.assertLessEqual(len(tail), 1000)
+        self.assertNotIn("START-MARKER", tail)
+        self.assertTrue(tail.endswith("END-MARKER"))
 
     def test_prompt_goes_to_stdin_and_the_nesting_marker_to_the_child(self):
         self.run_fake()

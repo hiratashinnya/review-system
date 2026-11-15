@@ -20,27 +20,33 @@
   ならない）。``ingest-review`` は ``--from -`` で stdin を読め、``render`` / ``check`` /
   ``status`` は ``--issue``（``check`` は ``--round`` も）を進行ポインタから補完できるので、
   フック（SubagentStop / SubagentStart / PostToolUse）が人手の中継なしに直接呼べる。
-  ``status`` は PostToolUse フックが ``pr-reviewer`` 呼び出し完了直後に実行して
-  エスカレーション判定をコンテキストへ注入する（K-15。ただし PostToolUse はツール呼び出しを
-  ブロックできないため、役割は「判定を必ず実行し可視化する」まで）。
+  ``status`` は PostToolUse フックが台帳更新などの対象コマンドを検出した後にも実行し、
+  エスカレーション判定をオーナーへ通知する。PostToolUse はツール呼び出しをブロックできず、
+  このフックは可視化のみを担う（Issue #512）。
 
 構成:
-  * :mod:`karte.paths`      — カルテ置き場のパス解決とガード（実体解決・repo-root 配下・
-    symlink 拒否・``..`` traversal 拒否・fail-close）。様式は ``dsv2/cleantmp.py`` に倣う。
-  * :mod:`karte.model`      — カルテ書式（``## Findings`` / ``### Attempt k`` / ``### Result k``）の
-    データモデル・パーサ・シリアライザ・バリデータ（``harm_detail`` の内容 lint を含む）。
+  * :mod:`karte.paths`      — カルテ置き場のパス解決とガード（実体解決・repo-root 配下・symlink/``..`` 拒否・fail-close）の facade。実装は ``path_*``。
+  * :mod:`karte.model`      — カルテ書式（``## Findings`` / ``### Attempt k`` / ``### Result k``）のデータモデル・パーサ・シリアライザ・バリデータ。
   * :mod:`karte.allowlist`  — その内容 lint の既知 false positive を理由付きで抑制する
     allowlist（``(issue, term, harm_detail)`` の全文一致・``reason`` 必須・Issue #511）。
   * :mod:`karte.similarity` — 類似判定（宣言信号＋実測 touched-set 信号の OR）と転換指令の生成。
     ``append`` のゲートと ``render``/``status`` の表示は**同じ判定関数を同じ入力集合**
     （候補の finding_ids でスコープした priors）に適用する（K-09）。
-  * :mod:`karte.touched`    — 実測 touched-set（変更ファイル＋変更シンボル）の算出。
-    ``close-attempt`` が取り込み、次ラウンド以降の類似判定の実測信号になる。
-  * :mod:`karte.cli`        — 6 verb（``ingest-review`` / ``render`` / ``append`` /
-    ``close-attempt`` / ``check`` / ``status``）。
+  * :mod:`karte.touched`    — 実測 touched-set の算出。``close-attempt`` が取り込み類似判定の実測信号になる。
+  * :mod:`karte.active_pointer` / :mod:`karte.errors` / :mod:`karte.exit_codes` — 進行ポインタ
+    ``tmp/_karte/active.json`` の読み書き／verb が投げる前提違反の例外／終了コード。
+  * :mod:`karte.repo_roots` / :mod:`karte.pointer_completion` — 台帳の repo-root（遅延解決）と ``git diff`` の cwd／
+    ``--issue`` ``--round`` のポインタ補完。補助は ``round_resolution``（補完結果の型）・``int_args``（整数変換の唯一の入口）・``karte_loader``・``utf8_text``。
+  * :mod:`karte.verb_boundary` — fail-close 境界とロック要否の宣言（``fail_close(locked=..., prepare=...)``）。
+    ``prepare`` を使う verb は ``func(args, repo_root, prepared)`` の **3 引数**。登録 verb も ``locked`` 宣言必須。
+  * ``karte.ingest_*`` — ``ingest-review`` の段: ``ingest_review``（本体）／``ingest_accept``
+    ／``ingest_checks``／``ingest_apply``／``ingest_report``／``ingest_types``（段間の結果型）。
+  * :mod:`karte.cli`        — 基本 verb（``ingest-review`` / ``render`` / ``append`` / ``close-attempt`` /
+    ``check`` / ``status``）・``build_parser``・``main``。``extra_registrars`` で別モジュールの verb を足せる。
+  * :mod:`karte.reviewer_cli` — ``ingest-reviewer``（レビューア本人の取り込み）と verb の登録、
+    :mod:`karte.owner_cli` — 主文脈専用の ``activate`` / ``decide``（Issue #375）。
 
 標準ライブラリのみ（外部依存なし）。
-
 スコープ外指摘を別経路にしない（Issue #495）:
   「スコープ外」と分類された指摘が finding の列に入らないと、実害判定（``harm``）・カルテ記録・
   ``status`` の verdict をまとめて迂回でき、実害ありの指摘が未処置のまま ``clean`` を通過する
@@ -48,25 +54,21 @@
   **スコープの内外を問わない単一の列**とし、``scope``（``in``/``out``・必須・免除力なし）と
   ``disposition``（``fix-here``/``deferred``/``waived``＝オーナー判断の記録）を持たせ、
   **``harm: real`` かつ ``disposition`` 未決定の finding が残る間は verdict を ``clean`` に
-  しない**。``deferred``/``waived`` は ``status: open`` のまま台帳に残し、**「是正を要する
-  finding」の集合からだけ外す**二層（``resolved`` に倒すと「別 Issue へ移したと書くだけで
-  指摘が消える」経路が生まれる）。この除外は verdict だけでなく ``check`` の診断網羅要求・
-  無進捗検知にも同じく効く（下記「除外規則は 1 箇所に置く」）。**この解除力は ``harm: real`` にだけ与える**（オーナー確定・2026-09-07）
-  ——``harm: none`` にも与えると、実害なしの指摘に ``deferred`` と書くだけで
-  「未解消がすべて実害なしになったら打ち上げる」既存の STOP を消せてしまう。
+  しない**。``deferred``/``waived`` は ``status: open`` のまま台帳に残し、``harm: real`` は
+  **「是正を要する finding」の集合からだけ外す**二層とする。verdict と ``check`` は
+  ``Finding.needs_remediation`` を共有し、無進捗はさらに検証済み handoff を除く。
+  ``clean`` の解除力は ``harm: real`` にだけ与え、``harm: none`` の verdict は変わらない。
+  2026-09-07 の確定は機械検証済み転記による無進捗計数除外に限り #683 で置き換えた。
+  ``clean`` の解除力は不変。自己申告を検証済み転記に替えた根拠と経緯は
+  ``.ai/rationale/karte-handoff-verification.md`` を参照。
   書式と移行措置の詳細は ``karte/README.md``。
 
-除外規則は 1 箇所に置く（Issue #503）:
-  ``deferred``/``waived``＝「当該 PR では処置しない」と決まった finding を判定から外す規則は、
-  :attr:`karte.model.Finding.needs_remediation` **だけ**に実装する。``status`` の verdict・
-  ``check`` の診断網羅要求・無進捗検知（``escalate``）はこの 1 つの述語を共有する。
-  Issue #495 の実装が除外を verdict 算出にしか入れなかったため、``check`` は
-  ``deferred`` にも診断を要求して**毎ラウンド必ず 1 回 block**し（観測1）、無進捗検知は
-  誰も直さないと決めた finding を拾って ``escalate: yes`` を偽陽性で出していた（観測3）
-  ——同じ取りこぼしが経路の数だけ別々に開いた。以後 ``deferred`` を参照する判定を足すときは、
-  この述語を経由させれば自動的に同じ規則が効く。
-  併せて ``change_kind`` に ``doc``（文書のみの是正）を追加した（観測2。既存カルテの
-  ``config`` 記録は遡って読み替えない＝``karte.model`` の :data:`~karte.model.CHANGE_KINDS`）。
+除外規則（Issue #503・#683）:
+  verdict と ``check`` は :attr:`karte.model.Finding.needs_remediation` を共有する。
+  無進捗検知はこの集合から ``finding_handoff_exemption.is_stall_exempt`` も除く。
+  新しい判定は ``Finding.needs_remediation`` を経由し、無進捗の追加除外は
+  ``karte.finding_handoff_exemption.is_stall_exempt`` に置く。
+  ``change_kind`` は文書のみの是正を表す ``doc`` を含む。
 
 依存仕様:
   * Issue #307「是正ループの診断カルテ CLI を追加し『類似アプローチの反復』を機械判定する」

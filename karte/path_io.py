@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 from .path_errors import KartePathError
+from .utf8_text import require_utf8_encodable
 
 
 def read_text(path: Path) -> str:
@@ -12,7 +13,10 @@ def read_text(path: Path) -> str:
         raise KartePathError(f"読み込み直前の再検査で symlink を検知: {path}")
     if not path.is_file():
         raise KartePathError(f"通常ファイルではない: {path}")
-    return path.read_text(encoding="utf-8")
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:  # ValueError 系は終了コード契約の外へ漏れる
+        raise KartePathError(f"UTF-8 として読めない: {path}（{exc.reason}）") from None
 
 
 def _open_writeonly(path: Path, flags: int, mode: int | None = None) -> int:
@@ -33,6 +37,7 @@ def write_text_atomic(path: Path, text: str) -> None:
     ``os.open`` で行う。``O_NOFOLLOW`` は最終要素だけに効くため、親要素の symlink 拒否は
     :func:`resolve_within_repo` と呼び出し元のパスガードに依存する。
     """
+    require_utf8_encodable(text, path)
     if path.is_symlink():
         raise KartePathError(f"書込直前の再検査で symlink を検知: {path}")
     if path.exists() and not path.is_file():
@@ -73,6 +78,7 @@ def append_text(path: Path, text: str) -> None:
     ``O_NOFOLLOW`` は最終要素だけに効くため、親要素の symlink 拒否は
     :func:`resolve_within_repo` と呼び出し元のパスガードに依存する。
     """
+    require_utf8_encodable(text, path)
     if path.is_symlink():
         raise KartePathError(f"追記直前の再検査で symlink を検知: {path}")
     if not path.is_file():

@@ -1,0 +1,38 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20261110-acは1prで満たし大きいissueは着手時に分割する"
+topic = "ACは1PRで満たし大きいIssueは着手時に分割する"
+theme = "開発工程"
+occurred_at = 2026-11-10
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "medium"
+recorded_by = "Claude Code (AI)"
+affected_assets = [".ai/skills/issue-pipeline/SKILL.md"]
+supersedes = ""
+
+[[source]]
+issue = 375
+pr = 697
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+PR #697（Issue #375 の実装 PR）の本文は「Issue #375 はこの PR でクローズしない」とし、0 件 finding のレビューの取り込み形式・Claude pr-reviewer 実機での取り込みの実測・reviewer 本人の PR コメント投稿経路・reviewer worktree 隔離の機械強制を、Issue #375 の残 AC として未解決に残していた。レビュー運用中、主文脈は 0 件 finding のレビューが取り込めない finding の処置方針として、これを既存の #375 残 AC へ申し送る案（deferred_to: #375）を推奨付きで提示した。
+'''
+recommendation = '''
+0 件 finding の取り込み形式を、PR 本文が既に Issue #375 の残 AC として載せている箇所へ申し送る（新しい Issue は作らない）。
+'''
+recommendation_reason = '''
+PR 本文の未解決事項と同じ記載を維持でき、追加の手間が最小である。
+'''
+uncertainty = '''
+オーナーの発言が及ぶ範囲は、逐語のとおり「Issue の一部しか実装しない PR」と「AC は 1 つの PR で満たすべき」である。「ベースラインリファクタリングは例外としても」の例外の範囲は、ベースラインのリファクタリング以外には言及されていない。分割の具体的な単位（子 Issue の切り方）は、この発言では決まっておらず、この後の主文脈の提案（案 A：#375 を tracking と sub-issue に分割し、この PR は子 1 を Closes）をオーナーが承認した。
+'''
+owner_verbatim = '''
+？？Issueの一部しか実装しないprなんかあってはならんが？ベースラインリファクタリングは例外としても、そうでないならacは1つのprで満たすべき。Issueがデカくて無理なら着手時にIssueを分割すべき。
+'''
+inferred_reason = '''
+推測：1 つの Issue の完了を 1 つの PR と対応づけ、残 AC を別の PR や Issue に持ち越す運用が、追跡と完了判定を曖昧にすることを避ける意図と読める。
+'''
