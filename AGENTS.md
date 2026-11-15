@@ -1,5 +1,5 @@
 <!-- generated-by: python3 -m guidance_sync render; edit-source-only -->
-<!-- common-source: .ai/guidance/common.md; sha256: e8ad870b32d909fdebdb8ba7bb0c463e4ef5f31478226aece5ca588d3bbe00c6 -->
+<!-- common-source: .ai/guidance/common.md; sha256: 58d7d404883b240e256279d701b9dee4d970265ae82aad67281c0a89a9fe01de -->
 <!-- principles-source: .ai/skills/spec-principles/SKILL.md; sha256: 17df1f5cce696a3a65181f465a2eba0a38afe65ed6a298acea0f230edaff64d9 -->
 <!-- platform-source: .ai/guidance/platforms/codex.md; sha256: 40249aa6a9c01afe2454b881f55124a3d0e8a68fe555a56d3614ab66c75cbd55 -->
 
@@ -12,7 +12,7 @@
 - すべての説明・報告・質問は、ユーザーが明示的に別言語を指定しない限り日本語で行う。main thread、subagent、レビュー報告、PR 本文・コメントも同様とする。
 - AI が PR 本文、PR コメント、レビューコメント、merge コメントを投稿する場合は、本文冒頭または件名で利用した AI agent 由来であることを明記する。
 - オーナー判断が必要な矛盾・スコープ判断・据え置き可否はチャットで報告する。PR コメントやノードは永続化のための副次記録であり、それだけで報告済みとはみなさない。
-- 節番号（§N）で文書を参照するときは、初出でそのファイルのパスを併記する。チャット報告、Issue 本文、PR コメントも同様とする。同一報告内の2回目以降は §N だけでよい。理由は、規範文書が多数あり節番号は文書間で重複するため、番号だけでは読み手がどの文書の話か特定できないからである。
+- 節番号（§N）で文書を参照するときは、初出でそのファイルのパスを併記する。チャット報告、Issue 本文、PR コメントも同様とする。同一報告内の2回目以降は §N だけでよい。
 
 ## 作業分離・判断境界
 
