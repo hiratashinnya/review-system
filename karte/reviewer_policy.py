@@ -6,7 +6,7 @@
 
 from . import model, scope_ledger, scope_records
 
-OWNER_ONLY_KEYS = ("disposition", "deferred_to", "waived_by", "waived_reason")
+OWNER_ONLY_KEYS = ("disposition", "deferred_to", "waived_by", "waived_reason", "override_ref")
 
 
 def ignore_owner_keys(report_text):
