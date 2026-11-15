@@ -51,8 +51,7 @@ ACが未充足・未検証なら、`result: not_met` / `unverified` とし、
 `disposition: deferred` は書かず、オーナーへ処置判断を依頼する。
 ACの存在しないIssueでは `ac_count: 0` とし、レビューを止めない。
 非checkbox ACは判定のみ記録し、Issue本文の自動編集はしない。
-reviewerはIssue本文のチェックを更新しない。主文脈がclean後のowner reportで、
-snapshot照合と更新後read-backを経て満足済みACだけを更新する（未完了の実装課題）。
+reviewerはIssue本文のチェックを更新しない。主文脈がclean後のowner reportで、snapshot照合と更新後read-backを経て満足済みACだけを更新する。snapshot原本・digest・AC件数は主文脈から渡され、reviewerは改変せずにSummaryへ反映する。
 
 
 

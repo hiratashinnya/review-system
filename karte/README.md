@@ -64,6 +64,10 @@ finding_refs: [new@1]
 - 新しい Summary 付きroundでは原本を `tmp/_karte/issue-<N>-review-round-<R>.md` に保管し、
   台帳の `source` と `digest`（SHA-256）を記録する。保存先はカルテと同じ `tmp/_karte` で、
   **tmp の消去・別環境への転送後までの永続性は保証しない**。原本を保管する前に台帳を更新しない。
+- 主文脈はレビューdispatch時にGitHub元Issueの本文を凍結し、`karte activate ... --ac-snapshot-file <保存したUTF-8本文>` を実行する。
+  `ingest-reviewer` はこのtrusted snapshotの `ac_count` / `ac_snapshot_digest` とSummaryを照合し、食い違いを拒否する。
+  保存先は `tmp/_karte/issue-N-ac-round-R.md`、Codexには同じ凍結済み本文とdigestをtrusted callerがpromptへ含める。
+  main以外のロールはIssueチェック編集禁止。owner報告時の更新案生成には `karte.ac_check_update.plan`、更新後には `verify_written` を用いる。
 - 現在の実装は**移行段階**であり、旧来の指摘ありレポートの受理は互換維持のため
   継続する。全レビューへのSummary必須化、信頼済みAC snapshotとの直接照合、
   owner reportでの自動ACチェック付与、Codex prompt渡しは未実装／検証待ち。
