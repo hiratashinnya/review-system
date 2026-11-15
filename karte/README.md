@@ -108,12 +108,8 @@ finding_refs: [new@1]
 
 - `deferred_to` は `#123` / `123` / Issue の URL のいずれかで書く。散文（「別 Issue で対応」）は
   行き先を解決できないため拒否する。
-- `waived` に許可者と理由を要求するのは、`.claude/rules/03-operational.md`
-  「『対応不要』を AI が独断で書かない」に対する **記録の強制**（許可者と理由を書かずに
-  `waived` を通せなくする）。**オーナー判断そのものの機械強制ではない**——下記「既知の限界」。
-- `decide` と非保護モードの `ingest-review` は、宣言した `disposition` に属さない付随キー
-  （例：`deferred` なのに `waived_by`）を拒否する。取り違えて古い方針を現行の方針と誤読するのを
-  防ぐため。保護モードの取り込みは専権キーを無視して警告する。
+- `waived` は `waived_by` と `waived_reason` を必須とする。これは判断の記録を強制するだけで、本人による承認を機械的に認証しない。
+- `decide` と非保護モードの `ingest-review` は、宣言した `disposition` に属さない付随キー（例：`deferred` なのに `waived_by`）を拒否する。保護モードの取り込みは専権キーを無視して警告する。
 - 非保護モードでは値は毎ラウンドのレポートで上書きされる。**書き忘れると未決定へ倒れて `clean` を妨げる**
   （fail-close 側）。主文脈がオーナーの決定をレポートへ転記する。保護モードでは台帳の値を保持し、
   主文脈が `decide` で決定を記録する（下記「`ingest-reviewer` / `decide` / `activate`」）。
@@ -125,7 +121,6 @@ verdict は動かず、未解消が実害なしだけなら `no-harm-only` と�
 無進捗の計数だけは、`harm: none`・`deferred` の finding に検証済み handoff がある場合に外す。
 `harm: none` の `waived` や未検証・無効の `deferred` は従来どおり数える。
 
-`clean` の解除力は `harm: real` のfindingに限定し、無進捗計数の追加除外だけに検証済みhandoffを使う。
 
 除外条件は自己申告ではなく、申し送り先が open で、転記が実在し、内容が現在の finding と
 一致することを機械検証する。保証は記録が申し送り先に実在し続けることまでであり、
@@ -206,10 +201,7 @@ verdict は動かず、未解消が実害なしだけなら `no-harm-only` と�
   - 保護モードの取り込みごとに、申告レポートで再掲されたかにかかわらず、オーナー印を台帳の全 finding へ
     再適用する。印がない finding の scope は新しい申告で更新する。
     申告の原本は台帳より先に追記する。
-  - **台帳の書込みが失敗した窓（F-375-22）**：原本を台帳より先に作る順序は意図的で、逆順（台帳→原本）にすると
-    原本のない台帳だけが更新された無保護の round が残る。代償として、原本の作成後に台帳の書込みが失敗する
-    （ENOSPC・読取専用ファイルシステム・競合）と、台帳にその round が無いまま原本（その round の申告を含む）
-    だけが残る。取り込みは拒否（fail-close）で終わり、進行ポインタは進まず期待値も消費されない。
+  - **台帳の書込みが失敗した窓（F-375-22）**：原本の保存後に台帳の書込みが失敗する（ENOSPC・読取専用・競合）と、台帳にroundがないまま原本だけが残る。取り込みは拒否（fail-close）で終わり、進行ポインタは進まず期待値も消費されない。
     この状態では、原本が追記専用で消えないため、待機取消（期待値なしの `activate`）でも従来動作には戻らず、
     主文脈の `ingest-review` は保護モード（新規 finding の追記専用）になる。回復は同じ handoff で
     `ingest-reviewer` を再実行する（期待値が残り、台帳の最新 round は進んでいないので同じ round として
@@ -398,14 +390,9 @@ Codex gate は MCP ツール一般を検査しない。`agy` 経由で karte ver
 まだ直っていない）の分。`undecided_disposition` が空でも `fix-here` が残れば `harmful-open`
 のままなので、**verdict の説明に `undecided_disposition` を使わない**。
 
-消費者に `blocking_findings` と `harmful_open` の積を取らせず `blocking_harmful` を直接返すのは、
-積の取り方を各消費者に委ねると F-495-05 と同型の誤読（verdict と内訳の意味の取り違え）が
-消費者側で再発するため。
+消費者には `blocking_harmful` を直接返す。消費者側に集合の積計算を委ねない。
 
-**`status` の本文出力（非 `--json`）も同じ 3 集合を包含関係の順に行として出す**
-（`clean を妨げる未解消` → `clean を妨げる実害あり` → `実害あり・disposition 未決定`）。
-機械向けにだけ積を出して人間の読み手には積を取らせる、という非対称を残さないため
-（PR #496 F-495-07）。「実害あり（未解消・申し送り/処置不要と決めたものを含む）」行は
+**`status` の本文出力（非 `--json`）も同じ3集合を包含関係順で表示する**（`clean を妨げる未解消` → `clean を妨げる実害あり` → `実害あり・disposition 未決定`）。「実害あり（未解消・申し送り/処置不要と決めたものを含む）」行は
 これらとは別の軸（`harmful_open`＝台帳上の未解消全件の内訳）なので、包含関係の 3 行とは
 分けて読む。
 
@@ -507,9 +494,7 @@ python3 -m karte check [--issue <N>] [--round <R>]
   別 Issue にすべき等の**見立てはどの欄にも書かない**——レビュー担当の申告は `scope: out` まで
   である（`.ai/agents/pr-reviewer.md`）。`expected` は「期待する観測可能な状態」を書く欄であり、
   見立ての退避先ではない。
-- **適用範囲は新規の `ingest-review` / `ingest-reviewer`**。既存カルテを読む側（`karte/model.py` の
-  `parse`）には掛けない——`tmp/` は版管理外だが、進行中の Issue の台帳が読めなくなると
-  是正ループが止まる（`scope` 必須化と同じ移行方針）。
+- **内容lintの適用範囲は新規の `ingest-review` / `ingest-reviewer`**。既存カルテを読む `karte/model.py` の `parse` には適用しない。
 
 ### false positive の抑制（`karte/allowlist.py`）
 
@@ -521,10 +506,7 @@ python3 -m karte check [--issue <N>] [--round <R>]
 - **`reason` は必須**。空のまま登録すると `ValueError` でモジュールの import 自体が失敗する
   （理由なき例外登録を作れない）。`time_fixture_lint/allowlist.py`・
   `asset_parity/exceptions.py` と同じ「消さず理由を残す」運用。
-- 抑制の粒度は **`harm_detail` の全文一致**。語彙単位や Issue 単位で抑制すると
-  「一度例外を認めた語は以後その Issue のあいだ書き放題」になり、lint が塞いだはずの経路が
-  そのまま開く。文面を書き換えたら登録し直す必要がある（＝再承認が要る）ことは、
-  この粒度の意図した性質である。
+- 抑制の粒度は **`harm_detail` の全文一致**。文面を変更したら登録し直す。
 - **まず言い換えを試すこと**。allowlist は逃げ道ではなく、言い換え不能を記録する場所。
 
 ### 既知の限界（語彙一致の取りこぼし）
