@@ -28,8 +28,9 @@ class OperationConfirmationPolicyTests(unittest.TestCase):
                        '対象と操作が依頼の範囲に一致', 'ユーザーの選択を得る',
                        'Horizon は preview の提示だけを承認とみなさず',
                        '追加の実行確認を求めず',
-                       'Issue のクローズと受け入れ基準（AC）の更新',
-                       'AC 更新を除き追加確認を要しない'):
+                       'Issue のクローズとAC文言の追加・変更・削除',
+                       'AC文言変更を除き追加確認を要しない',
+                       'clean後の充足済みAC checkbox付与'):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, text)
 
@@ -41,7 +42,9 @@ class OperationConfirmationPolicyTests(unittest.TestCase):
             '依頼範囲外は停止', 'PR merge／auto-merge を実行しない',
             'force push', '個別操作の明示指示', '公開設定・アクセス権変更',
             '本番デプロイ', '第三者へのメール・DM', '機械的な承認ゲート',
-            'Issue・PR のクローズ', '受け入れ基準（AC）の更新',
+            'Issue・PR のクローズ', '受け入れ基準（AC）の文言追加・変更・削除',
+            'レビューが clean となった後に主文脈が',
+            '事前確認不要',
             '対象と内容が一致する明示的な指示・承認',
         ):
             with self.subTest(phrase=phrase):
@@ -52,7 +55,8 @@ class OperationConfirmationPolicyTests(unittest.TestCase):
         section = text.split('12. **オーナーへの報告', 1)[1].split('\n13.', 1)[0]
         for phrase in ('非破壊', '事後報告', '依頼範囲外は停止', '個別の明示指示',
                        'force push', 'remote branch 削除', '履歴改変', '大量削除',
-                       'Issue・PR のクローズ', '受け入れ基準（AC）更新',
+                       'Issue・PR のクローズ', 'AC 文言追加・変更・削除',
+                       'チェック付与だけは事前確認不要',
                        '原則事前確認', 'AI の merge は禁止', '機械ゲート'):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, section)
