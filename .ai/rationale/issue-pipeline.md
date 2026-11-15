@@ -467,3 +467,12 @@ PR #496 F-495-07 である。
 disposition をどう決めるか」という論点・比較・推奨である。通知の見落としや過去の経緯確認では手動の
 `karte status` を使い、その実行は既読管理の対象外なので毎回全件が出る。判定の再要約を禁じた根拠は
 本ファイル「karte 判定の再要約を禁止した発端」に記録している。
+
+
+## 2026-10-30 linked worktree のhook実測と未完検証（旧Claude Skillから移設）
+
+2026-10-30の実測では、作業面を作り `python3 -m gitgate adopt-branch` でbranchを取ってから
+`git switch --detach` で外した状態のcwdがhookに検査された。
+
+この手順による実dispatchの完走は未実測で、#652等の実dispatchで確かめる。
+

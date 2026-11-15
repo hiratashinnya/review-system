@@ -90,8 +90,6 @@ hookが検査する作業面はhookプロセスのcwd、つまり主文脈のセ
    primaryの `tmp/` に置いたファイルは読まれない。
 4. その作業面から次作者を起動する。
 
-2026-10-30の実測では、作業面を作り `python3 -m gitgate adopt-branch` でbranchを取ってから
-`git switch --detach` で外した状態のcwdがhookに検査された。
 hookはdetachedだけを受理し、対象branch上と別名branch上は入口で `ISSUE_START_PHASE_TARGET_INVALID` として拒否する。
 作業面がdetachedでも、primary checkoutを含む他のworktreeが対象branchを掴んでいれば、掴んでいるpathを示して同じreasonで拒否する
 （`git worktree list` が失敗して判定できないときも拒否する）。
@@ -101,7 +99,6 @@ read-onlyのCodex経路（`issue_start.readonly_workspace`）はprimaryから起
 作業面を残したままprimaryへ戻ってから実行し、後続作者を起動するときに作業面へ入り直してdetachを確かめる。
 この作業面には `agent-<id>` 以外の名前を付ける。台帳entryを持たないのでgitgateのrelease系verbで消さない
 （`worktree-release` は `.claude/worktrees/agent-<id>` 形しか受理せず、他の形は `WORKTREE_PATH_SHAPE_INVALID` で拒否する）。
-この手順による実dispatchの完走は未実測で、#652等の実dispatchで確かめる。
 次作者を別の `isolation: "worktree"` で起動し、本人が6field bindingの値を使って
 `gitgate adopt-branch BRANCH --repository OWNER/REPO --expected-oid OID` を実行する。
 失敗時はSTOPし、使用中branch拒否を迂回しない。独立reviewとowner承認を毎工程で維持する。

@@ -55,3 +55,13 @@ expected に書いて**返す」と指示していた。Issue #511 は契約側�
 している穴が形を変えて再発する。よって `deferred`/`waived` は `status: open` のまま台帳に残し、
 `harm: real` の場合は **「是正を要する finding」の集合からだけ外す**（`Finding.needs_remediation` が偽になる）。
 verdict と `check` はこの集合を共有する。無進捗はさらに検証済み handoff を除外する。
+
+
+## 2026-09-07 verdict と無進捗の規則確定
+
+2026-09-07 の確定（`harm: none` に解除力を与えない）は、機械検証済みの転記を条件とする無進捗の計数除外に限って #683 で置き換えた。`clean` の解除力は不変。自己申告を検証済み転記に替えた根拠と経緯は `.ai/rationale/karte-handoff-verification.md` を参照。
+
+## 2026-11-11 Codex owner環境のMCP観測
+
+2026-11-11 のオーナー環境の観測（同ファイル :181-198）では `serena`（`--context=codex`）・`agy`・無効な `claude_review` で context-mode は無い。
+

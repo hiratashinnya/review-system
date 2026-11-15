@@ -125,7 +125,7 @@ verdict は動かず、未解消が実害なしだけなら `no-harm-only` と�
 無進捗の計数だけは、`harm: none`・`deferred` の finding に検証済み handoff がある場合に外す。
 `harm: none` の `waived` や未検証・無効の `deferred` は従来どおり数える。
 
-2026-09-07 の確定（`harm: none` に解除力を与えない）は、機械検証済みの転記を条件とする無進捗の計数除外に限って #683 で置き換えた。`clean` の解除力は不変。自己申告を検証済み転記に替えた根拠と経緯は `.ai/rationale/karte-handoff-verification.md` を参照。
+`clean` の解除力は `harm: real` のfindingに限定し、無進捗計数の追加除外だけに検証済みhandoffを使う。
 
 除外条件は自己申告ではなく、申し送り先が open で、転記が実在し、内容が現在の finding と
 一致することを機械検証する。保証は記録が申し送り先に実在し続けることまでであり、
@@ -355,7 +355,6 @@ Codex 側 gate はシェル系ツールだけを見て非シェルツールは�
 Codex custom agent も無い（`python3 -m asset_parity check` の `.codex/agents` 列が `exempt`、
 `docs/methods/codex-workspace-binding.md:18-19,275-281`）。`codex_worktree_exec` は同書の起動形（:89-94）で role profile を選び、
 profile は filesystem・network の規則だけを定める。MCP サーバの有無は repo 外・非版管理の利用者 `~/.codex/config.toml` に依り、
-2026-11-11 のオーナー環境の観測（同ファイル :181-198）では `serena`（`--context=codex`）・`agy`・無効な `claude_review` で context-mode は無い。
 `serena` の codex 文脈は `execute_shell_command` を除外する（`serena/resources/config/contexts/codex.yml:12-18`）。
 Codex が実行するコマンドは `agent_type` を持たず、Codex 版 gate のロール専用層（karte verb の許可表を含む）の対象外で、
 Codex 経路で効くのは gate ではなく permission profile である（`docs/methods/codex-workspace-binding.md:160-163`）。
