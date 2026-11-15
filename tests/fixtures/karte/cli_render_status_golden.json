@@ -76,14 +76,14 @@
     },
     "status": {
       "exit_code": 0,
-      "stdout_sha256": "30134626b4ad22bd7486a1f2b5e64e4584f24ed94943b320d9185658a225cc5f"
+      "stdout_sha256": "3988ce50fe959799bc9e52f115ef0bdf6090b5ac87a29688373b93eebf429427"
     },
     "status-json": {
       "exit_code": 0,
-      "stdout_sha256": "d460a7d1f654b4d655f3625ef46f8f9d9c00acbd00a8835ff8bb94960b4dfa2c",
+      "stdout_sha256": "14d842fcb0163ebe439c74329b32e535cb45b135e04e94e3b3bc7663cd1995dc",
       "json": {
         "issue": 307,
-        "verdict": "clean",
+        "verdict": "harmful-open",
         "open_findings": [
           "F-307-01",
           "F-307-02"
@@ -93,8 +93,12 @@
           "F-307-02"
         ],
         "no_harm_open": [],
-        "blocking_findings": [],
-        "blocking_harmful": [],
+        "blocking_findings": [
+          "F-307-02"
+        ],
+        "blocking_harmful": [
+          "F-307-02"
+        ],
         "undecided_disposition": [],
         "deferred_findings": [
           {
@@ -191,7 +195,10 @@
             "resolved_round": 3,
             "attempts": []
           }
-        ]
+        ],
+        "override_pending": {
+          "F-307-02": "オーナー判断の override_ref が未記入"
+        }
       },
       "json_key_order": {
         "keys": [
@@ -210,7 +217,8 @@
           "stall_rounds",
           "saturated_groups",
           "escalate",
-          "findings"
+          "findings",
+          "override_pending"
         ],
         "children": [
           null,
@@ -224,8 +232,12 @@
             null
           ],
           [],
-          [],
-          [],
+          [
+            null
+          ],
+          [
+            null
+          ],
           [],
           [
             {
@@ -401,7 +413,15 @@
                 []
               ]
             }
-          ]
+          ],
+          {
+            "keys": [
+              "F-307-02"
+            ],
+            "children": [
+              null
+            ]
+          }
         ]
       }
     }
@@ -655,14 +675,14 @@
     },
     "status": {
       "exit_code": 0,
-      "stdout_sha256": "7ef088d5aeb61d2efb1af0830998f7576b39461a897c0044bd2930b052247ee3"
+      "stdout_sha256": "08a7acbfd6be618d3a2636165d8b22dbc0d499b4751cd3b2a870100e9a071bbe"
     },
     "status-json": {
       "exit_code": 0,
-      "stdout_sha256": "987bf306c21dc09b8c7d5f8f710180207233399b1dd90328a816ab6c75ae0725",
+      "stdout_sha256": "1a59657e395138993afdb8e04be79f05ec5489af08f9204c73615b7e48ebae7b",
       "json": {
         "issue": 307,
-        "verdict": "no-harm-only",
+        "verdict": "harmful-open",
         "open_findings": [
           "F-307-01",
           "F-307-02"
@@ -674,9 +694,12 @@
           "F-307-01"
         ],
         "blocking_findings": [
-          "F-307-01"
+          "F-307-01",
+          "F-307-02"
         ],
-        "blocking_harmful": [],
+        "blocking_harmful": [
+          "F-307-02"
+        ],
         "undecided_disposition": [],
         "deferred_findings": [
           {
@@ -744,7 +767,10 @@
             "resolved_round": null,
             "attempts": []
           }
-        ]
+        ],
+        "override_pending": {
+          "F-307-02": "オーナー判断の override_ref が未記入"
+        }
       },
       "json_key_order": {
         "keys": [
@@ -763,7 +789,8 @@
           "stall_rounds",
           "saturated_groups",
           "escalate",
-          "findings"
+          "findings",
+          "override_pending"
         ],
         "children": [
           null,
@@ -779,9 +806,12 @@
             null
           ],
           [
+            null,
             null
           ],
-          [],
+          [
+            null
+          ],
           [],
           [
             {
@@ -906,7 +936,15 @@
                 []
               ]
             }
-          ]
+          ],
+          {
+            "keys": [
+              "F-307-02"
+            ],
+            "children": [
+              null
+            ]
+          }
         ]
       }
     }
