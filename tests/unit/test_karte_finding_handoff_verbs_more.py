@@ -56,6 +56,35 @@ class MoreTest(VerbCase):
         self.assertIn("観測後に finding が変わった", out)
         self.assertEqual("verified", self.ledger().findings[0].handoff.handoff_state)
 
+    def test_recheck_rejects_stale_destination_before_gh(self):
+        from karte.status_payload import status_payload
+        self.assertEqual(0, self.post()[0])
+        for target in ("#10", "https://github.com/other/repo/issues/9"):
+            with self.subTest(target=target):
+                item = self.ledger().findings[0]
+                item.deferred_to = target
+                self.save(item)
+                self.assertIn(item.id, status_payload(self.ledger())["stalled_findings"])
+
+                def reject_gh(argv):
+                    raise AssertionError(f"行き先不一致で gh を呼んではいけない: {argv}")
+                self.failure = reject_gh
+                try:
+                    code, output, err = self.call("handoff-recheck")
+                finally:
+                    self.failure = None
+                self.assertEqual(4, code, err)
+                self.assertIn("deferred_to", output)
+                self.assertEqual("invalid", self.ledger().findings[0].handoff.handoff_state)
+
+                item = self.ledger().findings[0]
+                item.deferred_to = "#9"
+                self.save(item)
+                code, output, err = self.call("handoff-recheck")
+                self.assertEqual(0, code, err)
+                self.assertIn("verified", output)
+                self.assertEqual("verified", self.ledger().findings[0].handoff.handoff_state)
+
     def test_changed_destination_returns_to_stalled_count(self):
         from karte.status_payload import status_payload
         self.assertEqual(0, self.post()[0])
