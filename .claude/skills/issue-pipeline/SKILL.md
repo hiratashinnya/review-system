@@ -11,6 +11,7 @@ worktree／handoff の回復手順は [issue-pipeline の troubleshooting](../..
 
 ## Claude Code 固有の dispatch 契約
 
+- **Issue #523 捕捉**：dispatch 前後のオーナー判断で AI 推奨を覆したら、主文脈がその場で逐語・推奨・差分・根拠を `feedback_ledger new-entry` へ保存する。`waived` / reviewer scope の覆しは実在する FBK ID を `karte decide --override-ref` に渡す。レビュー/実装ロールへ台帳の著作を委譲しない。処置順・STOP・merge 等の機械非可視判断は主文脈の記録契約（fail-open）とする。詳細・復旧は共有 SKILL ②-c と `karte/README.md` を参照。
 - **#801 AC契約**：主文脈は2bのreviewer起動前に元IssueのAC全文をsnapshotとして凍結し `karte activate ... --ac-snapshot-file` に与える。Claude reviewerはAC全件のSummaryとfindingをhandoffへ記入し、Codex reviewerはネットワークに頼らずwrapperが注入した同一snapshotを審査する。clean後のACcheckbox更新は**主文脈のみ**が本文再取得・snapshot照合・更新後read-backを行う。文言変更やチェック取り外しは自動実施しない。
 
 

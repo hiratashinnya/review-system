@@ -1,6 +1,7 @@
 """主文脈専用 activate / decide のパーサー登録（実装から分離）。"""
 
 from . import model
+from .vocabulary import DIAGNOSIS_OWNERS
 
 def register(subparsers, add_issue, cmd_activate, cmd_decide) -> None:
     activate = subparsers.add_parser("activate", help="進行ポインタを Issue に向ける（主文脈専用）")
@@ -27,4 +28,7 @@ def register(subparsers, add_issue, cmd_activate, cmd_decide) -> None:
     decide.add_argument("--waived-by")
     decide.add_argument("--waived-reason")
     decide.add_argument("--scope", help="オーナーが覆した scope（in|out）")
+    decide.add_argument("--override-ref", help="実在する owner 判断台帳 FBK-... の参照")
+    decide.add_argument("--diagnosis-owner", choices=DIAGNOSIS_OWNERS,
+                        help="fix-here の診断担当（fixer|main。主文脈専用）")
     decide.set_defaults(func=cmd_decide)

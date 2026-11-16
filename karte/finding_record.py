@@ -33,9 +33,13 @@ class Finding:
     deferred_to: str = ""
     waived_by: str = ""
     waived_reason: str = ""
+    override_ref: str = ""
     rounds: list = field(default_factory=list)
     resolved_round: int | None = None
     handoff: HandoffRecord | None = None
+    reachability_path: str = ""  # 旧形式の不在は空文字で保持する
+    threat_assumption: str = ""
+    diagnosis_owner: str = "fixer"  # 旧カルテは是正担当。末尾追加で位置引数互換
 
     @property
     def seq(self) -> int:

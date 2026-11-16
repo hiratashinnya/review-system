@@ -23,12 +23,21 @@ def render_finding(finding: Finding) -> str:
     _emit(lines, "severity", finding.severity)
     _emit(lines, "scope", finding.scope)
     _emit(lines, "disposition", finding.disposition)
+    if finding.diagnosis_owner != "fixer":
+        _emit(lines, "diagnosis_owner", finding.diagnosis_owner)
     _emit(lines, "deferred_to", finding.deferred_to)
     _emit(lines, "waived_by", finding.waived_by)
     _emit(lines, "waived_reason", finding.waived_reason)
+    if finding.override_ref:
+        _emit(lines, "override_ref", finding.override_ref)
     _emit(lines, "locus", finding.locus)
     _emit(lines, "summary", finding.summary)
     _emit(lines, "evidence", finding.evidence)
+    # 未導入の旧findingは従来どおりの描画を保つ（golden/CLI互換）。
+    if finding.reachability_path:
+        _emit(lines, "reachability_path", finding.reachability_path)
+    if finding.threat_assumption:
+        _emit(lines, "threat_assumption", finding.threat_assumption)
     _emit(lines, "expected", finding.expected)
     _emit(lines, "recheck", finding.recheck)
     _emit(lines, "rounds", finding.rounds)

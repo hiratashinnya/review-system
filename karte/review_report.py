@@ -24,6 +24,7 @@ def parse_review(text: str, issue: int) -> list:
 
     任意キー: ``status``（``open`` 既定／``resolved``・解消は明示宣言でのみ成立）・
     ``distinct_from``（再発番判定のペア限定エスケープハッチ）・
+    ``reachability_path`` / ``threat_assumption``（旧形式の欠落を許す。明示した空値は禁止）・
     ``disposition`` / ``deferred_to`` / ``waived_by`` / ``waived_reason``（オーナー判断の記録）。
     """
     blocks = parse_blocks(text, allow_preamble=True)

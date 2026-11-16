@@ -5,18 +5,19 @@ from __future__ import annotations
 import re
 
 from .attempt_record import Attempt, Result
-from .block_fields import optional_enum as _optional_enum, require_enum as _require_enum
+from .block_fields import optional_enum as _optional_enum, optional_scalar as _optional_scalar, require_enum as _require_enum
 from .block_fields import require_int_list as _require_int_list, require_nonempty as _require_nonempty
 from .block_parser import Block
 from .disposition import parse_disposition
 from .field_validators import validate_finding_ids, validate_slug, validate_targets
 from .finding_id import parse_finding_id
+from .finding_basis import REACHABILITY_PATH, THREAT_ASSUMPTION, read_basis
 from .finding_handoff_ledger import record_from_block
 from .finding_record import Finding
 from .format_error import KarteFormatError
 from .int_args import matched_int, require_ascii_int
 from .value_codec import check_list, normalize_locus
-from .vocabulary import CHANGE_KINDS, DEFAULT_SCOPE, FINDING_STATUSES, HARM_LEVELS, OUTCOMES, SCOPES, SEVERITIES
+from .vocabulary import CHANGE_KINDS, DIAGNOSIS_OWNERS, DEFAULT_SCOPE, FINDING_STATUSES, HARM_LEVELS, OUTCOMES, SCOPES, SEVERITIES
 
 
 def _finding_from_block(block: Block, issue: int) -> Finding:
@@ -44,11 +45,15 @@ def _finding_from_block(block: Block, issue: int) -> Finding:
         evidence=_require_nonempty(block, "evidence"),
         expected=_require_nonempty(block, "expected"),
         recheck=_require_nonempty(block, "recheck"),
+        reachability_path=read_basis(block, REACHABILITY_PATH, ledger=True),
+        threat_assumption=read_basis(block, THREAT_ASSUMPTION, ledger=True),
         scope=_optional_enum(block, "scope", SCOPES, DEFAULT_SCOPE),
         disposition=disposition.kind,
+        diagnosis_owner=_optional_enum(block, "diagnosis_owner", DIAGNOSIS_OWNERS, "fixer"),
         deferred_to=disposition.deferred_to,
         waived_by=disposition.waived_by,
         waived_reason=disposition.waived_reason,
+        override_ref=_optional_scalar(block, "override_ref"),
         rounds=_require_int_list(block, "rounds"),
         resolved_round=resolved,
         handoff=record_from_block(block),

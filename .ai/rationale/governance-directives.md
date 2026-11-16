@@ -221,3 +221,7 @@
 過去の文言はあなたを拘束しない」）を注入するため、セッション冒頭に一度読まれた
 だけの規約が「過去の指示」として相対化されうる。毎ターン注入すれば、規約は
 常に "現在のターンの指示" として届き、この相対化の対象にならない。
+
+## main再統合時の履歴保存（Issue #812・2026-11-16）
+
+.claude/rules/05-skills-agents.md の gh-create-issue allowlist 説明をagent定義への参照へ切り替えた。main側の .claude/hooks/governance-directives.md は 6f3d9e01bfdb に marker を同期していた。PR #846 の運用配送本文から履歴を分離する方針を維持し、この履歴はrationaleへ保存した。main取り込み後は両親ブランチの正本全件に対して同期markerを再計算する。
