@@ -220,7 +220,38 @@ class TestKarteCliVerbsCompatibility(unittest.TestCase):
 
     def test_parser_contracts(self):
         self.assertEqual(self.golden["parser_basic"], parser_contract(()))
-        self.assertEqual(self.golden["parser_extended"], parser_contract(EXTRA))
+        current = parser_contract(EXTRA)
+        legacy = self.golden["parser_extended"]
+        # Only the two explicitly added decide flags extend the frozen CLI.
+        # Keep strict parser snapshot checks everywhere else.
+        self.assertEqual(current["order"], legacy["order"])
+        for name, expected in legacy["parsers"].items():
+            with self.subTest(parser=name):
+                actual = current["parsers"][name]
+                if name != "decide":
+                    self.assertEqual(actual, expected)
+                    continue
+                self.assertEqual(actual["actions"][:-2], expected["actions"])
+                self.assertEqual(actual["actions"][-2], {
+                    "dest": "override_ref", "options": ["--override-ref"],
+                    "required": False, "choices": None, "nargs": None, "default": None,
+                })
+                self.assertEqual(actual["actions"][-1], {
+                    "dest": "diagnosis_owner", "options": ["--diagnosis-owner"],
+                    "required": False, "choices": ["fixer", "main"],
+                    "nargs": None, "default": None,
+                })
+                # Help changed because of the added flag. Require visible help
+                # and verify parser behavior instead of freezing a stale hash.
+                help_text = verb_parsers(cli.build_parser(EXTRA))["decide"].format_help()
+                self.assertIn("--override-ref", help_text)
+                self.assertIn("--diagnosis-owner", help_text)
+                parsed = cli.build_parser(EXTRA).parse_args([
+                    "decide", "--issue", "7", "--finding", "F-7-01",
+                    "--override-ref", "FBK-20261115-test",
+                    "--diagnosis-owner", "main"])
+                self.assertEqual(parsed.override_ref, "FBK-20261115-test")
+                self.assertEqual(parsed.diagnosis_owner, "main")
 
     def test_original_cli_names_remain_resolvable_with_the_same_kind(self):
         actual = cli_names()

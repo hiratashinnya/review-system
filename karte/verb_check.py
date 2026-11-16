@@ -1,6 +1,7 @@
 """verb_check の責務。詳細は .ai/rationale/karte-module-split.md。"""
 import sys
-from . import karte_loader, pointer_completion
+from . import karte_loader, pointer_completion, override_gate
+from .check_diagnosis import exemption_reason
 from .exit_codes import EXIT_ERROR, EXIT_OK
 from .verb_boundary import fail_close
 
@@ -14,16 +15,26 @@ def cmd_check(args, repo_root) -> int:
     ).number
 
     attempts = [item for item in karte.attempts if item.round == round_no]
+    open_items = karte.open_findings()
+    pending = (override_gate.pending(karte, repo_root) if any(
+        f.harm == "none" and f.disposition == "waived" for f in open_items
+    ) else {})
+    excused_by_id = {
+        item.id: reason for item in open_items if round_no in item.rounds
+        if (reason := exemption_reason(item, pending)) is not None
+    }
     expected = sorted(
-        item.id for item in karte.remediation_findings() if round_no in item.rounds
+        item.id for item in karte.remediation_findings()
+        if round_no in item.rounds and item.id not in excused_by_id
     )
-    # Issue #503: 除外した finding は黙って落とさず必ず見せる（何を診断しなくてよいのか、
-    # なぜそう判定したのかを読み手が台帳を開かずに確認できるようにする）。
-    excused = sorted(
-        f"{item.id}（{item.disposition}）"
-        for item in karte.open_findings()
-        if item.cleared_by_disposition and round_no in item.rounds
-    )
+    legacy_excused = [
+        f"{fid}（{reason}）" for fid, reason in sorted(excused_by_id.items())
+        if reason in ("deferred", "waived")
+    ]
+    assigned_excused = [
+        f"{fid}（{reason}）" for fid, reason in sorted(excused_by_id.items())
+        if reason not in ("deferred", "waived")
+    ]
     print(f"=== check: issue-{issue} round {round_no} ===")
     if not attempts:
         print(
@@ -36,10 +47,15 @@ def cmd_check(args, repo_root) -> int:
     missing = [fid for fid in expected if fid not in covered]
     print(f"  Attempt: {', '.join(str(item.number) for item in attempts)}")
     print(f"  診断が要る未解消 finding: {', '.join(expected) or '(なし)'}")
-    if excused:
+    if legacy_excused:
         print(
             "  診断不要（disposition で当該 PR では処置しないと決定済み・status は open のまま）: "
-            + ", ".join(excused)
+            + ", ".join(legacy_excused)
+        )
+    if assigned_excused:
+        print(
+            "  診断不要（是正担当の診断対象外。status の判定は変更しない）: "
+            + ", ".join(assigned_excused)
         )
     if missing:
         print(f"NG: 診断されていない未解消 finding: {', '.join(missing)}", file=sys.stderr)

@@ -126,7 +126,7 @@ def load_payload(stdin: TextIO) -> dict | None:
     """stdin の JSON を読む。読めなければ ``None``（対象外扱い＝無出力 exit 0）。"""
     try:
         value = json.load(stdin)
-    except (json.JSONDecodeError, UnicodeDecodeError, ValueError, OSError):
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError, OSError, RecursionError):
         return None
     return value if isinstance(value, dict) else None
 
@@ -444,7 +444,7 @@ def read_active_pointer(repo_root: Path) -> tuple:
         raise ActivePointerError(f"進行ポインタが無い: {path}")
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, RecursionError) as exc:
         raise ActivePointerError(f"進行ポインタを読めない/JSON が壊れている: {path}（{exc}）")
     if not isinstance(value, dict):
         raise ActivePointerError(f"進行ポインタが JSON オブジェクトでない: {path}")

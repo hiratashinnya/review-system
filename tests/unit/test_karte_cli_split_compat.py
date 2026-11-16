@@ -187,9 +187,14 @@ class TestCliSplitCompatibility(unittest.TestCase):
             return self.current[name]["status-json"]["json"]
 
         self.assertEqual(payload("empty-clean")["verdict"], "clean")
-        self.assertEqual(payload("clean-deferred-waived-resolved")["verdict"], "clean")
+        self.assertEqual(payload("clean-deferred-waived-resolved")["verdict"], "harmful-open")
         self.assertEqual(payload("harmful-in-out-fix-here")["verdict"], "harmful-open")
-        self.assertEqual(payload("no-harm-disposition")["verdict"], "no-harm-only")
+        self.assertEqual(payload("no-harm-disposition")["verdict"], "harmful-open")
+        # #523: even an owner-waived real finding is blocking until an
+        # existing feedback-ledger override_ref is recorded and verified.
+        for name in ("clean-deferred-waived-resolved", "no-harm-disposition"):
+            self.assertIn("F-307-02", payload(name)["blocking_findings"])
+            self.assertIn("F-307-02", payload(name)["override_pending"])
         self.assertEqual(payload("two-rounds")["stalled_findings"], [])
         self.assertEqual(payload("three-rounds-stalled")["stalled_findings"], ["F-307-01"])
         self.assertTrue(payload("three-rounds-stalled")["escalate"])

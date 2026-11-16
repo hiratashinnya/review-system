@@ -7,7 +7,7 @@ import sys
 
 from . import (
     ingest_accept, ingest_apply, ingest_checks, ingest_notes, ingest_report, karte_rounds, model, paths,
-    review_expectation, scope_ledger, scope_origin,
+    review_expectation, scope_ledger, scope_origin, override_gate,
 )
 from .active_pointer import write_active
 from .errors import KarteUsageError
@@ -48,7 +48,7 @@ def ingest_locked(repo_root, issue, round_no, report_text, policy=None, *, allow
     review = model.parse_review(report_text, issue)
     previously_open = karte.open_ids()
     collected = ingest_accept.collect_accepted(karte, review, issue)
-    errors = list(collected.errors)
+    errors = list(collected.errors) + override_gate.invalid_refs(repo_root, collected.accepted)
     if policy and not policy.record_declarations:
         repeated = sorted({
             entry.finding_id for entry in collected.accepted

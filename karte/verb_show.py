@@ -23,7 +23,7 @@ def cmd_status(args, repo_root) -> int:
     """進捗判定を本文または JSON として出力する。"""
     issue = pointer_completion.resolve_issue(args, repo_root)
     path, karte = karte_loader.load_karte(repo_root, issue)
-    payload = _status_payload(karte)
+    payload = _status_payload(karte, repo_root)
     if getattr(args, "json", False):
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return EXIT_OK

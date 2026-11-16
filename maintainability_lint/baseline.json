@@ -9,15 +9,7 @@
     "blocker_gate/model.py|6db9191650656b20": 1,
     "blocker_gate/model.py|7fb2050a6ba22e05": 1,
     "blocker_gate/model.py|ed84d2c92f3ea960": 1,
-    "branch_source/policy.py|237460617202c10c": 1,
-    "branch_source/policy.py|baa19a57d76aabbf": 1,
     "feedback_ledger/check.py|201f4f7131d063b3": 1,
-    "gitgate/adopt.py|b773d74d104a989a": 1,
-    "gitgate/cli.py|4c084b8d6f4b492f": 1,
-    "gitgate/cli.py|b3bd3dea450cdad5": 1,
-    "gitgate/worktree.py|1888da7cc8174c4f": 1,
-    "gitgate/worktree.py|abc15b92f96f2e58": 1,
-    "gitgate/worktree.py|e239a628536ab723": 1,
     "issue_start/subagent_hooks.py|04ba118aabcea77e": 1,
     "issue_start/subagent_hooks.py|32c7b913336adb61": 1,
     "issue_start/subagent_hooks.py|538e8580a6345563": 1,
@@ -26,17 +18,7 @@
     "issue_start/worktree_ledger.py|09c0c483bbb9b752": 1,
     "project_status_sync/model.py|43d8fd6ab29f2cf1": 1
   },
-  "mixed_class_files": {
-    "branch_source/policy.py": {
-      "data": [
-        "BranchSourceResult"
-      ],
-      "logic": [
-        "GitHubBranchClient"
-      ],
-      "sha256": "bd489b19f7966fa00f423d294d184afe181d8893f3086bf6c31a58a25f73f879"
-    }
-  },
+  "mixed_class_files": {},
   "module_lines": {
     ".codex/mcp/claude_review/server.py": {
       "line_count": 441,
@@ -78,10 +60,6 @@
       "line_count": 313,
       "sha256": "7bf8b9bd7e45e28ad0ccc4493b7b67b357cc7e7129b89dd7d484c32754adae43"
     },
-    "branch_source/policy.py": {
-      "line_count": 273,
-      "sha256": "bd489b19f7966fa00f423d294d184afe181d8893f3086bf6c31a58a25f73f879"
-    },
     "feedback_ledger/check.py": {
       "line_count": 454,
       "sha256": "714bc4a2e38fea2cab0c738bf41be7286e1197d77f6db259c9baa040473ece34"
@@ -89,18 +67,6 @@
     "feedback_ledger/status.py": {
       "line_count": 168,
       "sha256": "a10210537898339b8f21bfeaf41eb3a3264403eaa86863d8a1be5190d6b5da15"
-    },
-    "gitgate/adopt.py": {
-      "line_count": 551,
-      "sha256": "813d31e094417a6b19a7261e9fb8dbfcf889bd230d19c0bbdaf43c9470d18db9"
-    },
-    "gitgate/cli.py": {
-      "line_count": 379,
-      "sha256": "154d91bdf738797b9271103e6e5a5f14442922c4c5ae52ad38a35bd9cd030208"
-    },
-    "gitgate/worktree.py": {
-      "line_count": 1098,
-      "sha256": "9c0ada3af0133c21933f1c84e68b72bf08ad40e2535d1a34c081a141cbba4d44"
     },
     "issue_start/durable_lock.py": {
       "line_count": 129,
@@ -112,7 +78,7 @@
     },
     "issue_start/subagent_hooks.py": {
       "line_count": 962,
-      "sha256": "98a8857e033875612c12c6a8c68846c2f6af437f23ea4874920c5852178f61ab"
+      "sha256": "1c7b9a19544e164e26017a89074f48766ab83075c8b4bde1ae5ab0eb195d00bd"
     },
     "issue_start/worktree_ledger.py": {
       "line_count": 856,

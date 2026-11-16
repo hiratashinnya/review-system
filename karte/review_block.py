@@ -1,9 +1,10 @@
 """レビューレポートの 1 ブロックを :class:`ReviewFinding` へ読み替える（任意キーの検証を含む）。"""
 
-from .block_fields import require_enum, require_nonempty
+from .block_fields import optional_scalar, require_enum, require_nonempty
 from .block_parser import Block
 from .disposition import parse_disposition
 from .finding_id import parse_finding_id
+from .finding_basis import REACHABILITY_PATH, THREAT_ASSUMPTION, read_basis
 from .finding_handoff_keys import is_handoff_key
 from .format_error import KarteFormatError
 from .harm_detail_lint import check_harm_detail
@@ -76,6 +77,8 @@ def review_finding_from_block(block: Block, issue: int, finding_id) -> ReviewFin
         evidence=require_nonempty(block, "evidence"),
         expected=require_nonempty(block, "expected"),
         recheck=require_nonempty(block, "recheck"),
+        reachability_path=read_basis(block, REACHABILITY_PATH),
+        threat_assumption=read_basis(block, THREAT_ASSUMPTION),
         scope=require_enum(block, "scope", SCOPES),
         lineno=block.lineno,
         status=optional_status(block),
@@ -84,4 +87,5 @@ def review_finding_from_block(block: Block, issue: int, finding_id) -> ReviewFin
         deferred_to=disposition.deferred_to,
         waived_by=disposition.waived_by,
         waived_reason=disposition.waived_reason,
+        override_ref=optional_scalar(block, "override_ref"),
     )

@@ -90,7 +90,7 @@ import 時 `ValueError`。`time_fixture_lint/allowlist.py`・`asset_parity/excep
    [ADR の記録境界](../adr/README.md#記録境界) を正本とする。
 2. plan を無修正で承認した場合は、台帳にも ADR にも新規記録しない。
 3. plan の修正・条件付き承認は、台帳と ADR の両方に記録する（ADR が台帳 id を参照する）。
-4. オーナーが finding を覆した判断は台帳に記録する（#523 の `override_ref` が参照する）。
+4. オーナーが finding を覆した判断は主文脈がその場で `new-entry` で台帳に記録する。`waived` / reviewer 申告 `scope` の覆しには `karte decide --override-ref FBK-...` で参照を結ぶ（Issue #523）。ID・参照実在は機械検証するが、オーナー判断そのものは機械で認証しない。処置順、STOP、merge 等の機械非可視判断は共有 issue-pipeline SKILL の捕捉契約に留める。
    ロール間の覆しはカルテ（`karte`）だけに残す。
 5. 全ツール共通の方針は台帳だけに記録する。方針を覆すときは、それぞれの `supersedes` の連鎖で表す。
 6. 参照は **ADR→台帳の片方向のみ**。ADR にオーナーの逐語は転載しない。

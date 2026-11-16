@@ -45,7 +45,7 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
 | （未記載） | 未決定 | — | **`clean` を妨げる** |
 | `fix-here` | 当該 PR で直す | — | 直って `status: resolved` になるまで `clean` を妨げる |
 | `deferred` | 別 Issue へ申し送る | `deferred_to` | 妨げない（`status` は `open` のまま） |
-| `waived` | オーナーが明示的に処置不要を許可 | `waived_by` / `waived_reason` | 妨げない（`status` は `open` のまま） |
+| `waived` | オーナーが明示的に処置不要を許可 | `waived_by` / `waived_reason` / 実在する `override_ref` | `override_ref` 確認後は妨げない（`status` は `open` のまま） |
 
 - `deferred_to` は `#123` / `123` / Issue の URL のいずれかで書く。散文（「別 Issue で対応」）は
   行き先を解決できないため拒否する。
@@ -87,8 +87,7 @@ verdict は動かず、未解消が実害なしだけなら `no-harm-only` と�
 
 ### 既知の限界（多層防御の一枚であって sandbox ではない）
 
-**非保護モードの保護水準は `disposition` 系と `scope` で 1 段違う。** 前者は記録だけを強制し、
-後者は記録すら強制していない。保護モードの申告原本とオーナー確定の印は後述する。
+**`override_ref` は判断の記録と参照先の実在を機械検証するが、オーナー本人の承認を認証するものではない。** 未確認の判断は主文脈でエスカレーションする。
 
 #### `disposition` 系（`waived` / `deferred`）——記録は強制、オーナー判断は非強制
 
@@ -103,29 +102,13 @@ verdict は動かず、未解消が実害なしだけなら `no-harm-only` と�
   無視され、いずれも除外が効かず計数に戻る。
 - **これらが保証するのは記録と検証であって、オーナー判断ではない。**
 
-#### 非保護モードの `scope` の覆し——記録の強制すら無い
+#### `scope` の覆しと `override_ref`（Issue #523）
 
-- **`scope` の覆しがオーナーの判断であることを機械側は検証していない**（Issue #531）。
-  台帳は取り込まれた `scope` の値を受け取るだけで、それが誰の判断かも、レビューアの元の申告と
-  違うかも見ていない。**覆したこと自体を残させる欄も無い**ため、`waived_by` / `waived_reason`
-  に相当する「記録の強制」も現時点では掛かっていない。書き忘れても verdict は動かないので、
-  覆した値が黙ってレビューアの申告へ戻る（fail-open。再掲の規律＝
-  `.ai/skills/issue-pipeline/SKILL.md` ②-c）。
-- **検出できない窓は「その finding が台帳へ初めて取り込まれるラウンド」である**——
-  ラウンド番号ではなく「その finding について前ラウンドの記録が台帳にあるか」で決まる。
-  `pr-reviewer` の finding は主文脈を経て取り込みレポートになるため、**その finding についての
-  最初の `ingest-review` より前**に書き換えられると元の申告値がどこにも残らない。
-  `pr-reviewer` は各ラウンドで新しい finding を起票できる（ブロック見出しが
-  `### F-<issue>-<seq> または new`＝`.ai/agents/pr-reviewer.md`）ため、**round 3 で初出した
-  finding にも round 1 とまったく同じ窓が開く**。
-  - **Issue #375 がこの窓を塞ぐ**。Claude Code の `pr-reviewer` は handoff ファイルから
-    `ingest-reviewer` で取り込み、Codex を使う場合は信頼された外側の `codex_worktree_exec` が
-    保存済み出力をそのまま同じ verb へ渡す。申告 scope の原本が初出ラウンドから
-    `tmp/_karte/issue-<N>.declared-scope.jsonl`（追記専用）に残る。`decide --scope` の印がある
-    finding はオーナーの値を保持し、今回の申告と異なれば取り込み出力に列挙する。
-  - 覆しに `override_ref`＝`feedback_ledger` の台帳エントリ参照を要求する変更は Issue #523 のスコープ。
-  - `codex_worktree_exec` は Codex 本体の read-only 権限を変えず、取り込みをラッパー側で実行する。
-    Codex の `pr-reviewer` 自身に karte の書込権限は与えない。
+- `waived` またはオーナー確定 `scope` が検証済み reviewer 原本と異なる finding は、実在する `feedback_ledger` の `FBK-...` への `override_ref` が無い間 `karte status` の `verdict` が `clean` にならない。`karte decide --override-ref <FBK-ID>` は既存 finding へ後から記録することもでき、存在しない参照先は拒否する（Issue #523）。
+- `scope_origin.first_writers` と `scope_origin.reviewer_declarations` を使い、主文脈の legacy `ingest-review` 由来と検証済み reviewer 申告を区別する。オーナー確定 scope があるのに reviewer 原本が必要で未検証なら `clean` を止める。正常な implementer/fixer の `out_of_scope_findings` は原本が無いだけでは止めない。
+- **制限：人間が本当に承認したかは証明しない。** 認証済み FBK の存在と scope 原本との差分だけを機械で保証する。処置順・STOP 応答・merge の覆しは共有 SKILL の主文脈による捕捉契約（fail-open）に留める。
+
+`ingest-reviewer` が検証済み申告原本を記録し、`scope_origin` が最初の書き手を保持する（#800 / #797）。レビューア本人の取り込みの前に待機を取り消した後の旧 `ingest-review` は main 由来と記録される。その値を検証済み reviewer 申告と同一視しない。Codex の reviewer は読み取り専用のままとし、信頼済み wrapper が代わって `ingest-reviewer` を呼ぶ。
 
 ### `ingest-reviewer` / `decide` / `activate`（Issue #375）
 
@@ -142,7 +125,7 @@ verdict は動かず、未解消が実害なしだけなら `no-harm-only` と�
     （`..`・symlink 構成要素・別ディレクトリ・別名を拒否。規則は `karte/handoff_path.py` に 1 箇所で、
     Write フックと共有）。
   - 処置方針はオーナー専権であり、レポート中の `disposition` / `deferred_to` / `waived_by` /
-    `waived_reason` は finding ブロック内なら空値も含め無視して警告する。前書きの専権キー行は無視せず拒否する。
+    `waived_reason` / `override_ref` は finding ブロック内なら空値も含め無視して警告する。前書きの専権キー行は無視せず拒否する。
     台帳の値は保持する。
   - 保護モードの取り込みごとに、申告レポートで再掲されたかにかかわらず、オーナー印を台帳の全 finding へ
     再適用する。印がない finding の scope は新しい申告で更新する。
@@ -359,7 +342,7 @@ Codex gate は MCP ツール一般を検査しない。`agy` 経由で karte ver
 倒すと「**別 Issue へ移したと書くだけで指摘が台帳から消える**」経路ができ、本 Issue が塞ごうと
 している穴が形を変えて再発する。よって `deferred`/`waived` は `status: open` のまま台帳に残し、
 `harm: real` の場合は **「是正を要する finding」の集合からだけ外す**（`Finding.needs_remediation` が偽になる）。
-verdict と `check` はこの集合を共有する。無進捗はさらに検証済み handoff を除外する。
+verdict と `check` はこの集合を入口として共有する。`check` だけは #614 の担当・検証済み処置による追加除外を行う。無進捗はさらに検証済み handoff を除外する。
 
 ### verdict・check と無進捗の除外規則（Issue #503・#683）
 
@@ -369,12 +352,12 @@ verdict と `check` はこの集合を共有する。無進捗はさらに検証
 | 判定経路 | 集合の入口 |
 |---|---|
 | `status` の verdict | `Karte.remediation_findings()`（`blocking_findings`） |
-| `check` の診断網羅要求 | 同集合を当該ラウンドで絞る |
+| `check` の診断網羅要求 | 同集合を当該ラウンドで絞り、`check_diagnosis.exemption_reason` で診断対象外を除く |
 | 無進捗検知（`escalate`） | 同集合から `finding_handoff_exemption.is_stall_exempt` を追加で除く `karte/stall_detection.py::stalled_ids` |
 
 `render` の `★無進捗` も `stalled_ids` から引く。
 
-### `check` の判定規則（Issue #503）
+### `check` の判定規則（Issue #503・#614）
 
 ```
 python3 -m karte check [--issue <N>] [--round <R>]
@@ -385,26 +368,43 @@ python3 -m karte check [--issue <N>] [--round <R>]
 
 1. **当該ラウンドの Attempt が、診断が要る未解消 finding を網羅している。**
    - 対象は「当該ラウンドで挙げられた（`rounds` に `R` を含む）」かつ
-     「`Finding.needs_remediation` が真」の finding。
+     「`Finding.needs_remediation` が真」から診断対象外を除いた finding。
    - **`harm: real` で `disposition` が `deferred` / `waived` の finding は対象から外れる**（上表の集約）。
      診断を求めるべきなのは「これから直す finding」であって「直さないと決まった finding」
      ではない。後者に診断を書かせることは、`.claude/rules/03-operational.md`
      「スコープ拡大禁止」に反する記録を台帳へ入れさせることでもある。
-   - 除外した finding は黙って落とさず、`診断不要（disposition で …）` 行として出力に出す。
+   - 除外した finding は黙って落とさず、`診断不要（…）` 行として理由を出力する。
    - 当該ラウンドの Attempt が 1 件も無ければ `EXIT_ERROR`。
 2. **カルテ上の全 Attempt が `close-attempt` 済み**（`### Result k` を持つ）。
    当該ラウンド以前だけでなく、**先のラウンドを名乗った Attempt も含めて全件**
    （`append --round <大きい値>` を逃げ道にしない）。
 
-`status` の verdict と `check` は `disposition` について**同じ規則**で動く
-（片方だけが `deferred` を要求する状態＝同じ台帳から機械が 2 つの異なる結論を出す状態を作らない）。
-ただし両者が答える問いは別である——`check` は「**このラウンドの是正が診断を伴っていたか**」、
-`status` は「**この PR を clean と呼べるか**」。したがって `check` が `EXIT_OK` でも
-`disposition: fix-here` の未修正が残っていれば `status` は `harmful-open` のままになる。
+### 診断対象の追加除外（Issue #614）
 
-**互換性**：判定規則の変更のみでカルテのフォーマットは不変。ただし**これまで `EXIT_ERROR` に
-なっていたラウンドが `EXIT_OK` になる**ため、`check` の終了コードに依存する CI・フックの
-挙動は変わる（＝`deferred` を含むラウンドで毎回 1 回鳴っていた block が鳴らなくなる）。
+`harm: none` に `status` の解除力を与えない原則を維持する。ただし `check` は
+「是正担当が割当分を診断したか」を検査するため、次を診断対象外とする。
+診断免除は `karte/check_diagnosis.py` に集約する。
+
+- `harm: none / deferred` は #683 の検証済み handoff（`handoff_state: verified`、
+  内容ハッシュ・行き先整合）だけ対象外。未検証・変更済みのものは診断必須。
+- `harm: none / waived` は #523 の有効な `override_ref` により
+  `override_gate.pending` で保留されない場合だけ対象外。
+  `waived_by` 自己申告のみでは免除しない。
+- `fix-here` は主文脈専用 `karte decide --finding F-... --diagnosis-owner main`
+  で明示的に割り当てた未解消 finding だけ是正担当の診断対象外。
+  値は `fixer | main`。旧カルテで未記載の場合は `fixer`。
+  解消または `fix-here` 以外の disposition へ移った際は `fixer` に戻る。
+
+`scope: out` は免除条件にしない。すべて `status` の未解消集合・verdict・
+escalate を変えない。診断対象が空でも当該ラウンドに Attempt がなければ NG、
+未クローズ Attempt が残れば NG。役割割当は解消の証拠ではない。
+設計理由と制約は `.ai/rationale/karte-check-diagnosis-614.md` を参照。
+
+**互換性**：従来のカルテは新しいフィールドなしで読める。
+`diagnosis_owner: main` の指定がある場合だけ新しい行を保存する。
+条件を満たした `check` が OK になっても `status` は従来どおりブロックし得る。
+従来 `EXIT_ERROR` だったラウンドが `EXIT_OK` になるため、フック・CI の
+停止結果は変わり得る。既存の `deferred`/`waived` の出力文言は維持する。
 
 ### `change_kind` の語彙（Issue #503 観測2）
 

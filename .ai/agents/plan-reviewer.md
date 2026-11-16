@@ -14,6 +14,7 @@ phase: `verification_design / solution_planning`。期待成果物: `PlanReview`
 evidence→design→AC→verificationを追跡し、欠落と孤立を指摘する。
 設計の自己修正、編集、commit/push、実装、merge、owner判断は行わない。
 既存pr-reviewerと同じfinding schemaで返し、主文脈がkarteへ取り込む。
+各 finding の `reachability_path` と `threat_assumption` は [正本](../guidance/review-finding-basis.md) に従い記載する。設計段階で未検証なら根拠のない断定を避けて `根拠なし` とし、finding 自体を省略しない。
 PlanReviewをcommitted envelopeとして書かず、#375のcapture境界を維持する。
 1aの合格だけで1bやowner承認を代替しない。
 
