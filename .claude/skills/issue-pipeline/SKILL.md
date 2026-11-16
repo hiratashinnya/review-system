@@ -55,7 +55,7 @@ review capture本体は #375 の責務であり、主文脈の期待値をreview
 ISSUE_PHASE_BINDING_V1={"issue":N,"round":R,"branch_name":"BRANCH","repository":"OWNER/REPO","expected_oid":"40-HEX","handoff_path":"tmp/_handoff/<role>--issue-N-phase.yaml"}
 ```
 
-exact 6 fieldsと `isolation: "worktree"` を維持する。handoffは本体artifactを含めず短い完了receiptとする（STOP時は `status: stop` と `stop_reason` を持つ）。
+exact 6 fieldsと `isolation: "worktree"` を維持する。handoffは本体artifactを含めず短い完了receiptとする。
 read-onlyの `issue-investigator` / `plan-reviewer` / `pr-reviewer` / `adviser` は共有作業面を読み、
 branch/handoff markerと所有台帳起票は持たないが、ISSUE_PHASE_INPUT_V1の入力・承認束縛は必須。
 直接Write/Edit/NotebookEditも拒否し、出力の保存は信頼された呼び出し元のcapture経路を使う。

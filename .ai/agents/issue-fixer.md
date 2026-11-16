@@ -112,7 +112,7 @@ targets が corpus ノード（doc-system-v2/nodes/**）を含むと分かった
 - **手順 4 は省かない**：未クローズの Attempt は停止の前に必ずクローズする（`karte check` は未クローズの Attempt が残ると停止を拒否する）。outcome は差分の有無で決める。
   - 引き継ぎ commit をした：`--outcome partial --base <手順 0 の値>`。
   - commit しなかったが作業ツリーに差分がある：`--outcome partial`（`--base` は既定のまま）。
-  - Codex が変更を残していない：`--outcome no-change`。
+  - Codex が変更を残していない：`--outcome no-change`。commit しなかった変更が未追跡の新規ファイルだけのときも、既定の測定では差分が空になり `partial` は拒否されるので `no-change` とし、`--note` に新規ファイルのパスを書く。
   - どの場合も `--note` に、Codex 実行者の上限による引き継ぎであることを書く。commit したときはその commit、しなかったときは理由も書く。
 - **ハンドオフ**：`status: stop`、`outcome` にクローズした値、`tests` に実行結果を書く。`stop_reason` に、上限を示す出力の逐語、引き継ぎ commit、変更パス、残作業を書く。commit しなかったときは変更パスと理由を書く。
 - **切替後の再 dispatch**：主文脈は同じ round で、Codex 実行者の指定なしに再 dispatch する。再 dispatch された本ロールは、通常どおり Step 0 → Step 1（`render` → `append`）→ Step 2 を行う。引き継ぎの Attempt はクローズ済みなので、続きの是正は新しい Attempt として登録する。診断が同じなら root_cause は同じ slug を使う。

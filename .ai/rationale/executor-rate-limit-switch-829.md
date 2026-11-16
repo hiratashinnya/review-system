@@ -113,7 +113,16 @@ agy の有効化後に Codex と agy のどちらを先に使うかは、引き�
 - 理由：B は停止ゲートの拒否を2回目の停止で通すことになり、「できる記録は必ず済ませてから停止する」の例外を増やす。切替が行われなかった場合（範囲外の変更でオーナーへ打ち上げた場合など）に未クローズの Attempt が残り、以後の `karte check` が失敗し続ける。C は「ラベルを付け替えて通そうとしない」に反する。A は手順とゲートを変えずに済み、記録が実測と一致する。
 - 影響範囲：A では引き継ぎの Attempt が同種の試行1件に数えられるので、同じ root_cause での是正が飽和に達するのが1件早くなる。Codex が何も変更せずに止まった場合（`no-change`）も同じである。文書では避けられないので、`append` が拒否されたら付け替えずに STOP して主文脈へ返すと定めた。引き継ぎの Attempt を類似判定から外すには karte のコード変更が要り、PR #847 の範囲外である。B へ覆す場合は、`.ai/agents/issue-fixer.md`、`.claude/agents/issue-fixer.md`、`.claude/hooks/karte-protocol.md`「4. 停止できる条件」を書き換える。
 - outcome の語彙：`partial` と `no-change` の使い分けは、既存の「是正の差分が無ければ `no-change`、あれば実測差分に応じた outcome」（`.ai/agents/issue-fixer.md`「取り込みとカルテ手順の順序」）に合わせた。引き継ぎは是正が途中なので、差分があるときは `partial` とした。
-- 切替の再 dispatch の round：レビューを挟まないので同じ round とした。`karte check` は進行ポインタの round で診断の網羅を見るので、round を進めると未解消 finding がその round に属さず、検査の対象がずれる。
+- 切替の再 dispatch の round：レビューを挟まないので同じ round とした。`karte check` は進行ポインタの round で診断の網羅を見るので、round を進めると未解消 finding がその round に属さず、検査の対象がずれる。無進捗検知（`karte/stall_detection.py`）は finding の連続未解消ラウンド数で数え、Attempt は見ないので、同じ round の再 dispatch は無進捗の計数を増やさない。所有台帳の起票（`issue_start/worktree_ledger.py` の `open_entry`）は、同じ issue・round の2回目を拒否しない。
+- commit しなかった変更が未追跡の新規ファイルだけの場合：`close-attempt` の既定の測定は `git diff` で、未追跡ファイルを含まない。差分が空になり `partial` は拒否されるので、`no-change` でクローズして `--note` にパスを書くと定めた。
+
+#### 1a. 引き継ぎの STOP と、既存の「STOP を返したらオーナーへ打ち上げる」
+
+- 論点：共通本文は、是正担当が `status: stop` を返したとき、および実装担当が STOP を返したときに、主文脈がオーナーへ打ち上げると定める（実装担当は Project の `Status` を `Ready` へ戻す）。引き継ぎの STOP の後に主文脈が切替へ進む規定と食い違う。
+- 選択肢：A：切替へ進む STOP を、この2つの規定の対象外と明記する。B：引き継ぎの STOP に `status: stop` 以外の値を使う。
+- 暫定決定：A。
+- 理由：ハンドオフの `status` の語彙を増やさずに済む。`.ai/troubleshooting/issue-pipeline.md` は `status: stop` の handoff を `stop_reason` とともにオーナーへ報告すると定めており、切替の事実を報告することとは両立する。
+- 影響範囲：`.ai/skills/issue-pipeline/SKILL.md` の2か所。切替へ進む場合、Project の `Status` は `In progress` のまま変えない。
 
 #### 2. issue-implementer が引き継ぐときの draft PR
 

@@ -201,7 +201,7 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 - **`Status` の書き込みは主文脈が行い、実装担当には行わせない**。
 - dispatch には Issue 番号、関連ノード、作業スコープなどタスク固有情報だけを渡す。恒常的な共有契約は各 PF の常設設定またはこの共通本文を参照させる。
 - 戻り値は変更ファイル、テスト結果、PR（ある場合）、スコープ外指摘を含むハンドオフとする。STOP は主文脈が受けてオーナーへ打ち上げる。**戻り値の絶対パスが読めない場合は、main 作業ツリーの `tmp/_handoff/collected/` 配下の回収済みコピーを確認する**（詳細手順は各 PF の troubleshooting を参照）。
-- **実装担当が STOP を返したら、`Status` を `Ready` へ戻してからオーナーへ打ち上げる**。
+- **実装担当が STOP を返したら、`Status` を `Ready` へ戻してからオーナーへ打ち上げる**。Codex 実行者の上限による STOP で、主文脈が切替の再 dispatch へ進む場合（「Codex 実行者が上限で止まったときの切替」）は、`Status` を変えずに再 dispatch する。引き継げなかった STOP は、通常どおり `Ready` へ戻して打ち上げる。
 
 ### 権限外操作の STOP と再開
 
@@ -287,7 +287,7 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 - `harm: real` の finding に処置方針（`fix-here` / `deferred` / `waived`）が未決定のまま残っている。処置方針の決定はオーナー判断であり、AI が単独で `waived` を選ばない。
 - 記録台帳が無進捗と判定した（clean を妨げる同一 finding が3ラウンド連続で未解消）。`harm: real` の `deferred` / `waived` に加え、`harm: none` の `deferred` は検証済み handoff を持つ場合だけ計数から外れる。`harm: none` の `waived`・未検証・無効の `deferred` は計数する。判定は台帳側に置き、条文からこの条件を再実装しない。
 - 診断・記録の類似飽和から転換しても解消できない。
-- 是正担当が `status: stop`（矛盾・情報不足）を返した。
+- 是正担当が `status: stop`（矛盾・情報不足）を返した。Codex 実行者の上限による STOP で、主文脈が切替の再 dispatch へ進む場合（「Codex 実行者が上限で止まったときの切替」）はこれに当たらない。範囲外の変更が混じる、または確かめられないために引き継げなかった STOP は、これに当たる。
 
 ## karte 判定の報告分担
 
