@@ -51,12 +51,12 @@ def parse_summary(text: str, issue: int) -> ReviewSummary | None:
     if not isinstance(digest, str) or not DIGEST_RE.fullmatch(digest):
         raise KarteFormatError("ac_snapshot_digest は SHA-256 小文字64桁が必要")
     count, ac_count = _integer(header, "finding_count"), _integer(header, "ac_count")
-    names, harm = finding_refs(blocks)
+    names, finding_state = finding_refs(blocks)
     if count != len(names):
         raise KarteFormatError(f"finding_count 不一致: 宣言={count} 実際={len(names)}")
     if len(items) != ac_count + 1:
         raise KarteFormatError(f"ac_count 不一致: 宣言={ac_count} 実際={len(items)-1}")
-    judgments = tuple(judgment(block, issue, set(names), harm) for block in items[1:])
+    judgments = tuple(judgment(block, issue, set(names), finding_state) for block in items[1:])
     numbers = [item.number for item in judgments]
     if numbers != list(range(1, ac_count + 1)):
         raise KarteFormatError("AC の番号は1から連続し重複せず昇順であること")

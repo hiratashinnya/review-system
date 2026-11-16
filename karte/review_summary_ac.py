@@ -21,7 +21,7 @@ class ACJudgment:
 
 def finding_refs(blocks):
     """### new の参照は原本内の出現順で new@1, new@2... とする。"""
-    names, harm = [], {}
+    names, finding_state = [], {}
     new_number = 0
     for block in blocks:
         if block.section not in (None, "Findings"):
@@ -32,11 +32,11 @@ def finding_refs(blocks):
         else:
             name = block.title
         names.append(name)
-        harm[name] = block.fields.get("harm")
-    return names, harm
+        finding_state[name] = (block.fields.get("harm"), block.fields.get("status", "open"))
+    return names, finding_state
 
 
-def judgment(block, issue, existing, harm):
+def judgment(block, issue, existing, finding_state):
     matched = AC_TITLE_RE.fullmatch(block.title)
     if not matched:
         raise KarteFormatError(f"{block.lineno} 行目: AC 見出しは 'AC <番号>' のみ")
@@ -58,8 +58,13 @@ def judgment(block, issue, existing, harm):
     for ref in refs:
         if ref not in existing:
             raise KarteFormatError(f"{block.lineno} 行目: 存在しないfinding参照: {ref}")
-        if harm[ref] != "real":
+        harm, status = finding_state[ref]
+        if harm != "real":
             raise KarteFormatError(f"{block.lineno} 行目: 未充足/未検証ACのfindingは harm: real が必要: {ref}")
+        if status != "open":
+            raise KarteFormatError(
+                f"{block.lineno} 行目: 未充足/未検証ACのfindingは status: open が必要: {ref}"
+            )
     return ACJudgment(number, result, evidence, tuple(refs))
 
 

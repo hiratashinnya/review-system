@@ -50,8 +50,9 @@ finding_refs: [new@1]
 - `ac_count` は対象となる元IssueのAC数。ACがない場合は `ac_count: 0`
   とし、`### AC N` ブロックは書かない（not_applicable）。
 - `result` は `satisfied` / `not_met` / `unverified`。全ACに判断根拠を記録する。
-  未充足・未検証のACは必ず `harm: real` finding に紐付ける（満足済みACの
-  `finding_refs` は空リスト `[]`）。未検証ACのcheckboxを付けない。
+  未充足・未検証のACは必ず `harm: real` かつ `status: open` のfindingに紐付ける（`status` 省略は既定 `open`）。
+  `status: resolved` への参照は不整合としてfail-closeし、round/台帳に取り込まない。
+  満足済みACの `finding_refs` は空リスト `[]`。未検証ACのcheckboxを付けない。
 - `### new` / `### NEW` / `### new-finding` による新規findingは、原本に
   現れる順に `new@1` / `new@2` と参照できる。既存IDは `F-N-SS` とする。
 - `ac_snapshot_digest` は dispatch で固定したAC一覧のSHA-256。記述だけでは

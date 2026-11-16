@@ -88,6 +88,68 @@ class ACReviewerBindingTest(unittest.TestCase):
                 self.assertEqual(code, EXIT_ERROR)
                 self.assertFalse(paths.karte_path(801, self.root).exists())
 
+    def make_unmet_report(self, *, result="unverified", status="open"):
+        status_line = "" if status is None else f"status: {status}\n"
+        return (
+            "## Findings\n\n### new\n"
+            "harm: real\nharm_detail: ACの必須試験が未実施のため動作を確認できない\n"
+            "severity: major\nscope: in\nlocus: tests/integration\n"
+            "summary: AC1の実環境動作が未検証\n"
+            "evidence: 実環境の試験結果が存在しない\n"
+            "expected: 実環境で動作が確認される\n"
+            "recheck: 実環境で必要な試験を実行する\n" + status_line +
+            "\n## Review Summary\n\n### Summary\n"
+            "finding_count: 1\nac_count: 2\nac_snapshot_digest: " +
+            digest(from_issue_body(BODY)) + "\n\n"
+            "### AC 1\nresult: " + result +
+            "\nevidence: AC1の実環境試験が未実施\nfinding_refs: [new@1]\n\n"
+            "### AC 2\nresult: satisfied\nevidence: AC2の単体試験が成功\nfinding_refs: []\n"
+            "<!-- review-complete -->\n"
+        )
+
+    def test_codex_resolved_ac_reference_rejected_without_mutation(self):
+        from karte.active_pointer import read_active
+        for result in ("not_met", "unverified"):
+            with self.subTest(result=result):
+                self.assertEqual(self.activate()[0], EXIT_OK)
+                original_pointer = read_active(self.root, required=True)
+                code, _, err = self.ingest(
+                    self.make_unmet_report(result=result, status="resolved"),
+                    f"pr-reviewer--resolved-{result}.md",
+                )
+                self.assertEqual(code, EXIT_ERROR, err)
+                self.assertIn("status: open", err)
+                self.assertFalse(paths.karte_path(801, self.root).exists())
+                self.assertEqual(original_pointer, read_active(self.root, required=True))
+                self.assertFalse((self.root / "tmp" / "_karte" /
+                                  "issue-801-review-round-1.md").exists())
+
+    def test_open_and_default_status_keep_unmet_ac_out_of_clean(self):
+        from karte.status_payload import status_payload
+        for status in ("open", None):
+            with self.subTest(status=status):
+                # Each successful ingestion advances the round: use a fresh sandbox.
+                with tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    (root / "tmp" / "_handoff").mkdir(parents=True)
+                    source = root / "tmp" / "issue.md"
+                    source.write_text(BODY, encoding="utf-8")
+                    previous_root, previous_source = self.root, self.source
+                    try:
+                        self.root, self.source = root, source
+                        self.assertEqual(self.activate()[0], EXIT_OK)
+                        code, _, err = self.ingest(
+                            self.make_unmet_report(status=status),
+                            f"pr-reviewer--open-{status or 'default'}.md",
+                        )
+                        self.assertEqual(code, EXIT_OK, err)
+                        ledger = model.parse(paths.read_text(paths.karte_path(801, root)))
+                        self.assertEqual(ledger.findings[0].status, "open")
+                        self.assertEqual(status_payload(ledger)["verdict"], "harmful-open")
+                        self.assertEqual([1], [r.number for r in ledger.review_rounds])
+                    finally:
+                        self.root, self.source = previous_root, previous_source
+
     def test_no_pointer_and_replayed_handoff_fail(self):
         report = self.make_report()
         self.assertEqual(self.ingest(report)[0], EXIT_ERROR)
