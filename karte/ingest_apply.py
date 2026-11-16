@@ -39,6 +39,8 @@ def apply_accepted(karte, accepted, round_no, policy=None) -> IngestOutcome:
             finding.threat_assumption = item.threat_assumption
         finding.expected = item.expected
         finding.recheck = item.recheck
+        if item.status == "resolved" or finding.disposition != "fix-here":
+            finding.diagnosis_owner = "fixer"
         if round_no not in finding.rounds:
             finding.rounds.append(round_no)
         finding.rounds.sort()

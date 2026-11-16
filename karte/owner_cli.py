@@ -8,6 +8,7 @@ from .int_args import require_ascii_int
 from .karte_loader import load_karte
 from .pointer_completion import resolve_issue
 from .verb_boundary import fail_close
+from .vocabulary import DIAGNOSIS_OWNERS
 
 
 @fail_close(locked=True)
@@ -49,7 +50,10 @@ def cmd_decide(args, repo_root) -> int:
     override_ref = getattr(args, "override_ref", None)
     if override_ref:
         override_gate.require_ref(repo_root, override_ref)
-    lines = owner_decision.record_decision(karte, args.finding, options, args.scope, override_ref)
+    lines = owner_decision.record_decision(
+        karte, args.finding, options, args.scope, override_ref,
+        getattr(args, "diagnosis_owner", None),
+    )
     owner_scope_saved = False
     if args.scope:
         scope_ledger.record_owner(issue, repo_root, karte_rounds.last_round(karte), args.finding, args.scope)
@@ -88,4 +92,6 @@ def register(subparsers, add_issue) -> None:
     decide.add_argument("--waived-reason")
     decide.add_argument("--scope", help="オーナーが覆した scope（in|out）")
     decide.add_argument("--override-ref", help="実在する owner 判断台帳 FBK-... の参照")
+    decide.add_argument("--diagnosis-owner", choices=DIAGNOSIS_OWNERS,
+                        help="fix-here の診断担当（fixer|main。主文脈専用）")
     decide.set_defaults(func=cmd_decide)
