@@ -150,14 +150,20 @@ policy/catalog hash、取得surface/方法/日時、resolved ID、実使用ID、
 - **発動条件**：Codex 実行者が上限到達を示した出力の逐語があること。主文脈がその逐語を切替の記録に残してから切り替える。これは逐語による暫定運用である（オーナー決定・2026-11-16）。上限を示す文字列・終了コードは、初回に実測できた出力をこの節へ追記して定める。
 - **証拠が無い失敗は STOP する。** profile pin 拒否、timeout、権限拒否、起動失敗、検査不合格は上限の証拠ではない。遅い・無応答からの推測も証拠にしない。
 - **切替の主体は主文脈である。** role は自分で Claude 実行へ切り替えない。
-  - 書込 role：role が証拠の逐語を handoff に記録して STOP を返す。主文脈が逐語を確かめ、同じ role を Codex 実行者の指定なしで再 dispatch する。
+  - 書込 role：role が証拠の逐語を handoff の `stop_reason` に記録して STOP を返す。主文脈が逐語を確かめ、同じ role を Codex 実行者の指定なしで再 dispatch する。handoff は dispatch の marker が `handoff_path` で渡したファイルで、3 role とも同じ欄を使う（test-writer は完了 receipt。欄は `.ai/agents/test-writer.md`）。
   - read-only role：Codex を起動したのは主文脈の専用入口なので、主文脈が出力から逐語を確かめ、同じ role の Claude サブエージェントを dispatch する。
   - 回収・解放から dispatch までの既存契約はそのまま適用する。この再 dispatch の完走は未実測である。
 - **未 commit の変更が残ったときは、role が確かめてから引き継ぐ**（オーナー決定・2026-11-16）。対象は書込 role である。
-  - role は Codex が残した変更を差分と単体テストで確かめる。依頼範囲に収まると確かめられたら、テストが赤くても commit・push し、上限の逐語、commit、変更 path、テスト結果、残作業を handoff に記録して STOP を返す。主文脈は切替の再 dispatch へ進み、切替後の Claude role はその commit の続きから行う。
-  - この引き継ぎ commit のコミットメッセージには、Codex 実行者の上限による途中停止の引き継ぎであることと、テストの状態を書く。テストが赤いときは、未完了のために赤いテストと、意図して赤くしてあるテスト（test-writer の Red テスト）を分けて書く。意図した Red だけを含む通常の commit にはこの記載を付けないので、記載の有無で引き継ぎの commit を見分けられる。
-  - 依頼範囲外の変更が混じっているとき、または範囲に収まると確かめられないときは、role は commit せず、変更 path と理由を記録して STOP を返す。この場合、主文脈は切替の再 dispatch をせず、オーナーへ打ち上げる。
-  - 未 commit の変更が無いときは、role は逐語を記録して STOP を返し、主文脈は切替へ進む。
+  - role は Codex が残した変更を差分と単体テストで確かめる。依頼範囲に収まると確かめられたら、テストが赤くても commit・push し、上限の逐語、commit、変更 path、テスト結果、残作業を handoff の `stop_reason` に記録して STOP を返す。主文脈は切替の再 dispatch へ進み、切替後の Claude role はその commit の続きから行う。
+  - この引き継ぎ commit は、各 role の共通契約が定める「全パスを確認してから commit／PR」に対する唯一の例外である。例外になる手順と、issue-fixer の karte の記録は、`.ai/agents/issue-fixer.md`「Codex 実行者の上限による引き継ぎ」と `.ai/agents/issue-implementer.md`「実装契約」に従う。
+  - 引き継ぎ commit のコミットメッセージは、本文の末尾に次の2行を置く（オーナー決定・2026-11-16）。`Co-Authored-By` などの末尾行があるときは、その行の並びに置く。
+    - `Handover: codex-limit`：Codex 実行者の上限による途中停止の引き継ぎであることを示す。引き継ぎ commit だけに書く。
+    - `Tests: red-unfinished`、`Tests: red-intended`、`Tests: green` のどれか1行：commit 時点のテストの状態を示す。`red-unfinished` は未完了のために赤いテストがある、`red-intended` は赤いテストが意図した Red（test-writer の Red テスト）だけである、`green` は全パスである。
+    - 未完了の赤と意図した Red が両方あるときは `Tests: red-unfinished` とし、どのテストがどちらかを本文に分けて書く。
+  - 引き継ぎではない commit でも、意図した Red を含むもの（test-writer の通常の Red commit）には `Tests: red-intended` を書き、`Handover:` 行は付けない。引き継ぎかどうかは `Handover:` 行の有無で、赤の理由は `Tests:` 行で見分ける。
+  - 依頼範囲外の変更が混じっているとき、または範囲に収まると確かめられないときは、role は commit せず、変更 path と理由を handoff の `stop_reason` に記録して STOP を返す。この場合、主文脈は切替の再 dispatch をせず、オーナーへ打ち上げる。
+  - 未 commit の変更が無いときは、role は逐語を handoff の `stop_reason` に記録して STOP を返し、主文脈は切替へ進む。
+  - issue-fixer の切替の再 dispatch は、同じ round で行う。レビューを挟まないので round は進めず、`handoff_path` だけ新しく採番する。
 - **切替後の層と推論予算は Codex 実行者に指定していたもの以上にする。** 対応は下の表で引く。Claude 側の role 定義がそれを下回るなら、主文脈が dispatch で引き上げる。引き上げられなければ STOP する。主文脈による代行、層の降格、推論予算の引下げはしない。
 
 | 抽象層 | Codex（`.ai/model-policy.json` の tier） | Claude |

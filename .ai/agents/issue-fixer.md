@@ -99,10 +99,24 @@ targets が corpus ノード（doc-system-v2/nodes/**）を含むと分かった
 
 0. 編集前に `python3 -m gitgate log -n 1 --oneline` を実行し、出力先頭の短縮コミットハッシュ（1トークン目のみ・件名は含めない）を控える。これは後の close-attempt の `--base` に使う。
 1. Step 1 で宣言した範囲だけを編集する。
-2. プロジェクトで指定された単体テストを実行し、全パスを確認する。
+2. プロジェクトで指定された単体テストを実行し、全パスを確認する（全パスでないまま手順 3 へ進んでよいのは、下の「Codex 実行者の上限による引き継ぎ」だけである）。
 3. `python3 -m gitgate status` → `python3 -m gitgate add <paths...>` → コミットメッセージをファイル化 → `python3 -m gitgate commit <file>` → `python3 -m gitgate push` の順で、変更対象だけを記録して commit・push する。
 4. `python3 -m karte close-attempt --issue <N> --outcome <fixed|partial|no-change|regressed> --base <Step 0 の値> --note <1行>`（複数 Attempt が未クローズなら `--attempt <N>` も明示）を実行する。差分がない場合だけ `no-change` とする。
 5. 既存 PR を使う。新しい PR は開かない。
+
+### Codex 実行者の上限による引き継ぎ（手順 2〜4 の例外）
+
+編集を Codex 実行者に行わせていて、その Codex が上限で止まった場合だけに適用する。発動条件、切替の主体、コミットメッセージの固定行は `.ai/skills/issue-pipeline/SKILL.md`「Codex 実行者が上限で止まったときの切替」に従う。手順 0 は Codex を起動する前に済ませておく。
+
+- **手順 2・3 の例外**：Codex が残した変更が診断の `targets`／`finding_ids` の範囲に収まると、差分と単体テストで確かめられたら、全パスでなくても手順 3 の commit・push へ進む。コミットメッセージの末尾に `Handover: codex-limit` と `Tests:` の行を置く。自分では是正の編集を足さない。範囲外の変更が混じる、または確かめられないときは commit しない。
+- **手順 4 は省かない**：未クローズの Attempt は停止の前に必ずクローズする（`karte check` は未クローズの Attempt が残ると停止を拒否する）。outcome は差分の有無で決める。
+  - 引き継ぎ commit をした：`--outcome partial --base <手順 0 の値>`。
+  - commit しなかったが作業ツリーに差分がある：`--outcome partial`（`--base` は既定のまま）。
+  - Codex が変更を残していない：`--outcome no-change`。
+  - どの場合も `--note` に、Codex 実行者の上限による引き継ぎであることを書く。commit したときはその commit、しなかったときは理由も書く。
+- **ハンドオフ**：`status: stop`、`outcome` にクローズした値、`tests` に実行結果を書く。`stop_reason` に、上限を示す出力の逐語、引き継ぎ commit、変更パス、残作業を書く。commit しなかったときは変更パスと理由を書く。
+- **切替後の再 dispatch**：主文脈は同じ round で、Codex 実行者の指定なしに再 dispatch する。再 dispatch された本ロールは、通常どおり Step 0 → Step 1（`render` → `append`）→ Step 2 を行う。引き継ぎの Attempt はクローズ済みなので、続きの是正は新しい Attempt として登録する。診断が同じなら root_cause は同じ slug を使う。
+- **類似判定での数えられ方**：類似判定は outcome を見ない。引き継ぎの Attempt は、`no-change` でクローズしたものも含めて同種の試行1件に数えられる。そのため `append` が `EXIT_SATURATED` で拒否されたら、Step 1 の規定どおりラベルを付け替えず、類似と判定された Attempt に引き継ぎの Attempt が含まれることを `stop_reason` に書いて STOP する。
 
 生成物（.coverage*、htmlcov/、_site/、doc-system-v2/meta.json、doc-system-v2/doc_view.html）を commit しない。
 

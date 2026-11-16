@@ -55,7 +55,7 @@ review capture本体は #375 の責務であり、主文脈の期待値をreview
 ISSUE_PHASE_BINDING_V1={"issue":N,"round":R,"branch_name":"BRANCH","repository":"OWNER/REPO","expected_oid":"40-HEX","handoff_path":"tmp/_handoff/<role>--issue-N-phase.yaml"}
 ```
 
-exact 6 fieldsと `isolation: "worktree"` を維持する。handoffは本体artifactを含めず短い完了receiptとする。
+exact 6 fieldsと `isolation: "worktree"` を維持する。handoffは本体artifactを含めず短い完了receiptとする（STOP時は `status: stop` と `stop_reason` を持つ）。
 read-onlyの `issue-investigator` / `plan-reviewer` / `pr-reviewer` / `adviser` は共有作業面を読み、
 branch/handoff markerと所有台帳起票は持たないが、ISSUE_PHASE_INPUT_V1の入力・承認束縛は必須。
 直接Write/Edit/NotebookEditも拒否し、出力の保存は信頼された呼び出し元のcapture経路を使う。
@@ -164,8 +164,8 @@ Codex 既定のロール（`issue-investigator`・`test-writer`・`issue-impleme
 - dispatch の marker・`isolation: "worktree"`・`handoff_path` の契約は変わらない。commit・pushは許可された著作ロール、PR作成はissue-implementerが行い、Codexは行わない。新ロールは `--binding-file` を指定する。`issue-fixer` は karte の診断を済ませてから起動する。
 - **主文脈は自分でラッパーや `codex exec` を起動して実装・是正を代行しない。** 主文脈の起動は gate のロール専用層の対象外で機械では止められないため（設計の暫定決定 D7）、規律として守る。
 - Claude のロール自身がレートリミットやセッション上限で止まったら、Codex のモデル・推論予算も含めて同じ構成で再投入する。
-- **Codex 実行者が上限で止まったら、書込ロールは上限の証拠（Codex の出力の逐語）を handoff に記録して STOP を返す。** ロールは自分で実行へ切り替えない。主文脈が逐語を確かめて切替の記録に残し、同じロールを `Codex 実行者:` の行なしで再 dispatch する。read-only 経路では、入口を実行した主文脈が出力から逐語を確かめて記録し、同じロールを native dispatch する。marker・`isolation: "worktree"`・回収と解放の契約は変わらない。
-- **未 commit の変更が残ったら、書込ロールが差分とテストで確かめる。** 依頼範囲内なら、テストが赤くても commit・push してから STOP を返し、主文脈は切り替えて、切替後のロールが続きから行う。コミットメッセージに書く内容（途中停止の引き継ぎであること、未完了の赤と意図した Red の別）は共通本文に従う。範囲外の変更が混じる、または確かめられないときは、ロールは commit せず STOP し、主文脈は再 dispatch せずオーナーへ打ち上げる。
+- **Codex 実行者が上限で止まったら、書込ロールは上限の証拠（Codex の出力の逐語）を handoff の `stop_reason` に記録して STOP を返す。** handoff は marker の `handoff_path` が指すファイルで、`test-writer` は完了 receipt に `status: stop` と `stop_reason` を書く。主文脈が逐語を確かめる場所はこの1か所である。 ロールは自分で実行へ切り替えない。主文脈が逐語を確かめて切替の記録に残し、同じロールを `Codex 実行者:` の行なしで再 dispatch する。read-only 経路では、入口を実行した主文脈が出力から逐語を確かめて記録し、同じロールを native dispatch する。marker・`isolation: "worktree"`・回収と解放の契約は変わらない。
+- **未 commit の変更が残ったら、書込ロールが差分とテストで確かめる。** 依頼範囲内なら、テストが赤くても commit・push してから STOP を返し、主文脈は切り替えて、切替後のロールが続きから行う。コミットメッセージは、本文の末尾に `Handover: codex-limit` と `Tests: red-unfinished`／`Tests: red-intended`／`Tests: green` のどれか1行を置く（行の意味と、引き継ぎではない Red commit の書き方は共通本文に従う）。範囲外の変更が混じる、または確かめられないときは、ロールは commit せず STOP し、主文脈は再 dispatch せずオーナーへ打ち上げる。`issue-fixer` の切替の再 dispatch は同じ `round` で行い、`handoff_path` だけ新しく採番する（karte の記録は `.ai/agents/issue-fixer.md`「Codex 実行者の上限による引き継ぎ」）。
 - 切替後の `model`／`effort` は、Codex 実行者に指定していた層と推論予算以上にする（対応表は共通本文「Codex 実行者が上限で止まったときの切替」）。ロール定義の値が下回るなら主文脈が dispatch で引き上げ、引き上げられなければ STOP する。
 - 証拠の無い失敗（終了コード `2` の検査不合格、`124` の timeout、権限拒否、起動失敗）では切り替えず STOP する。発動条件（逐語による暫定運用）と記録項目は共通本文に従う。
 - 実起動の検証設計は `tests/designs/TD-codex-worktree-exec-538-001.md`。TR とログは主文脈が検証専用環境で残す。

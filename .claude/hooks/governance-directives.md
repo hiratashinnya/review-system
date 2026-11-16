@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@9dd88349c412 -->
+<!-- synced-from: CLAUDE.md@441f112fee4f -->
 <!--
   Issue #829（2026-11-15）: `.claude/rules/03-operational.md` のレートリミット節を書き換え（委譲先 Codex
   実行者の上限時に限る Claude への切替、既定実行者の参照）。Claude 固有の切替は rules 03 にだけ置き、
@@ -301,8 +301,9 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
     上限を示す文字列・終了コードは初回の実測後に共通本文へ追記する）。証拠の無い失敗
     （profile pin 拒否・timeout・権限拒否・起動失敗など）は切り替えず STOP する。
     **未 commit の部分変更が残るときは、ロールが差分とテストで確かめ、依頼範囲内ならテストが赤くても
-    commit・push してから STOP し、そのあとで切り替える（コミットメッセージに、途中停止の引き継ぎで
-    あることと、未完了の赤・意図した Red の別を書く）。範囲外・確かめられないときは切り替えず
+    commit・push してから STOP し、そのあとで切り替える（コミットメッセージの本文の末尾に
+    `Handover: codex-limit` と、`Tests: red-unfinished`／`Tests: red-intended`／`Tests: green` の
+    どれか1行を置く。引き継ぎではない意図した Red の commit には `Tests: red-intended` だけを置く）。範囲外・確かめられないときは切り替えず
     オーナーへ打ち上げる。** adviser は相談の難度を理由に Claude へ切り替えない（層は最上位に固定）。
     設計・レビュー系（ac-designer・change-planner・plan-reviewer・pr-reviewer）は Claude 固定、
     issue-investigator・test-writer・issue-implementer・issue-fixer・adviser は Codex 既定

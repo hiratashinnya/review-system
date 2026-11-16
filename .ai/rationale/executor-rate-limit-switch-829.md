@@ -85,3 +85,65 @@ agy の有効化後に Codex と agy のどちらを先に使うかは、引き�
 1. Codex が残した変更が範囲内なら、テストが赤くても commit して引き継いでよい。意図して赤い commit（test-writer の Red テスト）なのか、途中停止の引き継ぎだから赤いのかが、コミットメッセージで分かるようにする。規範本文には書く内容（引き継ぎであること、未完了の赤と意図した Red の別）を定めた。決まった接頭辞などの固定書式は、既存文書にコミットメッセージの書式規約が無く一意に決まらないので定めていない。
 2. adviser の層は最上位に固定する。上の決定3で書いた「難しい相談は Codex 側の層を引き上げる」「中位または最上位」は、この決定で置き換えた。
 3. 層表の issue-fixer 行の推論予算は PR #847 では変えない。層表と bloom の表・frontmatter の食い違い（test-writer 行を含む）は別 Issue で扱う。
+
+### オーナー決定（2026-11-16・是正ラウンド3）
+
+再レビューの後、次の決定が出た。決定は依頼文に結論だけ記録されており、逐語はリポジトリ内に無い。
+
+1. 引き継ぎ commit の書式を固定する。コミットメッセージ本文の末尾に `Handover: codex-limit` と、テストの状態を示す `Tests: red-unfinished`（途中停止の引き継ぎによる赤）／`Tests: red-intended`（意図した赤）／`Tests: green` を置く。引き継ぎではない意図的な赤の commit にも `Tests: red-intended` を書けば区別できる。是正ラウンド2の決定1で書いた「固定書式は定めていない」と、規範本文にあった「通常の commit にはこの記載を付けず、記載の有無で見分ける」は、この決定で置き換えた。
+2. adviser の推論予算は「相談内容で引く」のまま変えない。
+
+### 是正ラウンド3の暫定決定（AI の推奨。覆る場合の影響範囲を併記）
+
+既存の規範、オーナー決定、コードの挙動から一意に決まらなかった点を、推奨案で暫定決定した。
+
+#### 1. issue-fixer が引き継ぐときの karte の記録
+
+- 論点：Codex が上限で止まった時点で、Step 1 で登録した Attempt は未クローズである。これをどう閉じ、切替後の issue-fixer がどう診断を登録するか。
+- コードの挙動（PR #847 の head で読んだ範囲）：
+  - `karte check`（`karte/verb_check.py`）は、未クローズの Attempt が1件でもあると失敗し、`SubagentStop` の停止ゲートが停止を1回拒否する。
+  - `karte close-attempt`（`karte/verb_close_attempt.py`）は Attempt 1件に Result を1つだけ追記する。差分が空のとき受け付ける outcome は `no-change` だけである。
+  - 類似判定（`karte/saturation_groups.py` の `priors_for`、`karte/similarity.py`）は、未解消 finding を共有する過去の Attempt をすべて比較対象にする。outcome も touched の有無も見ない。同種が2件あると3件目の `append` を `EXIT_SATURATED` で拒否する。
+  - `ISSUE_FIX_BINDING_V1` の `round` は 1 以上の整数であることしか検査されない（`issue_start/gate_markers.py`）。
+- 選択肢：
+  - A：引き継ぎの Attempt を実測どおりクローズし（差分があれば `partial`、無ければ `no-change`）、切替後の issue-fixer は通常どおり `render` → `append` で新しい Attempt を登録する。
+  - B：引き継ぎの Attempt を未クローズのまま残し、切替後の issue-fixer が同じ Attempt の下で続けて、最後にクローズする。
+  - C：切替後の issue-fixer が root_cause の slug を変えて登録する。
+- 暫定決定：A。
+- 理由：B は停止ゲートの拒否を2回目の停止で通すことになり、「できる記録は必ず済ませてから停止する」の例外を増やす。切替が行われなかった場合（範囲外の変更でオーナーへ打ち上げた場合など）に未クローズの Attempt が残り、以後の `karte check` が失敗し続ける。C は「ラベルを付け替えて通そうとしない」に反する。A は手順とゲートを変えずに済み、記録が実測と一致する。
+- 影響範囲：A では引き継ぎの Attempt が同種の試行1件に数えられるので、同じ root_cause での是正が飽和に達するのが1件早くなる。Codex が何も変更せずに止まった場合（`no-change`）も同じである。文書では避けられないので、`append` が拒否されたら付け替えずに STOP して主文脈へ返すと定めた。引き継ぎの Attempt を類似判定から外すには karte のコード変更が要り、PR #847 の範囲外である。B へ覆す場合は、`.ai/agents/issue-fixer.md`、`.claude/agents/issue-fixer.md`、`.claude/hooks/karte-protocol.md`「4. 停止できる条件」を書き換える。
+- outcome の語彙：`partial` と `no-change` の使い分けは、既存の「是正の差分が無ければ `no-change`、あれば実測差分に応じた outcome」（`.ai/agents/issue-fixer.md`「取り込みとカルテ手順の順序」）に合わせた。引き継ぎは是正が途中なので、差分があるときは `partial` とした。
+- 切替の再 dispatch の round：レビューを挟まないので同じ round とした。`karte check` は進行ポインタの round で診断の網羅を見るので、round を進めると未解消 finding がその round に属さず、検査の対象がずれる。
+
+#### 2. issue-implementer が引き継ぐときの draft PR
+
+- 論点：共通契約は「全パスを確認してから PR を開く」と定める。引き継ぎ commit を push した時点で draft PR を開くか。
+- 選択肢：A：開かない（例外は commit・push だけ）。B：赤いまま draft PR を開く。
+- 暫定決定：A。
+- 理由：オーナー決定が認めたのは赤い状態での commit・push であり、PR を開くことは含まれていない。切替後の issue-implementer が全パスを確認してから開けば、既存の契約のまま読める。
+- 影響範囲：切替後の再 dispatch まで PR が無い。B へ覆す場合は `.ai/agents/issue-implementer.md`「実装契約」と `.claude/agents/issue-implementer.md` を書き換える。
+
+#### 3. 未完了の赤と意図した Red が同じ commit にあるときの `Tests:` 行
+
+- 論点：オーナー決定は3つの値を定めたが、両方の赤が混在する commit の値は含まない。
+- 選択肢：A：`Tests: red-unfinished` を1行だけ書き、内訳を本文に書く。B：`Tests:` 行を2行書く。C：4つ目の値を足す。
+- 暫定決定：A。
+- 理由：引き継ぎを受ける側が最初に知るべきなのは未完了の赤があるかどうかである。値を増やさず、1行で `git log` の検索に掛かる。
+- 影響範囲：`.ai/skills/issue-pipeline/SKILL.md`「Codex 実行者が上限で止まったときの切替」の1文だけである。
+
+#### 4. 引き継ぎではない Red commit の `Tests: red-intended`
+
+- 論点：オーナー決定は「書けば区別できる」という趣旨で、test-writer の通常の Red commit に必ず書くかは明示していない。
+- 選択肢：A：test-writer の Red commit には必ず書く。B：任意とする。
+- 暫定決定：A。
+- 理由：任意にすると、`Tests:` 行の無い赤い commit が意図した赤か書き忘れかを判別できない。
+- 影響範囲：`.ai/agents/test-writer.md` と `.claude/agents/test-writer.md` に1文ずつ足した。機械検査は無い。B へ覆す場合はこの2文と共通本文の1文を直す。
+
+#### 5. test-writer が Codex の上限で止まったときの記録先
+
+- 論点：wrapper は「handoff に記録」、共通契約は「STOP でも artifact へ残す」と書いており、記録先が1つに決まらなかった。
+- コードの挙動：TestDesign は `red_evidence` を1件以上と `ut_td`・`ut_tc` を要する（`issue_envelope/schema.py`）。途中で止まった時点では成立しないことがある。完了 receipt（`ISSUE_PHASE_BINDING_V1` の `handoff_path`）の内容は、回収した bytes の sha256 で束縛されるだけで、欄は機械検査されない。
+- 選択肢：A：完了 receipt の `stop_reason`。B：TestDesign の `status = "stop"` と `stop_reason`。
+- 暫定決定：A。
+- 理由：途中停止でも必ず書ける。issue-implementer・issue-fixer と同じ欄になり、主文脈が逐語を探す場所が3ロールで揃う。作業ツリーの回収は自分の handoff があるときに行われるので、receipt はどのみち書く。
+- 影響範囲：`.ai/agents/creation-stage-contract.md`「返却」に例外を1つ足した。receipt は commit されないので、逐語は主文脈が切替の記録へ写すまで `tmp/_handoff/` にしか無い。B へ覆す場合は、途中停止でも成立する TestDesign の形（`red_evidence` の下限）をコード側で決める必要がある。

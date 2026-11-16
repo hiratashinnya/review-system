@@ -76,6 +76,8 @@ agyは #606 の解除契約の成立とロール別実測が揃うまで使用�
 
 チャットはartifact絶対パスと1行要約だけを返す。原資料全文を主文脈へ流さない。
 STOPでも理由、事実、選択肢、利害、理由付き推奨をartifactへ残す。
+例外はtest-writerがCodex実行者の上限でSTOPする場合だけで、記録先は完了receiptの `stop_reason` とする
+（[test-writer 共通契約](test-writer.md)）。チャットにはそのreceiptの絶対パスを返す。
 レビューの構造化findingは既存pr-reviewer書式を使い、主文脈がIssue単位1本のkarteへ取り込む。
 1a/1b/2a/2bを通じてroundは単調増加し、専用capture方式は #375 に委ねる。
 将来 #409 へ渡すrun/phase/dependency/expected outputを保持するが、AgentRunや別台帳は作らない。

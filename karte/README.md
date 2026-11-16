@@ -108,7 +108,7 @@ verdict は動かず、未解消が実害なしだけなら `no-harm-only` と�
 - `scope_origin.first_writers` と `scope_origin.reviewer_declarations` を使い、主文脈の legacy `ingest-review` 由来と検証済み reviewer 申告を区別する。オーナー確定 scope があるのに reviewer 原本が必要で未検証なら `clean` を止める。正常な implementer/fixer の `out_of_scope_findings` は原本が無いだけでは止めない。
 - **制限：人間が本当に承認したかは証明しない。** 認証済み FBK の存在と scope 原本との差分だけを機械で保証する。処置順・STOP 応答・merge の覆しは共有 SKILL の主文脈による捕捉契約（fail-open）に留める。
 
-`ingest-reviewer` が検証済み申告原本を記録し、`scope_origin` が最初の書き手を保持する（#800 / #797）。レビューア本人の取り込みの前に待機を取り消した後の旧 `ingest-review` は main 由来と記録される。その値を検証済み reviewer 申告と同一視しない。Codex の reviewer は読み取り専用のままとし、信頼済み wrapper が代わって `ingest-reviewer` を呼ぶ。
+`ingest-reviewer` が検証済み申告原本を記録し、`scope_origin` が最初の書き手を保持する（#800 / #797）。レビューア本人の取り込みの前に待機を取り消した後の旧 `ingest-review` は main 由来と記録される。その値を検証済み reviewer 申告と同一視しない。`pr-reviewer` は Claude 固定で、工程の 2a/2b レビューに Codex 実行者を使わない（`.ai/skills/issue-pipeline/SKILL.md`「既定実行者」）。機構として残る Codex 経路（現行手順ではない）では、Codex の reviewer は読み取り専用のままで、信頼済み wrapper が代わって `ingest-reviewer` を呼ぶ。
 
 ### `ingest-reviewer` / `decide` / `activate`（Issue #375）
 
