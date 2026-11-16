@@ -3,7 +3,7 @@ import ast
 import re
 import unittest
 
-from .gh_create_issue_gate_contract_support import (
+from tests.unit.gh_create_issue_gate_contract_support import (
     CONTRACT, embedded_gate_ast, gate_decision, section, table_rows,
 )
 
