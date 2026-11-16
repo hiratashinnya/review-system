@@ -20,6 +20,40 @@ class ReviewRoundReceiptTest(unittest.TestCase):
         self.assertEqual(karte_rounds.last_round(loaded), 1)
         self.assertEqual(loaded.findings, [])
 
+    def test_main_614_fields_and_801_roundtrip_without_loss(self):
+        from karte.check_diagnosis import exemption_reason
+        from karte.status_verdict import status_verdict
+
+        entry = model.Finding(
+            id="F-801-01", rounds=[1], harm="real", harm_detail="受入条件が未充足",
+            disposition="fix-here", diagnosis_owner="main",
+            override_ref="FBK-20261116-merge-compat",
+            reachability_path="ユーザー操作→CLI→判定",
+            threat_assumption="悪意のない誤操作・入力条件",
+            summary="検証が残る", evidence="未測定", expected="検証完了",
+            recheck="回帰テストを実施",
+        )
+        karte = model.new_karte(801)
+        karte.findings.append(entry)
+        karte.review_rounds.append(ReviewRound(1, DIGEST))
+        rendered = model.dumps(karte)
+        for field in ("diagnosis_owner: main", "override_ref:",
+                      "reachability_path:", "threat_assumption:",
+                      "## Review Rounds", "### Review Round 1"):
+            self.assertIn(field, rendered)
+        parsed = model.parse(rendered)
+        restored = parsed.finding(entry.id)
+        for field in ("diagnosis_owner", "override_ref",
+                      "reachability_path", "threat_assumption"):
+            self.assertEqual(getattr(restored, field), getattr(entry, field))
+        self.assertEqual(parsed.review_rounds, [ReviewRound(1, DIGEST)])
+        self.assertEqual(model.dumps(parsed), rendered)
+        self.assertEqual("harmful-open", status_verdict(parsed)[-1])
+        self.assertIn("主文脈", exemption_reason(restored, {}))
+        # 旧カルテに新診断担当の行が無い場合は従来の fixer が既定。
+        legacy = model.parse(rendered.replace("diagnosis_owner: main\n", ""))
+        self.assertEqual(legacy.finding(entry.id).diagnosis_owner, "fixer")
+
     def test_existing_karte_format_is_unchanged(self):
         serialized = model.dumps(model.new_karte(801))
         self.assertNotIn("Review Rounds", serialized)

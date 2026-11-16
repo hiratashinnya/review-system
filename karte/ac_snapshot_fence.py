@@ -2,12 +2,12 @@
 
 import re
 
-OPEN = re.compile(r"^[ \t]*(`{3,}|~{3,})(.*)$")
+OPEN = re.compile(r"^([ \t]*)(`{3,}|~{3,})(.*)$")
 CLOSE = re.compile(r"^[ \t]*(`{3,}|~{3,})[ \t]*$")
 
 
-def advance(fence: str | None, line: str) -> str | None:
-    """開始行ではinfo stringを許すが、終了行は同文字・同数以上・後続空白のみ。"""
+def advance(fence: str | None, line: str, *, allow_indented=False) -> str | None:
+    """開始は3列以内（リスト内では相対字下げ許可）、終了は同文字・同数以上。"""
     if fence is not None:
         matched = CLOSE.fullmatch(line)
         if (matched is not None and matched.group(1)[0] == fence[0]
@@ -17,7 +17,9 @@ def advance(fence: str | None, line: str) -> str | None:
 
     matched = OPEN.fullmatch(line)
     if matched is not None:
-        delimiter, info = matched.groups()
+        leading, delimiter, info = matched.groups()
+        if not allow_indented and (len(leading) > 3 or "\t" in leading):
+            return None  # 4列以上はMarkdownの字下げコードであり、fenced codeではない
         if delimiter[0] == "`" and "`" in info:
             return None
         return delimiter

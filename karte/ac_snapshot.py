@@ -13,7 +13,7 @@ from .format_error import KarteFormatError
 from .ac_snapshot_fence import advance as advance_fence
 
 HEADING = re.compile(r"^(#{1,6})\s+(Acceptance criteria|受け入れ基準)\s*$", re.I)
-NEXT_HEADING = re.compile(r"^(#{1,6})\s+")
+NEXT_HEADING = re.compile(r"^ {0,3}(#{1,6})\s+")
 CHECKBOX = re.compile(r"^(\s*[-*]\s+)\[([ xX])\](\s+\S.*)$")
 ITEM = re.compile(r"^\s*(?:[-*]|[1-9][0-9]*[.)])\s+(\S.*)$")
 
@@ -32,11 +32,14 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
     in_ac, level, found = False, 0, False
     items: list[tuple[list[str], bool | None, int]] = []
     base_indent: int | None = None
+    list_context = False
     fence: str | None = None
     for number, line in enumerate(body.splitlines(), start=1):
         stripped = line.strip()
+        leading = line[:len(line) - len(line.lstrip(" \t"))]
+        indent = len(leading)
         was_fenced = fence is not None
-        heading = HEADING.fullmatch(stripped) if not was_fenced else None
+        heading = HEADING.fullmatch(stripped) if not was_fenced and indent <= 3 and "\t" not in leading else None
         if heading:
             if found:
                 raise KarteFormatError("Issue本文のAcceptance criteriaセクションが重複")
@@ -45,16 +48,20 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
         if in_ac and not heading and h and len(h.group(1)) <= level:
             in_ac = False
         # セクション外のコード例に含まれる偽AC見出しも無視する。
-        fence = advance_fence(fence, line)
+        fence = advance_fence(
+            fence, line,
+            allow_indented=(in_ac and list_context and base_indent is not None
+                            and indent >= base_indent + 2),
+        )
         if heading or not in_ac:
             continue
         checkbox = CHECKBOX.fullmatch(line) if not was_fenced and fence is None else None
         plain = ITEM.match(line) if not was_fenced and fence is None else None
-        indent = len(line) - len(line.lstrip(" \t"))
         is_top_item = (checkbox is not None or plain is not None) and (
             base_indent is None or indent <= base_indent
         )
         if is_top_item:
+            list_context = True
             if base_indent is None:
                 base_indent = indent
             if checkbox is not None:
@@ -67,12 +74,14 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
                     and indent <= base_indent and items[-1][0]
                     and not items[-1][0][-1].strip()):
                 items.append(([line], None, number))
+                list_context = False
             else:
                 items[-1][0].append(line)
         elif stripped:
             # 非リストの通常段落もAC。0件として黙って破棄しない。
             items.append(([line], None, number))
             base_indent = indent
+            list_context = False
     result = tuple(AC("\n".join(parts).rstrip("\n"), checked, first)
                    for parts, checked, first in items)
     if len({(item.text, item.checked is not None) for item in result}) != len(result):
