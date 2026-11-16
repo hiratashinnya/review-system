@@ -10,6 +10,7 @@ import json
 import re
 
 from .format_error import KarteFormatError
+from .ac_snapshot_fence import advance as advance_fence
 
 HEADING = re.compile(r"^(#{1,6})\s+(Acceptance criteria|受け入れ基準)\s*$", re.I)
 NEXT_HEADING = re.compile(r"^(#{1,6})\s+")
@@ -34,27 +35,21 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
     fence: str | None = None
     for number, line in enumerate(body.splitlines(), start=1):
         stripped = line.strip()
-        heading = HEADING.fullmatch(stripped) if fence is None else None
+        was_fenced = fence is not None
+        heading = HEADING.fullmatch(stripped) if not was_fenced else None
         if heading:
             if found:
                 raise KarteFormatError("Issue本文のAcceptance criteriaセクションが重複")
             in_ac, level, found = True, len(heading.group(1)), True
-            continue
-        h = NEXT_HEADING.match(line) if fence is None else None
-        if in_ac and h and len(h.group(1)) <= level:
+        h = NEXT_HEADING.match(line) if not was_fenced else None
+        if in_ac and not heading and h and len(h.group(1)) <= level:
             in_ac = False
-        if not in_ac:
+        # セクション外のコード例に含まれる偽AC見出しも無視する。
+        fence = advance_fence(fence, line)
+        if heading or not in_ac:
             continue
-        # fenced code 内のリスト風行を別ACと誤認しない。本文はそのまま保持する。
-        fence_head = re.match(r"^\s*(`{3,}|~{3,})", line)
-        if fence_head:
-            delimiter = fence_head.group(1)
-            if fence is None:
-                fence = delimiter
-            elif delimiter[0] == fence[0] and len(delimiter) >= len(fence):
-                fence = None
-        checkbox = CHECKBOX.fullmatch(line) if fence is None and not fence_head else None
-        plain = ITEM.match(line) if fence is None and not fence_head else None
+        checkbox = CHECKBOX.fullmatch(line) if not was_fenced and fence is None else None
+        plain = ITEM.match(line) if not was_fenced and fence is None else None
         indent = len(line) - len(line.lstrip(" \t"))
         is_top_item = (checkbox is not None or plain is not None) and (
             base_indent is None or indent <= base_indent

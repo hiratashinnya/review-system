@@ -55,6 +55,7 @@ finding_refs: [new@1]
   満足済みACの `finding_refs` は空リスト `[]`。未検証ACのcheckboxを付けない。
 - `### new` / `### NEW` / `### new-finding` による新規findingは、原本に
   現れる順に `new@1` / `new@2` と参照できる。既存IDは `F-N-SS` とする。
+- AC抽出はIssue本文全体のMarkdownコードフェンスを追跡し、コード例の偽見出し・偽チェックボックスを除外する。終了フェンスは同じ文字・十分な長さ・空白のみの後続を要求する。
 - `ac_snapshot_digest` は dispatch で固定したAC一覧のSHA-256。記述だけでは
   信頼済みsnapshotとの照合を保証しない。チェック付与前に主文脈がIssueを再取得し、
   AC文言・対応・チェック状態の一致を確認し、更新後にread-backする（決定④）。

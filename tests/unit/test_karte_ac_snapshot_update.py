@@ -64,6 +64,49 @@ class ACSnapshotUpdateTest(unittest.TestCase):
         self.assertEqual((original, []), plan(original, original, judge("satisfied")))
         self.assertEqual((), from_issue_body("# no AC\n"))
 
+    def test_fenced_example_outside_ac_cannot_become_real_ac(self):
+        body = ("# Issue\n"
+                "Code sample:\n"
+                "```markdown\n"
+                "## Acceptance criteria\n- [ ] fake example\n"
+                "```\n\n"
+                "## Acceptance criteria\n- [ ] real condition\n"
+                "## Other\n")
+        items = from_issue_body(body)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].text, "real condition")
+        updated, changed = plan(body, body, judge("satisfied"))
+        self.assertEqual(changed, [1])
+        self.assertIn("- [ ] fake example", updated)
+        self.assertIn("- [x] real condition", updated)
+        self.assertNotEqual(digest(items), digest(from_issue_body(
+            body.replace("real condition", "new real condition"))))
+
+    def test_fence_info_string_does_not_close_and_hide_next_ac(self):
+        body = ("## Acceptance criteria\n"
+                "- [ ] AC1\n"
+                "    ```markdown\n"
+                "    ```not-a-closing-fence\n"
+                "    ## Other\n"
+                "    - [ ] fake checkbox in code\n"
+                "    ```\n"
+                "- [ ] AC2\n"
+                "## Other\n")
+        items = from_issue_body(body)
+        self.assertEqual(len(items), 2)
+        self.assertIn("## Other", items[0].text)
+        self.assertIn("fake checkbox", items[0].text)
+        self.assertEqual(items[1].text, "AC2")
+        self.assertNotEqual(digest(items), digest(from_issue_body(
+            body.replace("- [ ] AC2", "- [ ] AC2 changed"))))
+        with self.assertRaisesRegex(KarteUsageError, "live本文"):
+            plan(body, body.replace("AC2\n", "AC2 changed\n"),
+                 judge("satisfied", "satisfied"))
+        updated, changed = plan(body, body, judge("satisfied", "satisfied"))
+        self.assertEqual(changed, [1, 2])
+        self.assertIn("- [ ] fake checkbox in code", updated)
+        self.assertIn("- [x] AC2", updated)
+
     def test_paragraph_form_ac_is_preserved_and_bound_to_digest(self):
         prose = ("# Example\n## Acceptance criteria\n"
                  "実環境での動作確認に成功すること。\n"
