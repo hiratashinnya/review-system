@@ -47,7 +47,7 @@ finding_refs: [new@1]
 
 - `finding_count` はそのroundのfindingブロック**総数**で、新規指摘数とは別。
   findingがない場合は `## Findings` のブロックを省略して `finding_count: 0` とする。
-- `ac_count` は対象となる元IssueのAC数。ACがない場合は `ac_count: 0`
+- `ac_count` は対象となる元IssueのAC数（箇条書きだけでなく通常段落も1段落ごとの非checkbox ACとして含める）。ACがない場合は `ac_count: 0`
   とし、`### AC N` ブロックは書かない（not_applicable）。
 - `result` は `satisfied` / `not_met` / `unverified`。全ACに判断根拠を記録する。
   未充足・未検証のACは必ず `harm: real` かつ `status: open` のfindingに紐付ける（`status` 省略は既定 `open`）。

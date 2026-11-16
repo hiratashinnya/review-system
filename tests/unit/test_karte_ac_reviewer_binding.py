@@ -150,6 +150,35 @@ class ACReviewerBindingTest(unittest.TestCase):
                     finally:
                         self.root, self.source = previous_root, previous_source
 
+    def test_prose_ac_requires_full_summary_and_never_autochecks(self):
+        from karte.ac_check_update import plan
+        from karte.review_summary_ac import ACJudgment
+
+        prose = ("# Example\n\n## Acceptance criteria\n"
+                 "実環境での動作確認に成功すること。\n")
+        self.source.write_text(prose, encoding="utf-8")
+        criteria = from_issue_body(prose)
+        self.assertEqual(len(criteria), 1)
+        self.assertEqual(criteria[0].checked, None)
+        self.assertEqual(self.activate()[0], EXIT_OK)
+        code, _, err = self.ingest(
+            self.make_report(count=0, digest_value=digest(criteria)),
+            "pr-reviewer--invalid-prose-zero.md",
+        )
+        self.assertEqual(code, EXIT_ERROR, err)
+        self.assertFalse(paths.karte_path(801, self.root).exists())
+        code, _, err = self.ingest(
+            self.make_report(count=1, digest_value=digest(criteria)),
+            "pr-reviewer--valid-prose-one.md",
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        ledger = model.parse(paths.read_text(paths.karte_path(801, self.root)))
+        self.assertEqual(len(ledger.review_rounds), 1)
+        report = paths.read_text(self.root / ledger.review_rounds[0].source)
+        self.assertIn("### AC 1", report)
+        judgments = (ACJudgment(1, "satisfied", "証拠", ()),)
+        self.assertEqual(plan(prose, prose, judgments), (prose, []))
+
     def test_no_pointer_and_replayed_handoff_fail(self):
         report = self.make_report()
         self.assertEqual(self.ingest(report)[0], EXIT_ERROR)

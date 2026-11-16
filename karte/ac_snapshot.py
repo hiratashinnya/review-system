@@ -67,7 +67,17 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
             else:
                 items.append(([plain.group(1).strip()], None, number))
         elif items:
-            items[-1][0].append(line)
+            # 空行で区切られたトップレベルの段落は非checkbox ACとして保存する。
+            if (stripped and fence is None and base_indent is not None
+                    and indent <= base_indent and items[-1][0]
+                    and not items[-1][0][-1].strip()):
+                items.append(([line], None, number))
+            else:
+                items[-1][0].append(line)
+        elif stripped:
+            # 非リストの通常段落もAC。0件として黙って破棄しない。
+            items.append(([line], None, number))
+            base_indent = indent
     result = tuple(AC("\n".join(parts).rstrip("\n"), checked, first)
                    for parts, checked, first in items)
     if len({(item.text, item.checked is not None) for item in result}) != len(result):

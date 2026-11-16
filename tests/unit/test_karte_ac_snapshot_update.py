@@ -64,6 +64,34 @@ class ACSnapshotUpdateTest(unittest.TestCase):
         self.assertEqual((original, []), plan(original, original, judge("satisfied")))
         self.assertEqual((), from_issue_body("# no AC\n"))
 
+    def test_paragraph_form_ac_is_preserved_and_bound_to_digest(self):
+        prose = ("# Example\n## Acceptance criteria\n"
+                 "実環境での動作確認に成功すること。\n"
+                 "操作条件: 電源投入後に確認する。\n\n"
+                 "異常時には安全側へ移行すること。\n\n## Notes\n"
+                 "一般情報はACではない。\n")
+        criteria = from_issue_body(prose)
+        self.assertEqual(len(criteria), 2)
+        self.assertEqual([item.checked for item in criteria], [None, None])
+        self.assertIn("操作条件", criteria[0].text)
+        self.assertIn("安全側", criteria[1].text)
+        self.assertNotIn("一般情報", "".join(item.text for item in criteria))
+        changed = prose.replace("電源投入後", "再起動後")
+        self.assertNotEqual(digest(criteria), digest(from_issue_body(changed)))
+        with self.assertRaisesRegex(KarteUsageError, "live本文"):
+            plan(prose, changed, judge("satisfied", "satisfied"))
+        self.assertEqual(plan(prose, prose, judge("satisfied", "satisfied")), (prose, []))
+
+    def test_prose_before_bullets_is_not_silently_dropped(self):
+        body = ("## Acceptance criteria\n実環境で確認すること。\n"
+                "- [ ] テストが成功する\n")
+        items = from_issue_body(body)
+        self.assertEqual(len(items), 2)
+        self.assertEqual(items[0].checked, None)
+        self.assertEqual(items[1].checked, False)
+        self.assertNotEqual(digest(items), digest(from_issue_body(
+            body.replace("実環境", "シミュレータ"))))
+
     def test_multiline_ac_continuation_is_bound_to_snapshot_and_live(self):
         multiline = """# Test
 
