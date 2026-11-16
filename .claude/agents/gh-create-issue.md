@@ -82,8 +82,9 @@ flag・shell command はすべて拒否する。gate の変更を伴う許可拡
 - checkout の `origin` が認識可能な GitHub repository でなければ全 Bash コマンドを拒否する。
   `GH_REPO`／`GH_HOST` に不一致があっても拒否する。
 - `gh --repo OWNER/REPO <subcommand>`／`gh -R OWNER/REPO <subcommand>` のように、
-  `--repo/-R` は**subcommand より前**に置く。`gh issue create` **だけ**は
-  `gh issue create ... --repo OWNER/REPO` という末尾指定も許可される。
+  `--repo/-R` は原則として**subcommand より前**に置く。**例外は `gh issue create` と `gh api` の REST GET/HEAD** で、
+  `gh issue create ... --repo OWNER/REPO` および `gh api repos/OWNER/REPO/issues --repo OWNER/REPO` の末尾指定も許可される。
+  GraphQL 読取や REST write の末尾 `--repo/-R` は拒否される。
   `--repo=...`／`-ROWNER/REPO` 形式も target 一致が必要。
 - `gh api` の REST endpoint と `project item-add --url` も target repository に一致すること。
   任意の `--repo` 指定だけでは許可されない。
@@ -112,7 +113,8 @@ flag・shell command はすべて拒否する。gate の変更を伴う許可拡
 **`gh api` に固有の許可形**
 
 - REST GET/HEAD：`repos/<target>/...` に限定し、`--method/-X`、
-  `--jq/-q`、`--paginate`、`--slurp` のうち gate が認める読取オプションのみ。
+  `--jq/-q`、`--paginate`、`--slurp`、`--repo/-R` のうち gate が認める読取オプションのみ。
+  REST GET/HEAD は target 一致を条件に末尾 `--repo/-R` も許可される。
   `-F/-f/--field/--raw-field` による field 指定はこの経路では拒否。
 - GraphQL 読取：`gh api graphql -F 'query={ viewer { login } }'` のように、
   **読取 query を1個だけ** field として指定。`-F/-f/--field/--raw-field`、
@@ -124,7 +126,9 @@ flag・shell command はすべて拒否する。gate の変更を伴う許可拡
   method と field 以外のオプションを拒否。implicit POST も同じ条件。
 - `gh project item-edit` は live GraphQL が target repository の Issue と指定 Project を
   確認できるときだけ通す。`Status=Done`、metadata 取得失敗、
-  不整合・不明 option・重複した single-select option は拒否。
+  不整合は拒否する。**指定 field が live の Status field と一致する場合**に限り、
+  不明 option・重複 single-select option を拒否する。**非Status field では option の存在確認をしない**
+  （ただし target Issue/Project 照合と必須フラグ検証は実施する）。
   Bash gate の allow と実際の Project 編集権限は別条件。
 
 **許可された git 形**（これ以外は拒否）：`git branch --show-current`、
@@ -152,6 +156,9 @@ flag・shell command はすべて拒否する。gate の変更を伴う許可拡
 | allow | `gh project item-add --owner hiratashinnya --project-number 3 --url https://github.com/hiratashinnya/review-system/issues/12` | item-add |
 | allow | `gh api repos/hiratashinnya/review-system/issues?state=open` | REST GET |
 | allow | `gh api --method HEAD repos/hiratashinnya/review-system/issues` | REST HEAD |
+| allow | `gh api repos/hiratashinnya/review-system/issues --repo hiratashinnya/review-system` | REST GET 末尾 repo |
+| allow | `gh api repos/hiratashinnya/review-system/issues -Rhiratashinnya/review-system` | REST GET 末尾 -R |
+| allow | `gh api --method HEAD repos/hiratashinnya/review-system/issues --repo hiratashinnya/review-system` | REST HEAD 末尾 repo |
 | allow | `gh api graphql -F 'query={ viewer { login } }'` | GraphQL read |
 | allow | `gh api --method POST repos/hiratashinnya/review-system/issues/12/dependencies/blocked_by -F issue_id=13` | relation write |
 | allow | `gh api --method POST repos/hiratashinnya/review-system/issues/12/sub_issues -F sub_issue_id=13` | sub-issue write |
@@ -172,6 +179,8 @@ flag・shell command はすべて拒否する。gate の変更を伴う許可拡
 | deny | `gh issue comment 12 --body x` | 未許可 subcommand |
 | deny | `gh label create x` | 未許可 subcommand |
 | deny | `gh api --method POST repos/hiratashinnya/review-system/issues/12/comments -F body=x` | 未許可 API write |
+| deny | `gh api graphql -F 'query={ viewer { login } }' --repo hiratashinnya/review-system` | GraphQL 末尾 repo |
+| deny | `gh api --method POST repos/hiratashinnya/review-system/issues/12/sub_issues -F sub_issue_id=13 --repo hiratashinnya/review-system` | REST write 末尾 repo |
 | deny | `gh api graphql -F 'query=mutation { createIssue(input: {}) { issue { id } } }'` | GraphQL mutation |
 | deny | `gh api graphql -F query=@mutation.graphql` | GraphQL file |
 | deny | `gh --repo other/repo issue list` | 別 repository |
