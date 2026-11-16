@@ -1,7 +1,11 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@446f835d3edc -->
+<!-- synced-from: CLAUDE.md@6f3d9e01bfdb -->
 <!--
+  Issue #812 (2026-11-16): .claude/rules/05-skills-agents.md の gh-create-issue
+  allowlist説明をエージェント定義への参照に変更。配送本文の中核規範は変えず、
+  GitHub Actions の canonical_hash 期待値 6f3d9e01bfdb を照合して marker を同期した。
+
   Issue #375（2026-10-31）: `.claude/rules/05-skills-agents.md` の戻り値のハンドオフ規約で `pr-reviewer`
   （Claude Code）を write 権限なし側から外し、項13へ `karte ingest-reviewer` と主文脈専用 verb を追記した。
   既存の中核規範（1〜12）は意味を保持。marker を再計算した。
