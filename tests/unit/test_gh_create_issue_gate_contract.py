@@ -1,45 +1,11 @@
-"""Issue #812: the agent-facing command contract must match the actual Claude gate.
-
-The Markdown table is deliberately parsed rather than copied into a second fixture.
-Each example is submitted to the *real* PreToolUse hook without executing gh/git.
-"""
+"""Issue #812: the documented gh-create-issue allowlist is an executable contract."""
 import ast
-import json
-import os
 import re
-import subprocess
 import unittest
-from pathlib import Path
 
-
-ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = ROOT / ".claude/agents/gh-create-issue.md"
-GATE = ROOT / ".claude/hooks/agent-command-gate.sh"
-
-
-def section(text, name):
-    start = f"<!-- gh-create-issue-gate-{name}:start -->"
-    end = f"<!-- gh-create-issue-gate-{name}:end -->"
-    if text.count(start) != 1 or text.count(end) != 1:
-        raise AssertionError(f"gate contract must have one {name} section")
-    return text.split(start, 1)[1].split(end, 1)[0]
-
-
-def table_rows(text):
-    rows = []
-    for line in text.splitlines():
-        if not line.startswith("| "):
-            continue
-        parts = [p.strip() for p in line.strip().strip("|").split("|")]
-        if parts[0] not in {"subcommand", "判定", "---"} and not parts[0].startswith("---"):
-            rows.append(parts)
-    return rows
-
-
-def embedded_gate_ast():
-    shell = GATE.read_text(encoding="utf-8")
-    script = shell.split("<<'PYEOF'\n", 1)[1].split("\nPYEOF", 1)[0]
-    return ast.parse(script)
+from .gh_create_issue_gate_contract_support import (
+    CONTRACT, embedded_gate_ast, gate_decision, section, table_rows,
+)
 
 
 class GhCreateIssueGateContractTests(unittest.TestCase):
@@ -55,7 +21,6 @@ class GhCreateIssueGateContractTests(unittest.TestCase):
             key = tuple(words[1:])
             self.assertNotIn(key, documented)
             documented[key] = set(re.findall(r"`(--[a-z-]+|-[A-Za-z])`", row[1]))
-
         function = next(
             node for node in embedded_gate_ast().body
             if isinstance(node, ast.FunctionDef) and node.name == "gh_create_issue_violation"
@@ -66,7 +31,6 @@ class GhCreateIssueGateContractTests(unittest.TestCase):
             for target in statement.targets if isinstance(target, ast.Name)
         }
         allowed = ast.literal_eval(assignments["allowed"])
-        # Gate uses the dict's .get(key, set()) to select subcommand flags.
         flags = ast.literal_eval(assignments["flags"].func.value)
         self.assertEqual(set(documented), allowed, "document and gate subcommands diverged")
         for key in allowed - {("api",)}:
@@ -90,28 +54,13 @@ class GhCreateIssueGateContractTests(unittest.TestCase):
             commands.add(command)
             outcomes[verdict] += 1
             with self.subTest(expected=verdict, command=command):
-                result = subprocess.run(
-                    [str(GATE)],
-                    input=json.dumps({"agent_type": "gh-create-issue",
-                                      "tool_input": {"command": command}}),
-                    text=True, capture_output=True, cwd=ROOT, check=True,
-                    env={**os.environ, "AGENT_COMMAND_GATE_TRACE_LOG": "",
-                         "GH_REPO": "", "GH_HOST": ""},
-                )
-                self.assertFalse(result.stderr.strip(), result.stderr)
-                actual = "allow" if not result.stdout.strip() else "deny"
-                if actual == "deny":
-                    payload = json.loads(result.stdout)
-                    self.assertEqual(
-                        payload["hookSpecificOutput"]["permissionDecision"], "deny"
-                    )
-                self.assertEqual(actual, verdict, result.stdout)
-        self.assertGreaterEqual(outcomes["allow"], 20)
-        self.assertGreaterEqual(outcomes["deny"], 15)
+                self.assertEqual(gate_decision(command), verdict)
+        self.assertGreaterEqual(outcomes["allow"], 22)
+        self.assertGreaterEqual(outcomes["deny"], 19)
         for command in (
             "git branch --show-current", "git remote -v",
             "git remote get-url origin", "git status --short",
-            "git status --short --branch"
+            "git status --short --branch",
         ):
             self.assertIn(command, commands, "all five git shapes must be covered")
 
