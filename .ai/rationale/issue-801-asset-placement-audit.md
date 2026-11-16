@@ -20,67 +20,71 @@
 
 ## 全ファイル照合記録
 
-PRの変更差分の全対象（**53ファイル**）について区分を確認。変更Python・テストはファイル全文も走査して、日付付き実測・不採用案・判断理由の混入がないことを確認。移設時の内容は動作条件を失わないよう区分2へ残した。
+PRの変更差分の全対象（**55ファイル**）について区分を確認。変更Python・テストはファイル全文も走査して、日付付き実測・不採用案・判断理由の混入がないことを確認。移設時の内容は動作条件を失わないよう区分2へ残した。
 
 | 変更ファイル | 判定区分 | 点検と処置 |
 |---|---|---|
-| `.ai/agents/pr-reviewer.md` | 実行契約 | 現行手順・権限・STOPを維持、理由はrationaleへ |
-| `.ai/guidance/common.md` | 共通規範 | 実行規律のみ、正当化理由はrationaleへ |
-| `.ai/rationale/common-guidance.md` | 保存先 | 根拠・判断履歴を保存し実行契約と分離 |
-| `.ai/rationale/gh-create-issue.md` | 保存先 | 根拠・判断履歴を保存し実行契約と分離 |
-| `.ai/rationale/governance-directives.md` | 保存先 | 根拠・判断履歴を保存し実行契約と分離 |
-| `.ai/rationale/issue-801-asset-placement-audit.md` | 監査記録 | 本表の全対象を列挙・更新 |
-| `.ai/rationale/issue-801-review-round-ac.md` | 保存先 | 根拠・判断履歴を保存し実行契約と分離 |
-| `.ai/rationale/issue-pipeline.md` | 保存先 | 根拠・判断履歴を保存し実行契約と分離 |
-| `.ai/rationale/karte-review-history.md` | 保存先 | 根拠・判断履歴を保存し実行契約と分離 |
-| `.ai/skills/gh-create-issue/SKILL.md` | 実行契約 | 現行手順・権限・STOPを維持、理由はrationaleへ |
-| `.ai/skills/issue-pipeline/SKILL.md` | 実行契約 | 現行手順・権限・STOPを維持、理由はrationaleへ |
-| `.claude/agents/pr-reviewer.md` | 実行契約 | 現行手順・権限・STOPを維持、理由はrationaleへ |
-| `.claude/hooks/governance-directives.md` | 配送写し | 現行規範・同期markerのみ、経緯はrationaleへ |
-| `.claude/skills/issue-pipeline/SKILL.md` | 実行契約 | 現行手順・権限・STOPを維持、理由はrationaleへ |
-| `.github/copilot-instructions.md` | 生成物 | 共有guidanceと生成hashを同期 |
-| `AGENTS.md` | 生成物 | 共有guidanceと生成hashを同期 |
-| `codex_worktree_exec/cli.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `codex_worktree_exec/review_ac_input.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `karte/README.md` | リファレンス | 現行形式・停止条件を記載、経緯はrationaleへ |
-| `karte/ac_check_update.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `karte/ac_snapshot.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `karte/ac_snapshot_binding.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `karte/active_pointer.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `karte/ingest_notes.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `karte/ingest_receipt.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `karte/ingest_review.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `karte/karte_parse.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `karte/karte_record.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `karte/karte_render.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `karte/karte_rounds.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `karte/owner_cli.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `karte/owner_cli_parser.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `karte/review_report.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `karte/review_round_record.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `karte/review_summary.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `karte/review_summary_ac.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `karte/reviewer_cli.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `karte/vocabulary.py` | 実装 | 現在の振舞いと境界のみ、設計判断の混入なし |
-| `tests/fixtures/karte/cli_verbs_golden.json` | 検証 | 回帰テスト・fixture、設計判断の混入なし |
-| `tests/unit/test_codex_ac_snapshot_input.py` | 検証 | 回帰テスト・fixture、設計判断の混入なし |
-| `tests/unit/test_codex_worktree_exec_review_handoff.py` | 検証 | 回帰テスト・fixture、設計判断の混入なし |
-| `tests/unit/test_codex_zero_finding_e2e.py` | 検証 | 回帰テスト・fixture、設計判断の混入なし |
-| `tests/unit/test_karte_ac_finding_verdict.py` | 検証 | 回帰テスト・fixture、設計判断の混入なし |
-| `tests/unit/test_karte_ac_reviewer_binding.py` | 検証 | 回帰テスト・fixture、設計判断の混入なし |
-| `tests/unit/test_karte_ac_snapshot_update.py` | 検証 | 回帰テスト・fixture、設計判断の混入なし |
-| `tests/unit/test_karte_model_compat.py` | 検証 | 回帰テスト・fixture、設計判断の混入なし |
-| `tests/unit/test_karte_owner_failure_order.py` | 検証 | 回帰テスト・fixture、設計判断の混入なし |
-| `tests/unit/test_karte_owner_reviewer_registration.py` | 検証 | 回帰テスト・fixture、設計判断の混入なし |
-| `tests/unit/test_karte_review_round_receipts.py` | 検証 | 回帰テスト・fixture、設計判断の混入なし |
-| `tests/unit/test_karte_review_summary.py` | 検証 | 回帰テスト・fixture、設計判断の混入なし |
-| `tests/unit/test_karte_reviewer_ingest.py` | 検証 | 回帰テスト・fixture、設計判断の混入なし |
-| `tests/unit/test_operation_confirmation_policy.py` | 検証 | 回帰テスト・fixture、設計判断の混入なし |
-| `tests/unit/test_review_harm_launch.py` | 検証 | 回帰テスト・fixture、設計判断の混入なし |
+| `.ai/agents/pr-reviewer.md` | 実行契約 | 現行手順・権限・STOPを保持 |
+| `.ai/guidance/common.md` | 共通規範 | 現行規則のみ |
+| `.ai/rationale/common-guidance.md` | 保存先 | 判断根拠・経緯を現行契約から分離 |
+| `.ai/rationale/gh-create-issue.md` | 保存先 | 判断根拠・経緯を現行契約から分離 |
+| `.ai/rationale/governance-directives.md` | 保存先 | 判断根拠・経緯を現行契約から分離 |
+| `.ai/rationale/issue-801-asset-placement-audit.md` | 監査記録 | この監査表と実施記録 |
+| `.ai/rationale/issue-801-review-round-ac.md` | 保存先 | 判断根拠・経緯を現行契約から分離 |
+| `.ai/rationale/issue-pipeline.md` | 保存先 | 判断根拠・経緯を現行契約から分離 |
+| `.ai/rationale/karte-review-history.md` | 保存先 | 判断根拠・経緯を現行契約から分離 |
+| `.ai/skills/gh-create-issue/SKILL.md` | 実行契約 | 現行手順・権限・STOPを保持 |
+| `.ai/skills/issue-pipeline/SKILL.md` | 実行契約 | 現行手順・権限・STOPを保持 |
+| `.claude/agents/pr-reviewer.md` | 実行契約 | 現行手順・権限・STOPを保持 |
+| `.claude/hooks/governance-directives.md` | 配送写し | 現行規範と同期markerを保持 |
+| `.claude/skills/issue-pipeline/SKILL.md` | 実行契約 | 現行手順・権限・STOPを保持 |
+| `.github/copilot-instructions.md` | 生成物 | 共通guidance正本とのハッシュ同期 |
+| `AGENTS.md` | 生成物 | 共通guidance正本とのハッシュ同期 |
+| `codex_worktree_exec/cli.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `codex_worktree_exec/review_ac_input.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `karte/README.md` | リファレンス | 現行AC・レビュー入力・fail-close契約を明示 |
+| `karte/ac_check_update.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `karte/ac_snapshot.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `karte/ac_snapshot_binding.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `karte/ac_snapshot_fence.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `karte/active_pointer.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `karte/ingest_notes.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `karte/ingest_receipt.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `karte/ingest_review.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `karte/karte_parse.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `karte/karte_record.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `karte/karte_render.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `karte/karte_rounds.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `karte/owner_cli.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `karte/owner_cli_parser.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `karte/review_report.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `karte/review_round_record.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `karte/review_summary.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `karte/review_summary_ac.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `karte/reviewer_cli.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `karte/vocabulary.py` | 実装 | 現行アルゴリズム・境界・docstringを保持 |
+| `tests/fixtures/karte/cli_verbs_golden.json` | 検証 | 回帰テスト・期待値を保持 |
+| `tests/unit/test_codex_ac_snapshot_input.py` | 検証 | 回帰テスト・期待値を保持 |
+| `tests/unit/test_codex_worktree_exec_review_handoff.py` | 検証 | 回帰テスト・期待値を保持 |
+| `tests/unit/test_codex_zero_finding_e2e.py` | 検証 | 回帰テスト・期待値を保持 |
+| `tests/unit/test_karte_ac_finding_verdict.py` | 検証 | 回帰テスト・期待値を保持 |
+| `tests/unit/test_karte_ac_reviewer_binding.py` | 検証 | 回帰テスト・期待値を保持 |
+| `tests/unit/test_karte_ac_snapshot_update.py` | 検証 | 回帰テスト・期待値を保持 |
+| `tests/unit/test_karte_model_compat.py` | 検証 | 回帰テスト・期待値を保持 |
+| `tests/unit/test_karte_owner_failure_order.py` | 検証 | 回帰テスト・期待値を保持 |
+| `tests/unit/test_karte_owner_reviewer_registration.py` | 検証 | 回帰テスト・期待値を保持 |
+| `tests/unit/test_karte_review_round_receipts.py` | 検証 | 回帰テスト・期待値を保持 |
+| `tests/unit/test_karte_review_summary.py` | 検証 | 回帰テスト・期待値を保持 |
+| `tests/unit/test_karte_reviewer_ingest.py` | 検証 | 回帰テスト・期待値を保持 |
+| `tests/unit/test_operation_confirmation_policy.py` | 検証 | 回帰テスト・期待値を保持 |
+| `tests/unit/test_readonly_workspace.py` | 検証 | 回帰テスト・期待値を保持 |
+| `tests/unit/test_review_harm_launch.py` | 検証 | 回帰テスト・期待値を保持 |
 
 ## 別軸の未完了条件（混同しない）
 
 - 既知の実害finding F-801-06/08/09/10は実装修正と回帰テストを追加済み。F-801-06/08の集中検証は188件成功、guidance-sync/asset-parity/maintainability_lintも成功（workflow run 43776586091, SHA 2614ad3e）。**独立再レビュー前の是正済み候補**であり、独立レビュー合格と同義ではない。
+
+- Codex P2指摘「未達ACがresolved参照でもclean」「段落ACの0件化」「AC外コードフェンスによる偽AC見出し」「閉じフェンスの誤判定」を実装修正し、検証分離のread-only workspaceテストも調整。関連テスト151件とmaintainability_lint/asset-parity/guidance-syncは [run 43866183285](https://github.com/hiratashinnya/review-system/actions/runs/43866183285) で成功。全単体テストと最新独立再レビューの結果は未確認。
 - **①AC未観測の分類と語彙・③既存チェックACの後退停止**はオーナーとの決定と機械ゲートが必要。rationaleで検討しただけでは決定済みにならない。
 - 生成物同期：現行PRの共通原稿に対する `guidance-sync` はコミット `34963f95` のCIで成功。`asset-parity` はコミット `c2b43269` で成功。**テスト修正を含む後続SHAについては再実行の証拠が必要**であり、未実行・中断・失敗を合格扱いしない。
 - Issue本文のACチェック状態の自動更新やPRマージは本配置監査の対象外。
