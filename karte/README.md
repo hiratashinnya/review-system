@@ -401,6 +401,8 @@ escalate を変えない。診断対象が空でも当該ラウンドに Attempt
 **互換性**：従来のカルテは新しいフィールドなしで読める。
 `diagnosis_owner: main` の指定がある場合だけ新しい行を保存する。
 条件を満たした `check` が OK になっても `status` は従来どおりブロックし得る。
+従来 `EXIT_ERROR` だったラウンドが `EXIT_OK` になるため、フック・CI の
+停止結果は変わり得る。既存の `deferred`/`waived` の出力文言は維持する。
 
 ### `change_kind` の語彙（Issue #503 観測2）
 

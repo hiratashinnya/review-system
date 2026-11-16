@@ -55,6 +55,26 @@ class TestCheckDiagnosis614(RootedCase):
         self.assertIn("検証済み handoff", out)
         self.assertIn(f.id, [x.id for x in status_verdict(saved)[2]])
 
+    def test_issue_538_round_one_mixed_assignment(self):
+        """#538 と同構成: 是正担当の診断、検証済み deferred、主文脈 fix-here が共存する。"""
+        first = self.finding(1)
+        delegated = self.finding(2, harm="none", disposition="deferred",
+                                 deferred_to="#609")
+        delegated.handoff = HandoffRecord(
+            handoff_issue="hiratashinnya/review-system#609",
+            handoff_comment_url="https://github.com/hiratashinnya/review-system/issues/609#issuecomment-1",
+            handoff_content_hash=content_hash(
+                delegated.id, delegated.harm, delegated.summary,
+                delegated.locus, delegated.expected),
+            handoff_verified_at="2026-11-16T08:00:00+09:00", handoff_state="verified",
+        )
+        main = self.finding(3, diagnosis_owner="main")
+        code, out, err, parsed = self.check([first, delegated, main])
+        self.assertEqual(0, code, err)
+        self.assertIn(delegated.id, out)
+        self.assertIn(main.id, out)
+        self.assertEqual("harmful-open", status_verdict(parsed)[-1])
+
     def test_unverified_deferred_requires_diagnosis(self):
         for handoff in (None, HandoffRecord(handoff_state="verified")):
             with self.subTest(handoff=handoff):
