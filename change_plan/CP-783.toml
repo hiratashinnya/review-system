@@ -1,0 +1,48 @@
+schema = "issue-envelope/v1.0"
+schema_version = 1
+id = "CP-783"
+producer = "change-planner"
+phase = "solution_planning"
+artifact_type = "ChangePlan"
+issue = 783
+run_id = "e2e852-run-1"
+target_key = "e2e852-target-1"
+input_refs = []
+input_digest = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+snapshot_oid = "b60b309a6995e382b7d27d3c6e0d1b1c11663f67"
+status = "ready"
+verification = []
+unresolved_findings = []
+owner_decisions = []
+unresolved_owner_decisions = []
+next_expected_artifact = ""
+stop_reason = ''
+scope = ["tool"]
+parent = ""
+children = ["CP-783-tool"]
+depends_on = []
+selected_solution = '''
+verify_review が、呼び出し側の期待値 expected と署名済み review の全束縛項目（issue/phase/round/run_id/target_key/input_digest/snapshot_oid/review_oid）を比較し、1 項目でも不一致なら review を採用しない。
+'''
+interfaces = '''
+verify_review(raw, signature, key, expected) -> dict。不一致は ValueError。
+'''
+invariants = '''
+全束縛項目が一致した場合だけ review を受理する。除外される項目はない。元の review bytes は変更しない。
+'''
+failure_behavior = '''
+不一致・署名不正・欠落は ValueError で拒否し、triage 成果物を生成しない（fail-close）。
+'''
+oos = '''
+triage の自動処置・台帳更新・merge は対象外。
+'''
+operational_verification = '''
+束縛項目を 1 つずつ変えた expected で verify_review を呼び、すべて ValueError になることを確認する。
+'''
+adr_refs = []
+
+[[work_units]]
+id = "WU-1"
+depends_on = []
+scope = ["tool"]
+ac_refs = ["AC-1"]
