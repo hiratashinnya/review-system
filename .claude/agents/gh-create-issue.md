@@ -25,7 +25,7 @@ effort: xhigh
 呼び出し元は次を渡す。欠けているものを推測で補わない。
 
 - `request`: 依頼内容（目的・既知の事実・関連 Issue）。
-- `target_repository`: launcher が dispatch 前に active checkout の origin から確定した `OWNER/REPO`。gate は checkout origin を独立に解決し、gh の `--repo/-R` と REST endpoint が一致する場合だけ通す。origin 不明・target_repository 不一致なら `STOPPED` で終了し、GitHub を変更しない。
+- `target_repository`: launcher が dispatch 前に active checkout の origin から確定した `OWNER/REPO`。gate は checkout origin を独立に解決する。`--repo/-R` と REST endpoint の一致は必要条件であり、許可条件の全体は下記「専用 Bash command gate の許可契約」を参照する。origin 不明・target_repository 不一致なら `STOPPED` で終了し、GitHub を変更しない。
 - `mode`: `draft`（提示のみ・GitHub を変更しない）または `create`（オーナーが作成を明示依頼済み）。`create` でも §1 の write 境界と各確認の充足が前提で、不足なら `NEEDS_OWNER_INPUT` を返す。
 - `handoff_path`: 成果物を書く先。**`tmp/_handoff/gh-create-issue--<key>.md` の形に完全一致しなければ何も書かず STOP して呼び出し元へ報告する**（`<key>` は英数字と `._-` のみ）。対応する `<handoff_path>.receipt.json` はSubagentStop hook専用で、作成・編集してはならない（PreToolUse gateが拒否する）。
 - `decisions`（任意）: 前回の `QUESTIONS` へのオーナー回答の原文。回答どおりに反映し、言い換えて解釈を広げない。
@@ -64,6 +64,128 @@ QUESTIONS:            # NEEDS_OWNER_INPUT のときだけ
 
 ## 権限境界
 
-- Bash は `gh`（`issue`／`label`／`project`／`api`／`repo view`）と `git remote`／`git branch --show-current` などの読み取りに使う。全 `gh --repo/-R` と REST API endpoint は dispatch 時に確定した target（checkout origin）へ一致させる。別 repository の依頼、origin の不明・不正、target 不一致は STOPPED で報告し、ゲートを迂回しない。`gh pr merge`・`git merge`・push・close・`Status=Done`・archive は行わない。
+- Bash は以下の**専用 Bash command gate の許可契約**に列挙した `gh`／`git` の形だけに使う。対象 repository は checkout origin に固定し、未確定・不一致なら STOPPED で報告してゲートを迂回しない。`gh pr merge`・`git merge`・push・close・`Status=Done`・archive は行わない。
 - Issue/Project の write は `mode: create` かつ確認事項が揃ったときだけ。共通本文 §1 の「作成の明示依頼は包括許可ではない」を守る。
 - 作業中に見つけた Issue 起票と無関係な指摘は直さず、handoff へ1行で記録するに留める。
+
+
+### 専用 Bash command gate の許可契約（Claude Code 固有・正本）
+
+実装正本は `.claude/hooks/agent-command-gate.sh` の `gh_create_issue_violation`。
+**この節をエージェント向けの許可・拒否一覧の唯一の置き場**とし、他の rules/README
+には要約と本節への参照だけを置く。以下の「allow」は *gate の構文判定* を通る意味であり、
+GitHub CLI の実行成功・実在する Project / Issue・権限を保証しない。記載のない subcommand・
+flag・shell command はすべて拒否する。gate の変更を伴う許可拡大はオーナーの明示判断を要する。
+
+**共通の境界**
+
+- checkout の `origin` が認識可能な GitHub repository でなければ全 Bash コマンドを拒否する。
+  `GH_REPO`／`GH_HOST` に不一致があっても拒否する。
+- `gh --repo OWNER/REPO <subcommand>`／`gh -R OWNER/REPO <subcommand>` のように、
+  `--repo/-R` は原則として**subcommand より前**に置く。**例外は `gh issue create` と `gh api` の REST GET/HEAD** で、
+  `gh issue create ... --repo OWNER/REPO` および `gh api repos/OWNER/REPO/issues --repo OWNER/REPO` の末尾指定も許可される。
+  GraphQL 読取や REST write の末尾 `--repo/-R` は拒否される。
+  `--repo=...`／`-ROWNER/REPO` 形式も target 一致が必要。
+- `gh api` の REST endpoint と `project item-add --url` も target repository に一致すること。
+  任意の `--repo` 指定だけでは許可されない。
+- shell のパイプ、連結、リダイレクト、展開、代入、`env`、未許可 executable は拒否。
+  `gh` の他の global option も拒否。読み取り専用という理由だけでは許可にならない。
+
+**許可された subcommand と値フラグ**（列挙外のフラグは拒否。位置制約と条件は上記および後述）。
+
+<!-- gh-create-issue-gate-allowlist:start -->
+| subcommand | 許可フラグ | 補足 |
+|---|---|---|
+| `gh issue list` | `--state` `--search` `--limit` `--json` `--jq` `--assignee` `--label` `--milestone` | 読取 |
+| `gh issue view` | `--json` `--jq` `--comments` | 末尾 `--repo` は拒否 |
+| `gh issue create` | `--title` `-t` `--body-file` `-F` `--label` `-l` `--assignee` `-a` `--milestone` `-m` | `--repo/-R` の末尾指定も可。作成は mode=create のみ |
+| `gh repo view` | `--json` `--jq` | 読取 |
+| `gh label list` | `--limit` `--search` | `--json` と末尾 `--repo` は拒否 |
+| `gh project list` | `--owner` `--format` | 読取 |
+| `gh project view` | `--owner` `--format` `--json` `--jq` | 読取 |
+| `gh project field-list` | `--owner` `--format` | `--limit` は拒否 |
+| `gh project item-list` | `--owner` `--format` `--query` | `--jq` は拒否 |
+| `gh project item-add` | `--owner` `--project-number` `--project-id` `--url` | target Issue URL をちょうど1個必須。 `--format` は拒否 |
+| `gh project item-edit` | `--id` `--project-id` `--field-id` `--text` `--number` `--single-select-option-id` `--date` `--iteration-id` | `--id`/`--project-id`/`--field-id` を各1個必須。live item と親 Project の照合必須 |
+| `gh api` | 下記 API 専用規則を参照 | GitHub API の汎用 write は拒否 |
+<!-- gh-create-issue-gate-allowlist:end -->
+
+**`gh api` に固有の許可形**
+
+- REST GET/HEAD：`repos/<target>/...` に限定し、`--method/-X`、
+  `--jq/-q`、`--paginate`、`--slurp`、`--repo/-R` のうち gate が認める読取オプションのみ。
+  REST GET/HEAD は target 一致を条件に末尾 `--repo/-R` も許可される。
+  `-F/-f/--field/--raw-field` による field 指定はこの経路では拒否。
+- GraphQL 読取：`gh api graphql -F 'query={ viewer { login } }'` のように、
+  **読取 query を1個だけ** field として指定。`-F/-f/--field/--raw-field`、
+  `--method/-X`、`--jq/-q` だけが対象。`@file`、mutation、余計な field は拒否。
+- REST write：`POST repos/<target>/issues/N/dependencies/blocked_by` に
+  `issue_id=<正整数>` 1個、または
+  `POST repos/<target>/issues/N/sub_issues` に `sub_issue_id=<正整数>` 1個だけ。
+  `-F/-f/--field/--raw-field` の field 指定を使用できるが、書込時は
+  method と field 以外のオプションを拒否。implicit POST も同じ条件。
+- `gh project item-edit` は live GraphQL が target repository の Issue と指定 Project を
+  確認できるときだけ通す。`Status=Done`、metadata 取得失敗、
+  不整合は拒否する。**指定 field が live の Status field と一致する場合**に限り、
+  不明 option・重複 single-select option を拒否する。**非Status field では option の存在確認をしない**
+  （ただし target Issue/Project 照合と必須フラグ検証は実施する）。
+  Bash gate の allow と実際の Project 編集権限は別条件。
+
+**許可された git 形**（これ以外は拒否）：`git branch --show-current`、
+`git remote -v`、`git remote get-url origin`、`git status --short`、
+`git status --short --branch`。`git remote`（引数なし）・`git ls-files` は拒否。
+
+**gate allow/deny 実行例**。全行を `tests/unit/test_gh_create_issue_gate_contract.py` が
+本物の gate に通して判定する。これは**コマンドを実行するテストではなく、PreToolUse 判定のテスト**。
+`item-edit` の live 成功・失敗は既存 `test_agent_command_gate.py` の fixture テストが検証する。
+
+<!-- gh-create-issue-gate-cases:start -->
+| 判定 | Bash へ渡すコマンド例 | 境界 |
+|---|---|---|
+| allow | `gh issue list --state all --json number,title` | list |
+| allow | `gh issue view 12 --json title,labels` | view |
+| allow | `gh issue create --title x --body-file tmp/_handoff/gh-create-issue--a.body.md` | create |
+| allow | `gh issue create --title x --repo hiratashinnya/review-system --body-file tmp/_handoff/gh-create-issue--a.body.md` | create 末尾 repo |
+| allow | `gh --repo hiratashinnya/review-system label list --limit 100 --search area` | global repo |
+| allow | `gh repo view --json nameWithOwner` | repo |
+| allow | `gh label list --limit 100` | label |
+| allow | `gh project list --owner hiratashinnya --format json` | project list |
+| allow | `gh project view 3 --owner hiratashinnya --format json` | project view |
+| allow | `gh project field-list 3 --owner hiratashinnya --format json` | field-list |
+| allow | `gh project item-list 3 --owner hiratashinnya --format json --query status:Todo` | item-list |
+| allow | `gh project item-add --owner hiratashinnya --project-number 3 --url https://github.com/hiratashinnya/review-system/issues/12` | item-add |
+| allow | `gh api repos/hiratashinnya/review-system/issues?state=open` | REST GET |
+| allow | `gh api --method HEAD repos/hiratashinnya/review-system/issues` | REST HEAD |
+| allow | `gh api repos/hiratashinnya/review-system/issues --repo hiratashinnya/review-system` | REST GET 末尾 repo |
+| allow | `gh api repos/hiratashinnya/review-system/issues -Rhiratashinnya/review-system` | REST GET 末尾 -R |
+| allow | `gh api --method HEAD repos/hiratashinnya/review-system/issues --repo hiratashinnya/review-system` | REST HEAD 末尾 repo |
+| allow | `gh api graphql -F 'query={ viewer { login } }'` | GraphQL read |
+| allow | `gh api --method POST repos/hiratashinnya/review-system/issues/12/dependencies/blocked_by -F issue_id=13` | relation write |
+| allow | `gh api --method POST repos/hiratashinnya/review-system/issues/12/sub_issues -F sub_issue_id=13` | sub-issue write |
+| allow | `git branch --show-current` | git |
+| allow | `git remote -v` | git |
+| allow | `git remote get-url origin` | git |
+| allow | `git status --short` | git |
+| allow | `git status --short --branch` | git |
+| deny | `gh label list --json name` | 未許可 flag |
+| deny | `gh label list --repo hiratashinnya/review-system` | repo 指定位置 |
+| deny | `gh project field-list 3 --owner hiratashinnya --limit 100` | 未許可 flag |
+| deny | `gh project item-list 3 --owner hiratashinnya --format json --jq .` | 未許可 flag |
+| deny | `gh project item-add --owner hiratashinnya --project-number 3 --url https://github.com/hiratashinnya/review-system/issues/12 --format json` | 未許可 flag |
+| deny | `gh project item-edit --id PVTI_x --project-id PVT_project --text x` | 必須 field-id 欠落 |
+| deny | `gh issue view 12 --repo hiratashinnya/review-system --json number` | repo 指定位置 |
+| deny | `git ls-files` | git 限定形以外 |
+| deny | `git remote` | git 限定形以外 |
+| deny | `gh issue comment 12 --body x` | 未許可 subcommand |
+| deny | `gh label create x` | 未許可 subcommand |
+| deny | `gh api --method POST repos/hiratashinnya/review-system/issues/12/comments -F body=x` | 未許可 API write |
+| deny | `gh api graphql -F 'query={ viewer { login } }' --repo hiratashinnya/review-system` | GraphQL 末尾 repo |
+| deny | `gh api --method POST repos/hiratashinnya/review-system/issues/12/sub_issues -F sub_issue_id=13 --repo hiratashinnya/review-system` | REST write 末尾 repo |
+| deny | `gh api graphql -F 'query=mutation { createIssue(input: {}) { issue { id } } }'` | GraphQL mutation |
+| deny | `gh api graphql -F query=@mutation.graphql` | GraphQL file |
+| deny | `gh --repo other/repo issue list` | 別 repository |
+| deny | `gh project item-add --owner hiratashinnya --project-number 3 --url https://github.com/other/repo/issues/12` | 別 repository URL |
+| deny | `GH_REPO=other/repo gh issue list` | shell env 代入 |
+| deny | `gh issue list; gh issue view 12` | shell 複数コマンド |
+| deny | `grep x README.md` | 未許可 executable |
+<!-- gh-create-issue-gate-cases:end -->

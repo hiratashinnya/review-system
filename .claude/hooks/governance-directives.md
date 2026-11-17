@@ -1,11 +1,15 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@441f112fee4f -->
+<!-- synced-from: CLAUDE.md@78ba2e1a07d4 -->
 <!--
+  Issue #812 (2026-11-16): .claude/rules/05-skills-agents.md の gh-create-issue
+  allowlist説明をエージェント定義への参照に変更。配送本文の中核規範は変えず、
+  GitHub Actions の canonical_hash 期待値 6f3d9e01bfdb を照合して marker を同期した。
+
   Issue #829（2026-11-15）: `.claude/rules/03-operational.md` のレートリミット節を書き換え（委譲先 Codex
   実行者の上限時に限る Claude への切替、既定実行者の参照）。Claude 固有の切替は rules 03 にだけ置き、
   `.ai/guidance/common.md` の降格禁止の1行は PF 共通の内容のまま変えていない。項10を書き換えて配送する。
-  Claude ロール自身の上限は同一構成の再投入のまま。marker を再計算した。
+  Claude ロール自身の上限は同一構成の再投入のまま。marker を再計算した（#812 の取り込み後に再計算）。
 
   Issue #375（2026-10-31）: `.claude/rules/05-skills-agents.md` の戻り値のハンドオフ規約で `pr-reviewer`
   （Claude Code）を write 権限なし側から外し、項13へ `karte ingest-reviewer` と主文脈専用 verb を追記した。

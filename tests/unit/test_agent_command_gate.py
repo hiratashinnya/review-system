@@ -1488,6 +1488,21 @@ class AgentCommandGateTests(unittest.TestCase):
         )
         self.assert_allowed(decision)
 
+    def test_item_edit_unknown_option_is_checked_only_for_status_field(self):
+        for field, denied in (("PVTSSF_status", True), ("PVTSSF_priority", False)):
+            with self.subTest(field=field):
+                command = (
+                    "gh project item-edit --id PVTI_x --project-id PVT_project "
+                    f"--field-id {field} --single-select-option-id option_missing"
+                )
+                decision = self._run_gate_with_project_metadata(
+                    command, response=self._status_metadata("Done")
+                )
+                if denied:
+                    self.assert_denied(decision)
+                else:
+                    self.assert_allowed(decision)
+
     def test_item_edit_supports_equals_flags_and_checks_live_done_option(self):
         command = (
             "gh project item-edit --id=PVTI_x --field-id=PVTSSF_status "
