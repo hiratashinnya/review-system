@@ -12,6 +12,7 @@ from issue_start.gate_support import IssueStartError
 
 LIMIT_RECEIPT = ('schema_version: 1\nagent: {role}\nstatus: stop\nstop_kind: codex-limit\nissue: 371\n'
                  'stop_reason: |\n  Codex usage limit reached (verbatim)\n  commit: none\n')
+NON_LF_BREAKS = ('\x0b', '\x0c', '\x1c', '\x1d', '\x1e', '\x85', ' ', ' ')
 
 
 class LimitSwitchContinuationTests(unittest.TestCase):
@@ -85,6 +86,38 @@ class LimitSwitchContinuationTests(unittest.TestCase):
                 self.assert_rejected()
         self.write_receipt(b'status: stop\nstop_kind: codex-limit\nstop_reason: |\n  \xff\n')
         self.assert_rejected()
+
+    def test_non_lf_line_breaks_in_verbatim_cannot_inject_top_level_keys(self):
+        """new-22：`\\n` 以外の行区切りで逐語中の `stop_kind` を top-level に見せても拒否する。"""
+        head = 'schema_version: 1\nagent: test-writer\nstatus: stop\nstop_reason: |\n  contradiction in plan'
+        for char in NON_LF_BREAKS:
+            with self.subTest(char=repr(char)):
+                self.write_receipt(head + char + 'stop_kind: codex-limit\n')
+                self.assert_rejected()
+
+    def test_empty_stop_reason_block_rejected(self):
+        base = 'schema_version: 1\nagent: test-writer\nstatus: stop\nstop_kind: codex-limit\n'
+        for text in [
+            base + 'stop_reason: |\n',
+            base + 'stop_reason: |-\nissue: 371\n',
+            base + 'stop_reason: |\n   \n\n',
+            base + 'stop_reason: |\nnote: |\n  text\n',
+            base + 'stop_reason: |\n\tx\n',
+            base + 'stop_reason: |\n  \x0c\n',
+        ]:
+            with self.subTest(text=text):
+                self.write_receipt(text)
+                self.assert_rejected()
+
+    def test_well_formed_limit_receipt_variants_accepted(self):
+        base = 'schema_version: 1\nagent: test-writer\nstatus: stop\nstop_kind: codex-limit\n'
+        texts = [base + 'stop_reason: |-\n  limit\n', LIMIT_RECEIPT.format(role='test-writer').replace('\n', '\r\n'),
+                 base + 'stop_reason: |\n\n  limit\nissue: 371\n',
+                 base + 'stop_reason: |\n  ' + 'x'.join(NON_LF_BREAKS) + '\n']
+        for text in texts:
+            with self.subTest(text=text):
+                self.write_receipt(text)
+                self.validate()
 
     def test_changed_receipt_and_stale_owner_rejected(self):
         self.receipt.write_text(LIMIT_RECEIPT.format(role='test-writer') + 'extra: 1\n')
