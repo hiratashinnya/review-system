@@ -212,11 +212,12 @@ verdict は動かず、未解消が実害なしだけなら `no-harm-only` と�
   初回の `ingest-reviewer` の前に実行する。5 つの envelope 引数は**全部同時に**与え、review handoff の期待値として
   ポインタへ記録する（下記「review handoff の共通 envelope」）。1 つも与えなければ期待値なし（レビューア待ちの解除）。
   `--repair-declared-scope` は envelope 引数のいずれとも同時指定できず、一部だけの指定も拒否する。
-  **`activate` はどちらの形でも申告 scope の原本を作らない**。原本を作るのは、検証を通ったレビューア本人の
-  取り込み（`ingest-reviewer`）だけで、原本は 1 件以上の申告があるときにだけ作られる。finding ブロックが 0 件の
-  レポートは `model.parse_review` が原本の作成より前に拒否するので、申告 0 件で空の原本が残ることはない
-  （0 件の初回レビューを取り込めない件は別 Issue #801）。ただし上記の台帳書込み失敗の窓（F-375-22）では、
-  取り込みが成功していなくても原本が残りうる。
+  **`activate` はどちらの形でも申告 scope の原本を作らない**。原本を作るのは検証を通ったレビューア本人の
+  取り込み（`ingest-reviewer`）だけ。trusted AC snapshot と完了マーカー付きの **Review Summary は finding 0 件でも受理**し、
+  Review Round と SHA-256 原本レシートを保存する。申告 finding が 0 件でも空行のみの scope 原本を作成して、
+  以降その Issue を保護モードとする。一方、Summary がない旧形式の finding 0 件レポートは
+  `model.parse_review` が拒否し、原本は新規作成されない。
+  ただし上記の台帳書込み失敗の窓（F-375-22）では、取り込みが成功していなくても原本が残りうる。
   待ちの間は、進行ポインタに残る期待値を守るため、主文脈の旧 `ingest-review` はどの Issue 宛でも拒否する
   （他 Issue 宛・round 1 を含む・F-375-03/49）。原本が無くても保護は途切れない。待機中の Issue の
   `ingest-reviewer` を待つか、`karte activate --issue <待機中の Issue>`（期待値なし）で待ちを取り消す。
