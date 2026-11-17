@@ -81,6 +81,8 @@ ISSUE_PHASE_PREDECESSOR_V1={"entry_id":"wl-...","receipt_sha256":"64-HEX"}
 ```
 
 hookは同Issue/branchの最新owner、直前role、回収receipt bytes、解放済み台帳、remote exact OIDを照合する。
+直前roleの唯一の例外は、`test-writer`／`issue-implementer` がCodex実行者の上限で止まった同じroleの再dispatchで、
+回収receiptの `status: stop`・`stop_kind: codex-limit`・block scalarの `stop_reason` で判別する（下記「Codex 実行者経路」）。
 hookが検査する作業面はhookプロセスのcwd、つまり主文脈のセッションcwdである。
 主文脈は登録済みlinked作業面をこの用途に使い、primary checkoutは使わない。
 1. EnterWorktree等でセッションcwdをそのlinked作業面へ移す。Bashの `cd` では移さない。
@@ -164,8 +166,8 @@ Codex 既定のロール（`issue-investigator`・`test-writer`・`issue-impleme
 - dispatch の marker・`isolation: "worktree"`・`handoff_path` の契約は変わらない。commit・pushは許可された著作ロール、PR作成はissue-implementerが行い、Codexは行わない。新ロールは `--binding-file` を指定する。`issue-fixer` は karte の診断を済ませてから起動する。
 - **主文脈は自分でラッパーや `codex exec` を起動して実装・是正を代行しない。** 主文脈の起動は gate のロール専用層の対象外で機械では止められないため（設計の暫定決定 D7）、規律として守る。
 - Claude のロール自身がレートリミットやセッション上限で止まったら、Codex のモデル・推論予算も含めて同じ構成で再投入する。
-- **Codex 実行者が上限で止まったら、書込ロールは上限の証拠（Codex の出力の逐語）を handoff の `stop_reason` に記録して STOP を返す。** handoff は marker の `handoff_path` が指すファイルで、`test-writer` は完了 receipt に `status: stop` と `stop_reason` を書く。主文脈が逐語を確かめる場所はこの1か所である。 ロールは自分で実行へ切り替えない。主文脈が逐語を確かめて切替の記録に残し、同じロールを `Codex 実行者:` の行なしで再 dispatch する。read-only 経路では、入口を実行した主文脈が出力から逐語を確かめて記録し、同じロールを native dispatch する。marker・`isolation: "worktree"`・回収と解放の契約は変わらない。
-- **未 commit の変更が残ったら、書込ロールが差分とテストで確かめる。** 依頼範囲内なら、テストが赤くても commit・push してから STOP を返し、主文脈は切り替えて、切替後のロールが続きから行う。コミットメッセージは、本文の末尾に `Handover: codex-limit` と `Tests: red-unfinished`／`Tests: red-intended`／`Tests: green` のどれか1行を置く（行の意味と、引き継ぎではない Red commit の書き方は共通本文に従う）。範囲外の変更が混じる、または確かめられないときは、ロールは commit せず STOP し、主文脈は再 dispatch せずオーナーへ打ち上げる。`issue-fixer` の切替の再 dispatch は同じ `round` で行い、`handoff_path` だけ新しく採番する（karte の記録は `.ai/agents/issue-fixer.md`「Codex 実行者の上限による引き継ぎ」）。
+- **Codex 実行者が上限で止まったら、書込ロールは handoff に `status: stop`・`stop_kind: codex-limit`・上限の証拠（Codex の出力の逐語）を書いた `stop_reason` を記録して STOP を返す。** handoff は marker の `handoff_path` が指すファイルで、`test-writer` は完了 receipt に書く（様式は共通本文の各ロール契約「出力とハンドオフ」）。主文脈が逐語を確かめる場所はこの1か所である。ロールは自分で実行へ切り替えない。主文脈が逐語を確かめて切替の記録に残し、オーナーの判断を待たずに同じロールを `Codex 実行者:` の行なしで再 dispatch する（オーナーへの報告は事実の通知）。read-only 経路では、入口を実行した主文脈が出力から逐語を確かめて記録し、同じロールを native dispatch する。marker・`isolation: "worktree"`・回収と解放の契約は変わらない。`test-writer`／`issue-implementer` の再 dispatch では、`ISSUE_PHASE_PREDECESSOR_V1` に止まったロールの entry ID と回収 receipt の sha256 を渡し、継続検査は上の3欄を確かめて同じロールを通す。引き継ぎ commit の後の OID・`source_changes`・`context_id`・`handoff_path` の作り直しと、完走が未実測であることは共通本文「Codex 実行者が上限で止まったときの切替」に従う。
+- **未 commit の変更が残ったら、書込ロールが差分とテストで確かめる。** 依頼範囲内なら、テストが赤くても commit・push してから STOP を返し、主文脈は切り替えて、切替後のロールが続きから行う。コミットメッセージは、本文の末尾に `Handover: codex-limit` と `Tests: red-unfinished`／`Tests: red-intended`／`Tests: green` のどれか1行を置く（行の意味と、引き継ぎではない Red commit の書き方は共通本文に従う）。範囲外の変更が混じる、または確かめられないときは、ロールは commit せず STOP し、主文脈は再 dispatch せずオーナーへ打ち上げる。切替の再 dispatch は書込3ロールとも同じ `round` で行い、`handoff_path` だけ新しく採番する（`issue-fixer` の karte の記録は `.ai/agents/issue-fixer.md`「Codex 実行者の上限による引き継ぎ」）。
 - 切替後の `model`／`effort` は、Codex 実行者に指定していた層と推論予算以上にする（対応表は共通本文「Codex 実行者が上限で止まったときの切替」）。ロール定義の値が下回るなら主文脈が dispatch で引き上げ、引き上げられなければ STOP する。
 - 証拠の無い失敗（終了コード `2` の検査不合格、`124` の timeout、権限拒否、起動失敗）では切り替えず STOP する。発動条件（逐語による暫定運用）と記録項目は共通本文に従う。
 - 実起動の検証設計は `tests/designs/TD-codex-worktree-exec-538-001.md`。TR とログは主文脈が検証専用環境で残す。

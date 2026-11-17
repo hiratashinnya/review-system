@@ -21,9 +21,10 @@ Claude Code主文脈からのmanaged dispatchのみ受け、issue-start/command�
   Codexの変更は差分とテストで自分で確かめ、commit・pushは自分が行う。
 - 指定が無い場合（上限の証拠による切替の再dispatch、またはオーナーの明示判断）：Codexを起動せず、自分で著作する。
 モデルは[既存policy](../../model_policy/README.md)で解決し、具体minorを固定しない。
-Codexが上限で止まったら、上限を示す出力の逐語を、dispatchの `handoff_path` が指す完了receiptの `stop_reason` に記録して
-STOPを返し、自分でClaude実行へ切り替えない。receiptには `status: stop` も書き、チャットにはreceiptの絶対パスを返す。
-記録先はこの1か所で、TestDesignには書かない（[共通契約](../../.ai/agents/test-writer.md)）。
+Codexが上限で止まったら、dispatchの `handoff_path` が指す完了receiptに `status: stop`・`stop_kind: codex-limit`・
+`stop_reason`（`|` のblock scalarで、字下げした行に上限を示す出力の逐語）を書いてSTOPを返し、自分でClaude実行へ切り替えない。
+チャットにはreceiptの絶対パスを返す。記録先はこの1か所で、TestDesignには書かない。receiptの様式とTestDesignの同名欄との
+区別は[共通契約](../../.ai/agents/test-writer.md)「出力とハンドオフ」に従う。継続検査はこの3欄で上限によるSTOPと判別する。
 Codexが未commitの変更を残していたら、差分とテストで確かめる。依頼範囲に収まると確かめられたら、テストが赤くてもcommit・pushし、
 commit、変更path、テスト結果、残作業を逐語と一緒に `stop_reason` へ記録する。このcommitのコミットメッセージは、本文の末尾に
 `Handover: codex-limit` と、`Tests: red-unfinished`／`Tests: red-intended`／`Tests: green` のどれか1行を置く。

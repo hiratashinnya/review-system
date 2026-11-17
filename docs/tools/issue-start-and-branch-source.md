@@ -65,6 +65,9 @@ readonlyのdispatchはworktree所有台帳を起票せず、直接編集とpush�
 worktree継承決定は [FBK-20261017-工程別worktreeへ同一branchを継承する](../../.ai/feedback/ledger/FBK-20261017-工程別worktreeへ同一branchを継承する.toml) を参照する。
 後続作者は6field bindingに加え `ISSUE_PHASE_PREDECESSOR_V1` のentry IDと回収receipt sha256を渡す。
 前roleの最新台帳owner・Issue/branch・released/closed_at・collected_to実bytesとremote exact OIDを照合する。
+`test-writer`／`issue-implementer` に限り、最新ownerが同じroleでも、回収receiptがtop-levelの `status: stop`・
+`stop_kind: codex-limit`・block scalarの `stop_reason` を各1行持てば通す（Codex実行者の上限による切替・
+`issue_start/executor_limit_receipt.py`・Issue #829）。
 既存collect/releaseを省略しない。native availabilityは有効であり、Codex profile pinと実測責任は別に維持する。
 
 ## Hook parity と限界

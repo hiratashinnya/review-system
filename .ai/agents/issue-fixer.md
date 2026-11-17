@@ -20,7 +20,7 @@
 呼び出し元 issue-pipeline 主文脈から次を受け取る。
 
 issue: Issue 番号
-round: 是正ラウンド番号（1 始まり・単調増加）
+round: 是正ラウンド番号（1 始まり。レビューを挟むごとに進め、前の値より小さくしない。Codex 実行者の上限による切替の再 dispatch はレビューを挟まないので、止まった dispatch と同じ値を使う）
 handoff_path: 作業ツリールート相対の tmp/_handoff/issue-fixer--issue-<N>[-<suffix>].yaml
 branch_name: 是正対象 PR のブランチ名
 repository: OWNER/REPO（Step 0 でブランチを取得する際に使う）
@@ -114,7 +114,7 @@ targets が corpus ノード（doc-system-v2/nodes/**）を含むと分かった
   - commit しなかったが作業ツリーに差分がある：`--outcome partial`（`--base` は既定のまま）。
   - Codex が変更を残していない：`--outcome no-change`。commit しなかった変更が未追跡の新規ファイルだけのときも、既定の測定では差分が空になり `partial` は拒否されるので `no-change` とし、`--note` に新規ファイルのパスを書く。
   - どの場合も `--note` に、Codex 実行者の上限による引き継ぎであることを書く。commit したときはその commit、しなかったときは理由も書く。
-- **ハンドオフ**：`status: stop`、`outcome` にクローズした値、`tests` に実行結果を書く。`stop_reason` に、上限を示す出力の逐語、引き継ぎ commit、変更パス、残作業を書く。commit しなかったときは変更パスと理由を書く。
+- **ハンドオフ**：`status: stop`、`stop_kind: codex-limit`、`outcome` にクローズした値、`tests` に実行結果を書く。`stop_reason` は `|` の block scalar とし、字下げした行に、上限を示す出力の逐語、引き継ぎ commit、変更パス、残作業を書く。commit しなかったときは変更パスと理由を書く。
 - **切替後の再 dispatch**：主文脈は同じ round で、Codex 実行者の指定なしに再 dispatch する。再 dispatch された本ロールは、通常どおり Step 0 → Step 1（`render` → `append`）→ Step 2 を行う。引き継ぎの Attempt はクローズ済みなので、続きの是正は新しい Attempt として登録する。診断が同じなら root_cause は同じ slug を使う。
 - **類似判定での数えられ方**：類似判定は outcome を見ない。引き継ぎの Attempt は、`no-change` でクローズしたものも含めて同種の試行1件に数えられる。そのため `append` が `EXIT_SATURATED` で拒否されたら、Step 1 の規定どおりラベルを付け替えず、類似と判定された Attempt に引き継ぎの Attempt が含まれることを `stop_reason` に書いて STOP する。
 
@@ -172,6 +172,7 @@ out_of_scope_findings:
     evidence: 読んだファイル/行または実行コマンドと結果を1行
     expected: 期待する観測可能な状態を1行
     recheck: 再検証できる手順を1行
+stop_kind: codex-limit（Codex 実行者の上限による STOP のときだけ書く。それ以外では書かない）
 stop_reason: 空文字
 
 STOP 時は stop_reason に何が・どの対象で・なぜ止まったか、原案・比較・推奨を必ず書く。**Step 0 の早期 STOP を含め、STOP でもハンドオフは書く**。handoff_path 自体が渡されておらず着手前に STOP する場合だけは、その旨をチャットで報告する。

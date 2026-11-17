@@ -4,6 +4,7 @@ from pathlib import Path
 import subprocess
 
 from . import worktree_ledger
+from .executor_limit_receipt import SWITCH_ROLES, require_executor_limit_stop
 from .gate_git import _git_output
 from .gate_markers import _marker_payload
 from .gate_support import IssueStartError
@@ -14,7 +15,9 @@ MARKER = "ISSUE_PHASE_PREDECESSOR_V1="
 
 
 def validate_author_continuation(tool_input, transport, ack, cwd, runner=subprocess.run):
-    """6field bindingを変更せず、trusted caller指定の回収receiptを検査する。"""
+    """6field bindingを変更せず、trusted caller指定の回収receiptを検査する。
+
+    最新ownerが同じroleでよいのは、Codex既定の著作role（SWITCH_ROLES）が上限で止まったreceiptの時だけ。"""
     if ack.agent_type not in PREDECESSORS:
         return
     try:
@@ -28,7 +31,8 @@ def validate_author_continuation(tool_input, transport, ack, cwd, runner=subproc
         if not candidates or candidates[-1]["entry_id"] != raw["entry_id"]:
             raise ValueError("predecessor must be latest branch owner")
         entry = candidates[-1]
-        if (entry["agent_type"] != PREDECESSORS[ack.agent_type]
+        limit_switch = entry["agent_type"] == ack.agent_type and ack.agent_type in SWITCH_ROLES
+        if ((entry["agent_type"] != PREDECESSORS[ack.agent_type] and not limit_switch)
                 or entry["status"] != "released" or not entry.get("closed_at")):
             raise ValueError("predecessor not stopped, collected and released")
         relative = Path(entry.get("collected_to") or "")
@@ -37,8 +41,11 @@ def validate_author_continuation(tool_input, transport, ack, cwd, runner=subproc
         receipt = root / relative
         if any(parent.is_symlink() for parent in (receipt, *receipt.parents)):
             raise ValueError("collected receipt symlink")
-        if hashlib.sha256(receipt.read_bytes()).hexdigest() != raw["receipt_sha256"]:
+        data = receipt.read_bytes()
+        if hashlib.sha256(data).hexdigest() != raw["receipt_sha256"]:
             raise ValueError("collected receipt digest mismatch")
+        if limit_switch:
+            require_executor_limit_stop(data)
         ref = f"refs/heads/{ack.branch_name}"
         output = _git_output(["git", "ls-remote", "--exit-code",
                               f"https://github.com/{ack.repository}.git", ref],

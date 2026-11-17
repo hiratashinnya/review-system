@@ -10,7 +10,7 @@ dispatch の戻りが `HANDOFF: <絶対パス>` でも、isolated worktree の�
 2. `agent_type` と dispatch の `branch_name` が一致する最新エントリを特定する。
 3. `collected_to` があれば `<main-worktree>/<collected_to>`（通常は `tmp/_handoff/collected/<entry-id>--<basename>`）を Read する。
 4. `collected_to` が `null` で `status` が `stopped`/`stale` の場合は、主文脈で `python3 -m gitgate collect-worktree --entry <entry-id>` を実行してから 3 を再試行する。
-5. `status: stop` の handoff は `stop_reason` とともにオーナーへ報告する。
+5. `status: stop` の handoff は `stop_reason` とともにオーナーへ報告する。ただし `stop_kind: codex-limit` を持つ handoff（Codex 実行者の上限による STOP）は、オーナーの判断を待たずに切替の再 dispatch へ進み、報告は事実の通知に留める（`.ai/skills/issue-pipeline/SKILL.md`「Codex 実行者が上限で止まったときの切替」）。
 
 `status` が `running` のままなら回収を強行しない。handoff 未作成、契約違反、クラッシュの可能性を確認し、下記の「保留」手順へ進む。`released` なのに `collected_to` が無い場合は worktree 実体と対応 PR の有無を read-only で確認して報告する。
 
@@ -52,7 +52,7 @@ dispatch の戻りが `HANDOFF: <絶対パス>` でも、isolated worktree の�
 
 失敗文言に**誰がそのブランチを掴んでいるか**が出る。まず失敗した作者のロールを確かめる。
 
-**後続作者（`change-planner`／`test-writer`／`issue-implementer`）が失敗した場合は、原因を取り除いても同じブランチで継続できない。** hook は dispatch を通した時点で失敗作者の entry を同じ Issue／ブランチの台帳に起票しており、次の dispatch の継続検査（`issue_start/author_continuation.py`）は最新 owner が直前ロールの解放済み entry であることを要求する。失敗作者の entry が最新 owner として残るので、再 dispatch は `ISSUE_START_CONTINUATION_INVALID` で拒否される。`worktree-forget` は entry を `abandoned` にするだけで削除せず、最新 owner の判定からも外さない。台帳の手編集は禁止である。回収手段は新しいブランチでの作り直しになり、どの成果物を引き継ぐか、失敗した entry をどう扱うかはオーナー判断が要る（同一ブランチでの継続契約 #662 に関係する）。下の主体別の処置で掴んでいる側を片付けたうえで STOP し、失敗した entry の ID・ロール・ブランチ・掴んでいた主体をオーナーへ報告する。
+**後続作者（`change-planner`／`test-writer`／`issue-implementer`）が失敗した場合は、原因を取り除いても同じブランチで継続できない。** hook は dispatch を通した時点で失敗作者の entry を同じ Issue／ブランチの台帳に起票しており、次の dispatch の継続検査（`issue_start/author_continuation.py`）は最新 owner が直前ロールの解放済み entry であることを要求する。失敗作者の entry が最新 owner として残るので、再 dispatch は `ISSUE_START_CONTINUATION_INVALID` で拒否される。例外は、`test-writer`／`issue-implementer` が Codex 実行者の上限で止まり、回収 receipt が `status: stop`・`stop_kind: codex-limit`・block scalar の `stop_reason` を持つ場合の、同じ role の再 dispatch だけである（`.ai/skills/issue-pipeline/SKILL.md`「Codex 実行者が上限で止まったときの切替」）。adopt-branch の失敗はこの例外に当たらない。`worktree-forget` は entry を `abandoned` にするだけで削除せず、最新 owner の判定からも外さない。台帳の手編集は禁止である。回収手段は新しいブランチでの作り直しになり、どの成果物を引き継ぐか、失敗した entry をどう扱うかはオーナー判断が要る（同一ブランチでの継続契約 #662 に関係する）。下の主体別の処置で掴んでいる側を片付けたうえで STOP し、失敗した entry の ID・ロール・ブランチ・掴んでいた主体をオーナーへ報告する。
 
 `issue-fixer` には継続検査が無いので、主体別の処置の後に dispatch し直せる。
 

@@ -54,7 +54,7 @@ isolation やハーネスの作業ツリー外書き込み拒否があっても�
 - 呼び出し元が用意した isolated workspace とブランチで作業し、main ではないことを確認してから commit する。新規ブランチ名は呼び出し元の指定を使う。
 - commit/PR 本文には実行環境の AI attribution、変更ファイルの具体的一覧、変更理由を含める。Issue の自動クローズは事前確認を要するため、対象と内容が一致する明示指示・承認があり、全スコープを満たす場合だけ commit または PR body に Closes #<issue> 等を含める。それ以外は自動クローズしない参照を使う。
 - プロジェクトで指定された単体テストを実行し、全パスを確認してから PR を開く。
-- 全パスでないまま commit・push してよいのは、Codex 実行者の上限による引き継ぎだけである（発動条件、切替の主体、コミットメッセージの固定行は `.ai/skills/issue-pipeline/SKILL.md`「Codex 実行者が上限で止まったときの切替」）。編集を Codex 実行者に行わせていてその Codex が上限で止まり、残った変更が依頼範囲に収まると差分と単体テストで確かめられたときに限る。コミットメッセージの末尾に `Handover: codex-limit` と `Tests:` の行を置く。例外になるのは commit・push だけで、draft PR がまだ無ければ開かない。ハンドオフは `status: stop`、`tests` に実行結果、`pr_url` は既に開いている PR があるときだけ書き、`stop_reason` に上限を示す出力の逐語、引き継ぎ commit、変更パス、残作業を書く。範囲外の変更が混じる、または確かめられないときは commit せず、変更パスと理由を `stop_reason` に書く。
+- 全パスでないまま commit・push してよいのは、Codex 実行者の上限による引き継ぎだけである（発動条件、切替の主体、コミットメッセージの固定行は `.ai/skills/issue-pipeline/SKILL.md`「Codex 実行者が上限で止まったときの切替」）。編集を Codex 実行者に行わせていてその Codex が上限で止まり、残った変更が依頼範囲に収まると差分と単体テストで確かめられたときに限る。コミットメッセージの末尾に `Handover: codex-limit` と `Tests:` の行を置く。例外になるのは commit・push だけで、draft PR がまだ無ければ開かない。ハンドオフは `status: stop`、`stop_kind: codex-limit`、`tests` に実行結果、`pr_url` は既に開いている PR があるときだけ書き、`stop_reason` に上限を示す出力の逐語、引き継ぎ commit、変更パス、残作業を書く。範囲外の変更が混じる、または確かめられないときは commit せず、変更パスと理由を `stop_reason` に書く。
 - .coverage*、htmlcov/、_site/、doc-system-v2/meta.json、doc-system-v2/doc_view.html は commit しない。
 
 ### コード構築原則（Issue #539）
@@ -107,6 +107,8 @@ out_of_scope_findings:
     evidence: 読んだファイル/行または実行コマンドと結果を1行
     expected: 期待する観測可能な状態を1行
     recheck: 再検証できる手順を1行
+stop_kind: codex-limit（Codex 実行者の上限による STOP のときだけ書く）
 stop_reason: 空文字
 
-STOP 時は何が・どの対象で・なぜ止まったかを stop_reason に書き、原案・比較・推奨まで添える。**STOP でもハンドオフは書く**。handoff_path 自体が渡されておらず着手前に STOP する場合だけは、その旨をチャットで報告する。
+STOP 時は `status: stop` とし、何が・どの対象で・なぜ止まったかを stop_reason に書き、原案・比較・推奨まで添える。
+Codex 実行者の上限による STOP では `stop_kind: codex-limit` を書き、`stop_reason` は `|` の block scalar にして、字下げした行に逐語・引き継ぎ commit・変更パス・残作業を書く。継続検査はこの3欄（`status`・`stop_kind`・`stop_reason`）で上限による STOP と判別し、同じ role の再 dispatch を通す。それ以外の STOP では `stop_kind` を書かない。**STOP でもハンドオフは書く**。handoff_path 自体が渡されておらず着手前に STOP する場合だけは、その旨をチャットで報告する。
