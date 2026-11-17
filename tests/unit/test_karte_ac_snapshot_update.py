@@ -107,6 +107,22 @@ class ACSnapshotUpdateTest(unittest.TestCase):
         self.assertNotEqual(digest(items), digest(from_issue_body(
             body.replace("real condition", "new real condition"))))
 
+    def test_setext_headings_are_real_ac_not_zero_in_english_and_japanese(self):
+        for label in ("Acceptance criteria", "受け入れ基準"):
+            for underline in ("-------------", "============="):
+                with self.subTest(label=label, underline=underline):
+                    body = label + "\n" + underline + "\n- [ ] real condition\n"
+                    criteria = from_issue_body(body)
+                    self.assertEqual(len(criteria), 1)
+                    self.assertEqual(criteria[0].text, "real condition")
+                    changed = body.replace("real condition", "changed condition")
+                    self.assertNotEqual(digest(criteria), digest(from_issue_body(changed)))
+                    with self.assertRaisesRegex(KarteUsageError, "live本文"):
+                        plan(body, changed, judge("satisfied"))
+                    updated, indexes = plan(body, body, judge("satisfied"))
+                    self.assertEqual(indexes, [1])
+                    self.assertIn("- [x] real condition", updated)
+
     def test_indented_code_checkbox_is_not_an_ac_or_checkbox_update(self):
         for code_prefix in ("    ", "\t"):
             with self.subTest(prefix=repr(code_prefix)):

@@ -153,8 +153,9 @@ class ACReviewerBindingTest(unittest.TestCase):
                     finally:
                         self.root, self.source = previous_root, previous_source
 
-    def test_closed_hash_heading_requires_ac_judgment_at_ingest(self):
-        for heading in ("## Acceptance criteria ##", "## 受け入れ基準 ##"):
+    def test_closed_hash_and_setext_headings_require_ac_judgment_at_ingest(self):
+        for heading in ("## Acceptance criteria ##", "## 受け入れ基準 ##",
+                        "Acceptance criteria\n-------------------", "受け入れ基準\n-----------"):
             with self.subTest(heading=heading):
                 with tempfile.TemporaryDirectory() as directory:
                     root = Path(directory)

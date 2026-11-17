@@ -11,8 +11,8 @@ import re
 
 from .format_error import KarteFormatError
 from .ac_snapshot_fence import advance as advance_fence
+from .ac_snapshot_heading import section_level
 
-HEADING = re.compile(r"^(#{1,6})[ \t]+(Acceptance criteria|受け入れ基準)(?:[ \t]+#+)?[ \t]*$", re.I)
 NEXT_HEADING = re.compile(r"^ {0,3}(#{1,6})\s+")
 CHECKBOX = re.compile(r"^(\s*[-*]\s+)\[([ xX])\](\s+\S.*)$")
 ITEM = re.compile(r"^\s*(?:[-*]|[1-9][0-9]*[.)])\s+(\S.*)$")
@@ -34,7 +34,8 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
     base_indent: int | None = None
     list_context = False
     fence = None  # 全Issue本文のフェンス状態をAC節の外でも追跡
-    for number, line in enumerate(body.splitlines(), start=1):
+    lines = body.splitlines()
+    for number, line in enumerate(lines, start=1):
         stripped = line.strip()
         leading = line[:len(line) - len(line.lstrip(" \t"))]
         indent = len(leading)
@@ -42,11 +43,11 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
         child = (in_ac and list_context and base_indent is not None
                  and indent >= base_indent + 2)
         is_heading = not was_fenced and not child and indent <= 3 and "\t" not in leading
-        heading = HEADING.fullmatch(stripped) if is_heading else None
+        heading = section_level(lines, number, is_heading)
         if heading:
             if found:
                 raise KarteFormatError("Issue本文のAcceptance criteriaセクションが重複")
-            in_ac, level, found = True, len(heading.group(1)), True
+            in_ac, level, found = True, heading, True
         h = NEXT_HEADING.match(line) if is_heading else None
         if in_ac and not heading and h and len(h.group(1)) <= level:
             in_ac = False
