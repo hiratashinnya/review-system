@@ -39,7 +39,6 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
         leading = line[:len(line) - len(line.lstrip(" \t"))]
         indent = len(leading)
         was_fenced = fence is not None
-        # ACリスト下の字下げ見出しは子要件であり、セクション終端ではない。
         child = (in_ac and list_context and base_indent is not None
                  and indent >= base_indent + 2)
         is_heading = not was_fenced and not child and indent <= 3 and "\t" not in leading
@@ -75,7 +74,6 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
             else:
                 items.append(([plain.group(1).strip()], None, number))
         elif items:
-            # 空行で区切られたトップレベルの段落は非checkbox ACとして保存する。
             if (stripped and fence is None and base_indent is not None
                     and indent <= base_indent and items[-1][0]
                     and not items[-1][0][-1].strip()):
@@ -84,7 +82,6 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
             else:
                 items[-1][0].append(line)
         elif stripped and indent <= 3 and "\t" not in leading:
-            # 段落形式のACは保持するが、字下げコードからは生成しない。
             items.append(([line], None, number))
             base_indent = indent
             list_context = False
