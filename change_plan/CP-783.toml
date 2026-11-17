@@ -22,7 +22,7 @@ parent = ""
 children = ["CP-783-tool"]
 depends_on = []
 selected_solution = '''
-verify_review が、呼び出し側の期待値 expected と署名済み review の全束縛項目（issue/phase/round/run_id/target_key/input_digest/snapshot_oid/review_oid）を比較し、1 項目でも不一致なら review を採用しない。
+AC-1（Issue #783 AC5: 入力整合を欠く成果は採用しない）。verify_review が、呼び出し側の期待値 expected と署名済み review の全束縛項目（issue/phase/round/run_id/target_key/input_digest/snapshot_oid/review_oid）を比較し、1 項目でも不一致なら review を採用しない。
 '''
 interfaces = '''
 verify_review(raw, signature, key, expected) -> dict。不一致は ValueError。
