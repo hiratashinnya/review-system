@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@361f9ebe1ff3 -->
+<!-- synced-from: CLAUDE.md@5dd836e75a4c -->
 <!--
   Issue #812 (2026-11-16): .claude/rules/05-skills-agents.md の gh-create-issue
   allowlist説明をエージェント定義への参照に変更。配送本文の中核規範は変えず、
@@ -13,6 +13,9 @@
   是正ラウンド8（2026-11-17・new-24）：rules 03 の「Claude ロール自身が上限で止まったとき」に、
   `stop_kind: claude-limit` の receipt を主文脈が書いて回収してから同じロールを再 dispatch する手順を
   加えた。項10に同じ内容を写し、marker を再計算した。
+  是正ラウンド9（2026-11-18・F-847-r8-1）：その手順が通るのは台帳 entry が `stopped`/`stale` のときに限り、
+  主な経路（entry が `running` のまま）はオーナーへ打ち上げる、と rules 03 を実態に合わせた。項10に同じ内容を
+  写し、marker を再計算した。
 
   Issue #375（2026-10-31）: `.claude/rules/05-skills-agents.md` の戻り値のハンドオフ規約で `pr-reviewer`
   （Claude Code）を write 権限なし側から外し、項13へ `karte ingest-reviewer` と主文脈専用 verb を追記した。
@@ -302,10 +305,12 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
     理由に、**モデル降格・effort 低下・サブエージェント委譲の取りやめ（主文脈による代行）はしない**。
     「急ぎ/軽微」は理由にならない。**Claude ロール自身が上限で止まったら、同じ構成でそのまま
     同じロールを再 dispatch する**（主文脈が動けている＝Claude の枠は回復している）。継続検査の対象
-    （change-planner・test-writer・issue-implementer）では、主文脈が上限の逐語を `stop_reason` に入れた
-    `stop_kind: claude-limit` の receipt を止まったロールの `handoff_path` に書き、`collect-worktree` で
-    回収・解放してから再 dispatch する（未 commit・未 push の変更が無く、ロールの handoff が無いときだけ。
-    それ以外はオーナーへ打ち上げ、主文脈は commit も既存 receipt への書き足しもしない）。**同じ構成での再投入の唯一の
+    （change-planner・test-writer・issue-implementer）では、止まったロールの台帳 entry が `running` のまま
+    残る主な経路は同じブランチで再 dispatch できないのでオーナーへ打ち上げる（forget→`--force-uncollected`
+    で解放しても継続検査が拒否する）。entry が `stopped`/`stale` のときに限り、主文脈が上限の逐語を
+    `stop_reason` に入れた `stop_kind: claude-limit` の receipt を止まったロールの `handoff_path` に書き、
+    `collect-worktree` で回収・解放してから再 dispatch する（未 commit・未 push の変更が無く、ロールの
+    handoff が無いときだけ。それ以外はオーナーへ打ち上げ、主文脈は commit も既存 receipt への書き足しもしない）。**同じ構成での再投入の唯一の
     例外は委譲先の Codex 実行者の上限**（3つの禁止の例外ではない）：Codex が上限到達を示した出力の逐語（証拠）があるときに限り、主文脈が同じ
     ロールを Codex 指定なしで再 dispatch して Claude へ切り替えてよい。切替後の層と推論予算は
     Codex に指定していたもの以上にする。主文脈は逐語を記録してから切り替える（逐語による暫定運用。

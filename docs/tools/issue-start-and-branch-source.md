@@ -70,6 +70,10 @@ worktree継承決定は [FBK-20261017-工程別worktreeへ同一branchを継承�
 `claude-limit`（`change-planner`／`test-writer`／`issue-implementer`。Claudeのrole自身の上限による同じ構成の再dispatch）なら通す
 （`issue_start/executor_limit_receipt.py`・Issue #829）。行は `\n` だけで分け（`\r\n` は正規化）、
 `stop_reason` の直後に空白で字下げした中身のある行が無ければ拒否する。
+`claude-limit` のreceiptを回収できるのは止まったroleの台帳entryが `stopped`／`stale` のときだけで、
+handoffを書く前に止まりentryが `running` のまま残る主な経路では、`collect-worktree` が `WORKTREE_LIVE` で拒否し、
+`worktree-forget`→`worktree-release --force-uncollected` 後も `collected_to` が空なので継続検査が拒否する
+（`tests/unit/test_claude_limit_running_stall.py`）。この場合はオーナーへ打ち上げる。
 既存collect/releaseを省略しない。native availabilityは有効であり、Codex profile pinと実測責任は別に維持する。
 
 ## Hook parity と限界

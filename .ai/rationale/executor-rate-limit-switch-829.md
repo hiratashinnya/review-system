@@ -306,8 +306,11 @@ agy の有効化後に Codex と agy のどちらを先に使うかは、引き�
   - Agent の結果に上限（レート制限・セッション上限）を示す逐語がある。逐語の無い失敗は Codex 実行者の場合と同じく証拠にならない。
   - 止まった作業ツリーに未 commit の変更が無く、HEAD が remote の branch の OID と一致する（未 push の commit が無い）。解放が `--force` で変更を消すので、回収の前に確かめる。主文脈は commit・push を代行しない。
   - 止まった role の handoff が `handoff_path` に無い。
-  - entry が `stopped` か `stale` である（`running` のままなら既存の troubleshooting の手順に従い、推測で回収しない）。
-- 既知の限界：`claude-limit` の receipt は主文脈の記録であり、上限で止まったことそのものを機械は確かめない（`codex-limit` の「role 自身の申告」と同じ種類の限界）。主文脈が条件を確かめずに書いても機械は止めない。主文脈が止まった role の作業ツリーへ書けることと、この経路の実 dispatch の完走は未実測である。
+  - entry が `stopped` か `stale` である（`running` のままなら書かずにオーナーへ打ち上げる。是正ラウンド9で、`running` からは回収できないことをコードで確かめて書き直した＝下記「是正ラウンド9」）。
+- 既知の限界：
+  - `claude-limit` の receipt は主文脈の記録であり、上限で止まったことそのものを機械は確かめない（`codex-limit` の「role 自身の申告」と同じ種類の限界）。主文脈が条件を確かめずに書いても機械は止めない。
+  - **主な経路では A に到達できない（running 詰まり）。** role が handoff を書く前に上限で落ちると、SubagentStop は自分の handoff が無い停止を入れ子委譲の一時停止と区別できないので、台帳を進めず entry を `running` のまま保留する（`issue_start/subagent_hooks.py` の `how == "empty"` の分岐、#423）。停止イベントは再び届かないので、主文脈が `handoff_path` に receipt を書いても entry は動かず、`collect-worktree` は `WORKTREE_LIVE` で拒否する。troubleshooting の `worktree-forget`→`worktree-release --force-uncollected` で片付けると entry は `abandoned`・`collected_to` 空になり、継続検査は「predecessor not stopped, collected and released」で拒否する。レートリミット復帰の watcher の掃引（`worktree-sweep-abandoned`）が handoff の無い entry を解放した場合も `collected_to` は空で、同じく拒否される。この遷移は `tests/unit/test_claude_limit_running_stall.py` が実 git・実台帳・実 `gitgate` サブプロセスで固定した（台帳は mock していない。remote の `ls-remote` だけ差し替えた）。是正ラウンド8の時点では「実 dispatch の完走は未実測」とだけ書き、この詰まりを挙げていなかった（再レビュー r8 の F-847-r8-1）。コードを読めば決まる事実で、実測を待つ論点ではなかった。
+  - A が通るのは entry が `stopped`／`stale` で、role の handoff が無く、`worktree_path` が束縛済みで `tmp/_handoff` が通常のディレクトリのときに限られる。現行の hook で `stopped` になるのは自分の handoff を検出したときだけで、`stale` に落ちるのは handoff が複数ある・回収に失敗した（いずれも handoff が存在する）、Issue 番号が読めない（`unidentifiable`）、`tmp/_handoff` が読めない（`unreadable`）、`worktree_path` が未束縛のときである。handoff が無いのは後ろ3つだが、`unidentifiable` の entry は Issue 番号の照合で継続検査の候補に入らず、`unreadable` は `tmp/_handoff` が symlink か非ディレクトリで receipt を書く前提を欠き、`worktree_path` 未束縛は `collect-worktree --entry` が `COLLECT_WORKTREE_UNKNOWN` で拒否する。したがって**現行の hook では、A の手順が通る状態へ通常の経路で至る道は見つからなかった**（コードを読んだ範囲。実測はしていない）。A の手順は、entry がその状態にある場合に限って機械的に通る手順として残し、主な経路はオーナーへの打ち上げとした。主文脈が止まった role の作業ツリーへ書けることと、この経路の再 dispatch の完走も未実測である。
 - 影響範囲：`.ai/skills/issue-pipeline/SKILL.md`「Claude の role 自身が上限で止まったときの再投入」、`.claude/skills/issue-pipeline/SKILL.md`、`.ai/troubleshooting/issue-pipeline.md`、`docs/tools/issue-start-and-branch-source.md`。B へ覆す場合は gitgate の verb を足し、これらの手順をその verb に書き換える。
 
 #### 13. `stop_kind` の2値の意味と、引き継ぎ commit の扱い
@@ -325,3 +328,23 @@ agy の有効化後に Codex と agy のどちらを先に使うかは、引き�
   - 拒否：change-planner の `codex-limit`、別 role（issue-implementer→test-writer、issue-fixer→issue-implementer、test-writer→change-planner）、未回収・未解放（`running`・`stopped`・`stale`・`collected`・`abandoned`、`closed_at` 無し、`collected_to` 無し・空）、`stop_kind` 無し、`status: ready`、`stop_kind` の重複（2値の組み合わせ両順）、逐語の中だけの `stop_kind`、block でない `stop_reason`、空の block、`stop_reason` 無し、値違い（`claude_limit`・`Claude-limit`・`limit`・2値の連結・引用符付き）、receipt の改変、remote OID の不一致。
   - 既存の `tests/unit/test_author_continuation_limit_switch.py` と `tests/unit/test_author_continuation.py` は変えずに全パスする。
 - 影響範囲：`issue_start/executor_limit_receipt.py`（`require_executor_limit_stop` を、種別を返す `read_limit_stop_kind` と role との組み合わせを見る `require_limit_stop` に分けた。読み方は変えていない）、rules 03・`governance-directives.md` 項10、共通本文、各 role の共通契約の `stop_kind` の行。2値を1値にまとめる場合は、再 dispatch の構成を receipt 以外（切替の記録）から読む規律に書き換える。
+
+### オーナー決定（2026-11-17・是正ラウンド9）
+
+再レビュー r8 の F-847-r8-1（Claude の role 自身が上限で止まったときの再投入手順が、主な経路で台帳の状態遷移と噛み合わず、`claude-limit` の receipt を回収する段へ到達できない）について、次の決定が出た。決定は依頼文に結論だけ記録されており、逐語はリポジトリ内に無い。
+
+1. この PR では gitgate と台帳の状態管理を変えない（verb を足さない）。レビューの選択肢 A（`running` を `stopped` へ進めて回収する verb）と B（SubagentStop の判定を CLI として公開する）は採らず、C（文書を実態に合わせ、`running` のときは打ち上げ）とする。
+2. `running` の詰まりはこの PR より前からあるもので、この PR が増やしたものではない。new-24（rules 03 の「同じ構成で再投入する」が継続検査に拒否される）は、entry が `stopped`／`stale` で回収できる範囲では解消し、`running` のまま詰まる主な経路では未解消のまま残る。
+3. 台帳の状態管理の簡素化は別 Issue で扱う。
+4. 是正ラウンド8のコード（`claude-limit` を受理する継続検査）は残す。
+
+処置：
+
+- 文書（共通本文「Claude の role 自身が上限で止まったときの再投入」、Claude 入口、troubleshooting、rules 03、`governance-directives.md` 項10、`docs/tools/issue-start-and-branch-source.md`、上の暫定決定12）を、通る範囲（entry が `stopped`／`stale` で回収できる場合）と通らない範囲（entry が `running` のまま＝オーナーへ打ち上げ。`worktree-forget`→`--force-uncollected` で解放しても継続検査が拒否する）に分けて書き直した。
+- `tests/unit/test_claude_limit_running_stall.py` を足した。実 git リポジトリ・実 linked worktree・実台帳で、handoff の無い停止の SubagentStop が entry を `running` に留めること、主文脈が receipt を書いても `collect-worktree` が `WORKTREE_LIVE` で拒否すること、継続検査が拒否すること、`worktree-forget`→`worktree-release --force-uncollected` の後（`abandoned`・`collected_to` 空）も継続検査が拒否することを、`running` から通しで固定する。hook の保留（`how == "empty"` の分岐）を外す変異で Red になることを確かめた。将来、別 Issue で `running` から回収できる経路を作ったときは、このテストが落ちるので、文書の打ち上げの記述と合わせて書き換える。
+
+#### 上限で落ちたサブエージェントで発火する hook（公式ドキュメントの記載と未確認の点）
+
+- 公式ドキュメント（https://code.claude.com/docs/en/hooks.md）は StopFailure を「API エラーでターンが終了したときに Stop の代わりに発火する」と記し、入力は `error`・`error_details`・`last_assistant_message`、出力と終了コードは無視されるとしている。
+- サブエージェントが上限で落ちたときに StopFailure と SubagentStop のどちらが発火するか、StopFailure の入力に `agent_id`・`agent_type` が付くかは、記載が無い。実機でも確かめていない。
+- 本 PR の hook は SubagentStop だけを扱う。上限で落ちたときに SubagentStop が発火しなければ、entry は hook の保留を経ずに `running` のまま残る。発火しても、handoff が無ければ `running` のまま保留する。どちらでも `running` の詰まりに至るので、本ラウンドの文書の結論は変わらない。StopFailure を使って「上限で止まった」ことを台帳へ記録できるかは、上の別 Issue で扱う論点である。

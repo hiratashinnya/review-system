@@ -188,17 +188,18 @@ dispatch した Claude のサブエージェント自身がレート制限／セ
 
 - **発動条件**：止まった dispatch の結果に、上限を示す逐語があること。逐語の無い失敗（timeout・権限拒否・起動失敗など）と推測は証拠にならず、STOP してオーナーへ報告する。
 - **継続検査の対象外の role**（ac-designer・issue-fixer と read-only role）は、既存の回収・解放の契約に従って同じ構成で再 dispatch する。
-- **継続検査の対象の role**（change-planner・test-writer・issue-implementer）は、role が handoff を書けずに止まるので、主文脈が次の順で記録を作ってから再 dispatch する。
-  1. 台帳の entry が `stopped` か `stale` であることを確かめる（`running` のままなら troubleshooting の手順に従い、推測で回収しない）。
-  2. 止まった作業ツリーに未 commit の変更が無く、HEAD が remote の branch の OID と一致することを確かめる。解放は作業ツリーを変更ごと消すので、回収の前に確かめる。変更や未 push の commit があれば、主文脈は commit・push を代行せず、記録も書かずにオーナーへ打ち上げる。
-  3. entry の `handoff_path` に role の handoff が無いことを確かめる。あれば書き足さず、オーナーへ打ち上げる。
-  4. 止まった作業ツリーの `handoff_path` に receipt を新しく書く。欄は top-level の `status: stop`、`stop_kind: claude-limit`、`stop_reason`（`|` の block scalar で、dispatch の結果に出た上限の逐語を字下げした行に置く）。
-  5. `python3 -m gitgate collect-worktree --entry <entry-id>` で回収・解放する。`--allow-missing-handoff` と `worktree-release --force-uncollected` は使わない（`collected_to` が空になり、継続検査が拒否する）。
-  6. 再 dispatch の `ISSUE_PHASE_PREDECESSOR_V1` に、止まった role の entry ID と回収 receipt の sha256 を渡す。`dispatch_target` と `expected_oid` は remote の exact OID で作り、`handoff_path` と `context_id` は新しくする。round は止まった dispatch と同じ値を使う。
-- 継続検査は、最新 owner が同じ role で、回収 receipt が `status: stop`・`stop_kind: claude-limit`・中身のある block scalar の `stop_reason` を持つときに同じ role を通す（`issue_start/executor_limit_receipt.py`）。読み方は `codex-limit` と同じである。
+- **継続検査の対象の role**（change-planner・test-writer・issue-implementer）は、止まった role の台帳 entry の状態で、同じ branch での再 dispatch へ進めるかが決まる。
+  - **entry が `running` のまま（主な経路）：再 dispatch できないので、オーナーへ打ち上げる。** role が handoff を書く前に上限で止まると、SubagentStop は「自分の handoff が無い停止」を入れ子委譲中の一時停止と見分けられないので、台帳を進めず `running` のまま保留する（`issue_start/subagent_hooks.py`、#423）。停止イベントは再び届かないので、主文脈が `handoff_path` に receipt を書いても entry は `running` から動かず、`collect-worktree` は `WORKTREE_LIVE` で拒否する。troubleshooting の `worktree-forget` → `worktree-release --force-uncollected` で片付けても、entry は `abandoned` で `collected_to` が空になり、継続検査は同じ role の再 dispatch を `ISSUE_START_CONTINUATION_INVALID` で拒否する（`tests/unit/test_claude_limit_running_stall.py` が固定）。レートリミット復帰の watcher の掃引（troubleshooting）が handoff の無い entry を解放した場合も `collected_to` は空で、同じく拒否される。主文脈は receipt を書かず、上限の逐語、entry ID・role・branch・止まった作業ツリーの状態（未 commit の変更・未 push の commit の有無）を添えてオーナーへ打ち上げる。片付けと、新しい branch で作り直すかどうかは troubleshooting「worktree を掴んでいるのは誰か」と同じくオーナー判断である。この詰まりは台帳の状態管理の側の問題で、別 Issue で扱う。
+  - **entry が `stopped` か `stale`：次の順で記録を作ってから再 dispatch する。** 現行の hook では、role の handoff が無いままこの状態に至る通常の経路は見つかっていない（コードを読んだ範囲。理由と限界は rationale `.ai/rationale/executor-rate-limit-switch-829.md` の暫定決定12）。この手順は entry がこの状態にある場合に限って通る。
+    1. 止まった作業ツリーに未 commit の変更が無く、HEAD が remote の branch の OID と一致することを確かめる。解放は作業ツリーを変更ごと消すので、回収の前に確かめる。変更や未 push の commit があれば、主文脈は commit・push を代行せず、記録も書かずにオーナーへ打ち上げる。
+    2. entry の `worktree_path` が束縛済みで、作業ツリーの `tmp/_handoff` が symlink でない通常のディレクトリであり、`handoff_path` に role の handoff が無いことを確かめる。handoff があれば書き足さず、それ以外の条件を満たさなければ書かずに、オーナーへ打ち上げる。
+    3. 止まった作業ツリーの `handoff_path` に receipt を新しく書く。欄は top-level の `status: stop`、`stop_kind: claude-limit`、`stop_reason`（`|` の block scalar で、dispatch の結果に出た上限の逐語を字下げした行に置く）。
+    4. `python3 -m gitgate collect-worktree --entry <entry-id>` で回収・解放する。失敗したらオーナーへ打ち上げる。`--allow-missing-handoff` と `worktree-release --force-uncollected` は使わない（`collected_to` が空になり、継続検査が拒否する）。
+    5. 再 dispatch の `ISSUE_PHASE_PREDECESSOR_V1` に、止まった role の entry ID と回収 receipt の sha256 を渡す。`dispatch_target` と `expected_oid` は remote の exact OID で作り、`handoff_path` と `context_id` は新しくする。round は止まった dispatch と同じ値を使う。
+- 継続検査は、最新 owner が同じ role で、`released` で、回収 receipt が `status: stop`・`stop_kind: claude-limit`・中身のある block scalar の `stop_reason` を持つときに同じ role を通す（`issue_start/executor_limit_receipt.py`）。読み方は `codex-limit` と同じである。
 - `stop_kind` の2値：`codex-limit` は委譲先の Codex 実行者の上限で role が引き継げた STOP（role が書き、切替へ進む）、`claude-limit` は Claude の role 自身の上限で作業ツリーに引き継ぐ変更が無い STOP（主文脈が書き、同じ構成で再 dispatch する）。`claude-limit` には引き継ぎ commit が無いので、`Handover:`／`Tests:` の行は使わない。role が止まる前に自分で push した commit は、remote の OID に含まれ、再 dispatch はそこから続ける。
-- この記録はオーナーへ打ち上げる規定の例外で、主文脈は判断を待たずに再 dispatch へ進み、オーナーへは事実を通知する。台帳 entry には実行者の欄が無いので、継続検査が見分けられる取り違えは Claude 固定の role の `codex-limit` だけである。主文脈は逐語を確かめてから種別を選ぶ。
-- 単体テストで確かめたのは継続検査と dispatch parser までで、この経路の再 dispatch の完走は未実測である。
+- `stopped`／`stale` からこの記録を作って回収できたときは、オーナーへ打ち上げる規定の例外で、主文脈は判断を待たずに再 dispatch へ進み、オーナーへは事実を通知する。`running` の詰まりはこの例外に当たらない。台帳 entry には実行者の欄が無いので、継続検査が見分けられる取り違えは Claude 固定の role の `codex-limit` だけである。主文脈は逐語を確かめてから種別を選ぶ。
+- テストで確かめたのは、継続検査と dispatch parser の受理・拒否と、`running` から出発した hook→`collect-worktree`→継続検査の拒否までである。`stopped`／`stale` から回収して再 dispatch が完走することは未実測である。
 
 #### agy の振り分け方針
 

@@ -72,12 +72,15 @@
   （委譲の取りやめ）。上限で止まったのが Claude ロールでも、委譲先の Codex 実行者でも、3つとも禁止。
 - **Claude ロール自身が上限で止まったとき**：モデル・effort を変えず、委譲もやめず、停止前と
   同一の構成で同じロールを再 dispatch する。主文脈が動けているなら Claude の枠は回復している。
-  継続検査の対象（`change-planner`・`test-writer`・`issue-implementer`）では、主文脈が上限の逐語を
-  `stop_reason` に入れ `stop_kind: claude-limit` とした receipt を止まったロールの `handoff_path` に書き、
-  `collect-worktree` で回収・解放してから再 dispatch する。書くのは、作業ツリーに未 commit の変更・
-  未 push の commit が無く、ロールの handoff が無いときだけで、それ以外はオーナーへ打ち上げる
-  （主文脈は commit も既存の receipt への書き足しもしない）。手順は `.ai/skills/issue-pipeline/SKILL.md`
-  「Claude の role 自身が上限で止まったときの再投入」が正本。
+  継続検査の対象（`change-planner`・`test-writer`・`issue-implementer`）では、止まったロールの台帳 entry が
+  `running` のまま残る主な経路（handoff を書く前に止まった）では同じブランチで再 dispatch できないので、
+  オーナーへ打ち上げる（`worktree-forget`→`--force-uncollected` で解放しても継続検査が拒否する）。
+  entry が `stopped`/`stale` のときに限り、主文脈が上限の逐語を `stop_reason` に入れ
+  `stop_kind: claude-limit` とした receipt を止まったロールの `handoff_path` に書き、`collect-worktree` で
+  回収・解放してから再 dispatch する。書くのは、作業ツリーに未 commit の変更・未 push の commit が無く、
+  ロールの handoff が無いときだけで、それ以外はオーナーへ打ち上げる（主文脈は commit も既存の receipt への
+  書き足しもしない）。手順は `.ai/skills/issue-pipeline/SKILL.md`「Claude の role 自身が上限で止まったときの
+  再投入」が正本。
 - **委譲先の Codex 実行者が上限で止まったとき（唯一の例外）**：同じロールの Claude サブエージェントへ
   切り替えてよい。主文脈が、同一ロールを Codex 実行者の指定なしで再 dispatch する。
   切替後の層と推論予算は、Codex 実行者に指定していたもの以上にする。
