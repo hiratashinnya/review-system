@@ -107,6 +107,34 @@ class ACSnapshotUpdateTest(unittest.TestCase):
         self.assertNotEqual(digest(items), digest(from_issue_body(
             body.replace("real condition", "new real condition"))))
 
+    def test_indented_code_checkbox_is_not_an_ac_or_checkbox_update(self):
+        for code_prefix in ("    ", "\t"):
+            with self.subTest(prefix=repr(code_prefix)):
+                body = ("## Acceptance criteria\n\n" +
+                        code_prefix + "- [ ] example\n\n- [ ] real AC\n")
+                items = from_issue_body(body)
+                self.assertEqual(len(items), 1)
+                self.assertEqual(items[0].text, "real AC")
+                updated, changed = plan(body, body, judge("satisfied"))
+                self.assertEqual(changed, [1])
+                self.assertIn(code_prefix + "- [ ] example", updated)
+                self.assertIn("- [x] real AC", updated)
+                self.assertNotEqual(digest(items), digest(from_issue_body(
+                    body.replace("real AC", "changed AC"))))
+
+    def test_closed_hash_atx_ac_headings_in_both_languages(self):
+        for heading in ("## Acceptance criteria ##", "## 受け入れ基準 ##"):
+            with self.subTest(heading=heading):
+                body = heading + "\n- [ ] real condition\n"
+                items = from_issue_body(body)
+                self.assertEqual(len(items), 1)
+                self.assertEqual(items[0].text, "real condition")
+                self.assertNotEqual(digest(items), digest(from_issue_body(
+                    body.replace("real condition", "changed condition"))))
+                updated, changed = plan(body, body, judge("satisfied"))
+                self.assertEqual(changed, [1])
+                self.assertIn("- [x] real condition", updated)
+
     def test_nested_heading_does_not_end_ac_section_or_lose_following_checkbox(self):
         body = ("## Acceptance criteria\n- [ ] AC1\n"
                 "  ## Details\n  details\n- [ ] AC2\n")

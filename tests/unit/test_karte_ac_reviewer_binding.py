@@ -153,6 +153,37 @@ class ACReviewerBindingTest(unittest.TestCase):
                     finally:
                         self.root, self.source = previous_root, previous_source
 
+    def test_closed_hash_heading_requires_ac_judgment_at_ingest(self):
+        for heading in ("## Acceptance criteria ##", "## 受け入れ基準 ##"):
+            with self.subTest(heading=heading):
+                with tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    (root / "tmp" / "_handoff").mkdir(parents=True)
+                    source = root / "tmp" / "issue.md"
+                    body = heading + "\n- [ ] real condition\n"
+                    source.write_text(body, encoding="utf-8")
+                    old_root, old_source = self.root, self.source
+                    try:
+                        self.root, self.source = root, source
+                        ac = from_issue_body(body)
+                        self.assertEqual(len(ac), 1)
+                        self.assertEqual(self.activate()[0], EXIT_OK)
+                        bad, _, _ = self.ingest(
+                            self.make_report(count=0, digest_value=digest(ac)),
+                            "pr-reviewer--bad-closed-hash.md",
+                        )
+                        self.assertEqual(bad, EXIT_ERROR)
+                        self.assertFalse(paths.karte_path(801, root).exists())
+                        good, _, err = self.ingest(
+                            self.make_report(count=1, digest_value=digest(ac)),
+                            "pr-reviewer--valid-closed-hash.md",
+                        )
+                        self.assertEqual(good, EXIT_OK, err)
+                        self.assertEqual(len(model.parse(paths.read_text(
+                            paths.karte_path(801, root))).review_rounds), 1)
+                    finally:
+                        self.root, self.source = old_root, old_source
+
     def test_prose_ac_requires_full_summary_and_never_autochecks(self):
         from karte.ac_check_update import plan
         from karte.review_summary_ac import ACJudgment

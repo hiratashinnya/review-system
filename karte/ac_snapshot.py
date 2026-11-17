@@ -12,7 +12,7 @@ import re
 from .format_error import KarteFormatError
 from .ac_snapshot_fence import advance as advance_fence
 
-HEADING = re.compile(r"^(#{1,6})\s+(Acceptance criteria|受け入れ基準)\s*$", re.I)
+HEADING = re.compile(r"^(#{1,6})[ \t]+(Acceptance criteria|受け入れ基準)(?:[ \t]+#+)?[ \t]*$", re.I)
 NEXT_HEADING = re.compile(r"^ {0,3}(#{1,6})\s+")
 CHECKBOX = re.compile(r"^(\s*[-*]\s+)\[([ xX])\](\s+\S.*)$")
 ITEM = re.compile(r"^\s*(?:[-*]|[1-9][0-9]*[.)])\s+(\S.*)$")
@@ -61,8 +61,10 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
             continue
         checkbox = CHECKBOX.fullmatch(line) if not was_fenced and fence is None else None
         plain = ITEM.match(line) if not was_fenced and fence is None else None
+        # 4-space/tab-indented code is never an independent AC checkbox.
         is_top_item = (checkbox is not None or plain is not None) and (
-            base_indent is None or indent <= base_indent
+            indent <= 3 and "\t" not in leading
+            and (base_indent is None or indent <= base_indent)
         )
         if is_top_item:
             list_context = True
@@ -81,8 +83,8 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
                 list_context = False
             else:
                 items[-1][0].append(line)
-        elif stripped:
-            # 非リストの通常段落もAC。0件として黙って破棄しない。
+        elif stripped and indent <= 3 and "\t" not in leading:
+            # 段落形式のACは保持するが、字下げコードからは生成しない。
             items.append(([line], None, number))
             base_indent = indent
             list_context = False
