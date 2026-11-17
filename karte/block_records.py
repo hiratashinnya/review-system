@@ -16,7 +16,7 @@ from .finding_handoff_ledger import record_from_block
 from .finding_record import Finding
 from .format_error import KarteFormatError
 from .int_args import matched_int, require_ascii_int
-from .value_codec import check_list, normalize_locus
+from .value_codec import check_list, format_value, normalize_locus
 from .vocabulary import CHANGE_KINDS, DIAGNOSIS_OWNERS, DEFAULT_SCOPE, FINDING_STATUSES, HARM_LEVELS, OUTCOMES, SCOPES, SEVERITIES
 
 
@@ -72,7 +72,7 @@ def _attempt_from_block(block: Block, title: re.Match[str]) -> Attempt:
         root_cause=validate_slug(_require_nonempty(block, "root_cause"), "root_cause"),
         change_kind=_require_enum(block, "change_kind", CHANGE_KINDS),
         targets=validate_targets(block.fields.get("targets", [])),
-        diagnosis=str(block.fields.get("diagnosis", "")).strip(),
+        diagnosis=format_value(block.fields.get("diagnosis", "")).strip(),
     )
 
 
@@ -91,5 +91,5 @@ def _result_from_block(block: Block, title: re.Match[str]) -> Result:
         finding_ids=validate_finding_ids(block.fields.get("finding_ids", [])),
         touched=check_list(block.fields.get("touched", []), "touched"),
         outcome=_require_enum(block, "outcome", OUTCOMES),
-        note=str(block.fields.get("note", "")).strip(),
+        note=format_value(block.fields.get("note", "")).strip(),
     )
