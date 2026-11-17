@@ -26,7 +26,7 @@ def require_executor_limit_stop(data: bytes) -> None:
 
 
 def _block_has_content(following: list[str]) -> bool:
-    """block scalarの本体（空行か空白始まりの行の連続）に、空白以外を含む行があるか。"""
+    """block scalarの本体（空行か空白始まりの行の連続）に、`str.isspace()` に当たらない文字を含む行があるか。"""
     for line in following:
         if line and not line.startswith(" "):
             return False

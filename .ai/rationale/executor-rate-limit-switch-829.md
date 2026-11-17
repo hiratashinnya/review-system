@@ -193,7 +193,7 @@ agy の有効化後に Codex と agy のどちらを先に使うかは、引き�
   - top-level（字下げ無し）の `status`・`stop_kind`・`stop_reason` の行を数え、同じ欄が2行あれば拒否する。
   - `status: stop`、`stop_kind: codex-limit`、`stop_reason` が `|` または `|-` の block scalar の3つが揃わなければ拒否する。UTF-8 として読めなければ拒否する。
   - `stop_reason` を block scalar に限ったのは、逐語を字下げした行に閉じ込めるためである。逐語の中に `stop_kind: codex-limit` という行があっても、字下げされているので判定に入らない。既存の YAML リーダ（`dsv2/nodeyaml.py` はノード frontmatter 用）は block scalar と重複キーの扱いがこの用途に合わないので使わなかった。
-  - 行は `\n` だけで分け、`\r\n` は先に `\n` へ正規化する。top-level の値の前後は空白とタブだけを除く。`stop_reason` の直後（空行か空白始まりの行が続く範囲）に、空白以外を含む行が1行も無ければ拒否する（是正ラウンド6・下記10）。
+  - 行は `\n` だけで分け、`\r\n` は先に `\n` へ正規化する。top-level の値の前後は空白とタブだけを除く。`stop_reason` の直後（空行か空白始まりの行が続く範囲）に、`str.isspace()` に当たらない文字を含む行が1行も無ければ拒否する（是正ラウンド6・下記10）。
 - 通す範囲：
   - 同じ role を通すのは `test-writer` と `issue-implementer` だけ（`SWITCH_ROLES`）。change-planner は Claude 固定なので、同じ role の再 dispatch は従来どおり拒否する。issue-fixer は元から継続検査の対象外である。
   - 同じ Issue・branch の最新 owner であること、`released` と `closed_at`、`collected_to` の位置、receipt の sha256、remote exact OID の照合は、通常の継続と同じくすべて要求する。
@@ -239,15 +239,19 @@ agy の有効化後に Codex と agy のどちらを先に使うかは、引き�
 - 理由：
   - 守りたいのは「逐語の中身が top-level の判定に入らない」ことで、A でそれが満たされる。
   - B は、上限の逐語（Codex の出力）に制御文字が混じるだけで、正しい切替の STOP まで拒否する。再レビューの harm_detail は、こうした誤った拒否も害に挙げている。
-  - YAML 1.2 の行区切りは CR／LF だけなので、A は YAML の読み方とも揃う。
+- YAML の読み方との差（是正ラウンド7で実測して書き直した・new-25）：
+  - YAML 1.2 の行区切りは LF・CR・CRLF である。A は単独の `\r` で行を分けず、字下げ行の内容として扱う。このため `stop_reason: |\n  a\rstatus: ready\n` を gate は受理し、YAML として読むと top-level に `status` が増える。PyYAML 6.0.1 で読むと、`status` が `ready` に上書きされた（実測）。
+  - PyYAML は YAML 1.1 の実装で、単独の `\r` に加えて `\x85`・U+2028・U+2029 でも行を分ける（実測）。`\x0b`・`\x0c`・`\x1c`〜`\x1e` を含む文書は ReaderError になる（実測）。
+  - gate の受理が広がるわけではない。gate は自分の読み方で、top-level に `status: stop` と `stop_kind: codex-limit` を要求する。単独の `\r` で逐語から差し込んでも拒否される（実測）。差が出るのは、receipt を YAML として読む側が gate と違う値を見る場合に限る。本ラウンドの grep（`issue_start/subagent_hooks.py`・`gitgate/worktree_collect_handoff.py` など）では、receipt の `status` を YAML として読む機械側の箇所は見つからなかった（網羅はしていない）。主文脈が receipt を YAML として読んで判断するときは、この差を前提にする。
 - 細目：
   - top-level の値は空白とタブだけを除く。`str.strip()` は `\x0c` なども除くので、`status: stop\x85` のような行も通してしまう。
-  - 中身の有無は `str.strip()` で見る。制御文字だけの行は空として扱うので、厳しい側の判定になる。
+  - 中身の有無は `str.strip()` で見る。空として扱うのは、`str.isspace()` に当たる文字（空白・タブ・`\x0b`・`\x0c`・`\x1c`〜`\x1f`・`\x85`・NBSP・U+3000・U+2028・U+2029 など）だけでできた行に限る。それ以外の制御文字（NUL・ESC・DEL・`\x85` 以外の C1 など、C0／C1 の 55 種）、ゼロ幅文字（U+200B・U+FEFF・U+200D・U+2060・U+00AD）、U+3164 だけの行は、中身として数えて受理する（是正ラウンド7で実測）。この検査は「逐語が残っていること」を確かめる補助にとどまる。逐語が壊れて見えない文字だけが残った receipt も通るので、主文脈が逐語を確かめる規律（「既知の限界」）と併用する。
   - タブで始まる行は block の中身に数えない。YAML では字下げに空白しか使えない。
   - 範囲は、次の「空でなく空白で始まらない行」の手前までとする。後ろに続く別の欄の block だけに中身がある場合は拒否する。
 - 固定したテスト（`tests/unit/test_author_continuation_limit_switch.py`）：
   - 8文字それぞれによる注入の拒否。
-  - 空 block の6形の拒否：EOF、直後に別の欄、空白だけの行、別の欄の block だけに中身、タブ始まり、制御文字だけ。
+  - 空 block の6形の拒否：EOF、直後に別の欄、空白だけの行、別の欄の block だけに中身、タブ始まり、空白扱いの制御文字（`\x0c`）だけ。
+  - top-level の値の前後に空白とタブ以外の空白類（`\x0b`・`\x0c`・`\x1c`〜`\x1f`・`\x85`・U+2028・U+2029・NBSP・U+3000）がある行の拒否。対象は `status`・`stop_kind`・`stop_reason` の3欄（是正ラウンド7・new-26）。値を `str.strip()` で除く実装に戻すと Red になる。
   - 受理：`|-`、CRLF、先頭の空行、逐語の中の8文字。
 - 範囲外として残したもの：コロンの後に空白の無い行（`status:stop`）と、`---` 以降の2つ目の文書は、引き続き受理される。どちらも書き手の様式から生じない形で、再レビューも指摘にしていない。
 - 影響範囲：`issue_start/executor_limit_receipt.py`、同テスト、`docs/tools/issue-start-and-branch-source.md` の通過条件の文、本節の「読み方」。B に替える場合は、`_block_has_content` はそのままにして、分割の前に文字の検査を足し、受理テストの最後のケースを拒否側へ移す。

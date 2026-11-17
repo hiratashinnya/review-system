@@ -12,6 +12,7 @@ from issue_start.gate_support import IssueStartError
 
 LIMIT_RECEIPT = ('schema_version: 1\nagent: {role}\nstatus: stop\nstop_kind: codex-limit\nissue: 371\n'
                  'stop_reason: |\n  Codex usage limit reached (verbatim)\n  commit: none\n')
+VALUE_EDGE_SPACES = ('\x0b', '\x0c', '\x1c', '\x1d', '\x1e', '\x1f', '\x85', ' ', ' ', ' ', '　')
 NON_LF_BREAKS = ('\x0b', '\x0c', '\x1c', '\x1d', '\x1e', '\x85', ' ', ' ')
 
 
@@ -107,6 +108,16 @@ class LimitSwitchContinuationTests(unittest.TestCase):
         ]:
             with self.subTest(text=text):
                 self.write_receipt(text)
+                self.assert_rejected()
+
+    def test_value_with_non_tab_whitespace_around_rejected(self):
+        """new-26：値は空白とタブだけを除く。`str.strip()` が除く他の空白類は値の一部として拒否する。"""
+        values = {'status': 'stop', 'stop_kind': 'codex-limit', 'stop_reason': '|'}
+        for key, char, edge in [(k, c, e) for k in values for c in VALUE_EDGE_SPACES for e in ('head', 'tail')]:
+            padded = dict(values, **{key: char + values[key] if edge == 'head' else values[key] + char})
+            with self.subTest(key=key, char=repr(char), edge=edge):
+                self.write_receipt('schema_version: 1\nagent: test-writer\nstatus: {status}\nstop_kind: {stop_kind}\n'
+                                   'stop_reason: {stop_reason}\n  limit\n'.format(**padded))
                 self.assert_rejected()
 
     def test_well_formed_limit_receipt_variants_accepted(self):
