@@ -54,6 +54,19 @@ class ClaudeLimitContinuationTests(unittest.TestCase):
                 self.write_receipt(role, 'claude-limit')
                 self.validate()
 
+    def test_production_parser_accepts_claude_fixed_role_after_claude_limit(self):
+        from issue_start.gate_dispatch import parse_dispatch_payload
+        binding = dict(issue=371, round=1, branch_name='feature/371', repository='owner/repo', expected_oid='a'*40,
+                       handoff_path='tmp/_handoff/change-planner--issue-371-phase-retry.yaml')
+        prompt = 'ISSUE_PHASE_BINDING_V1='+json.dumps(binding)+'\nISSUE_PHASE_INPUT_V1={}\n'+MARKER+json.dumps(self.raw)
+        payload = dict(tool_name='Agent', tool_input=dict(subagent_type='change-planner', isolation='worktree',
+                                                          prompt=prompt))
+        with patch('issue_start.gate_isolation_dispatch.validate_phase_dispatch', return_value=None), patch(
+                'issue_start.author_continuation.worktree_ledger.main_worktree_root', return_value=self.root), patch(
+                'issue_start.author_continuation.worktree_ledger.read_ledger', return_value={'entries': [self.entry]}):
+            ack = parse_dispatch_payload(payload, cwd=self.root, runner=self.runner)
+        self.assertEqual(getattr(ack, 'agent_type', None), 'change-planner')
+
     def test_codex_limit_on_claude_fixed_role_rejected(self):
         self.write_receipt('change-planner', 'codex-limit')
         self.assert_rejected()

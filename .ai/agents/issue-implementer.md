@@ -107,7 +107,7 @@ out_of_scope_findings:
     evidence: 読んだファイル/行または実行コマンドと結果を1行
     expected: 期待する観測可能な状態を1行
     recheck: 再検証できる手順を1行
-stop_kind: codex-limit（Codex 実行者の上限で止まり、切替へ進める STOP のときだけ書く）
+stop_kind: codex-limit（Codex 実行者の上限で止まり、切替へ進める STOP のときだけ書く。`claude-limit` はロールが書かない＝Claude 自身の上限では主文脈が書く）
 stop_reason: 空文字
 
 STOP 時は `status: stop` とし、何が・どの対象で・なぜ止まったかを stop_reason に書き、原案・比較・推奨まで添える。

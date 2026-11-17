@@ -36,7 +36,7 @@ test_design: TestDesignのrepo相対path（未成立なら空文字）
 test_design_digest: そのcommit済みbytesのSHA-256（未成立なら空文字）
 commits:
   - commit OID
-stop_kind: codex-limit（Codex実行者の上限で止まり、切替へ進めるSTOPのときだけ書く）
+stop_kind: codex-limit（Codex実行者の上限で止まり、切替へ進めるSTOPのときだけ書く。`claude-limit` はロールが書かない＝Claude自身の上限では主文脈が書く）
 stop_reason: |
   STOPの理由（doneのときは空文字 `stop_reason: ""`）
 ```

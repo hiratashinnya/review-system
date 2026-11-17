@@ -195,7 +195,7 @@ agy の有効化後に Codex と agy のどちらを先に使うかは、引き�
   - `stop_reason` を block scalar に限ったのは、逐語を字下げした行に閉じ込めるためである。逐語の中に `stop_kind: codex-limit` という行があっても、字下げされているので判定に入らない。既存の YAML リーダ（`dsv2/nodeyaml.py` はノード frontmatter 用）は block scalar と重複キーの扱いがこの用途に合わないので使わなかった。
   - 行は `\n` だけで分け、`\r\n` は先に `\n` へ正規化する。top-level の値の前後は空白とタブだけを除く。`stop_reason` の直後（空行か空白始まりの行が続く範囲）に、`str.isspace()` に当たらない文字を含む行が1行も無ければ拒否する（是正ラウンド6・下記10）。
 - 通す範囲：
-  - 同じ role を通すのは `test-writer` と `issue-implementer` だけ（`SWITCH_ROLES`）。change-planner は Claude 固定なので、同じ role の再 dispatch は従来どおり拒否する。issue-fixer は元から継続検査の対象外である。
+  - 同じ role を通すのは `test-writer` と `issue-implementer` だけ（`SWITCH_ROLES`）。change-planner は Claude 固定なので、同じ role の再 dispatch は従来どおり拒否する。issue-fixer は元から継続検査の対象外である。（後の変更：是正ラウンド8で、`claude-limit` の receipt なら change-planner を含む3 role の同じ role を通すようにした＝下記11。`codex-limit` の範囲は変えていない。）
   - 同じ Issue・branch の最新 owner であること、`released` と `closed_at`、`collected_to` の位置、receipt の sha256、remote exact OID の照合は、通常の継続と同じくすべて要求する。
   - 既存の `tests/unit/test_author_continuation.py` は変えずに全パスする。新しい許可条件は `tests/unit/test_author_continuation_limit_switch.py` で、通る場合（2 role・dispatch parser 層）と拒否される場合（Claude 固定 role、別 role、未回収・未解放、`stop_kind` 無し、`status` が stop でない、値違い、重複、字下げ内だけ、block scalar でない、`stop_reason` 無し、非 UTF-8、receipt 改変、より新しい owner）を固定した。是正ラウンド6で、`\n` 以外の行区切り文字による注入と空の `stop_reason` の拒否、`|-`・CRLF・逐語中の行区切り文字の受理を加えた（下記10）。
 - 欄の意味：`stop_kind: codex-limit` は「上限で止まった」ではなく「上限で止まり、切替へ進める」STOP を示す。書くのは引き継ぎ commit を済ませたときと、未 commit の変更が無かったときだけで、範囲外の変更が混じる・確かめられないために commit しなかった STOP には書かない。理由は、オーナーの条件が「上限による引き継ぎ STOP」であり、引き継げなかった STOP は規範上オーナーへ打ち上げるので、その再 dispatch を継続検査が通してはならないためである。逐語はどちらの場合も `stop_reason` に残す。
@@ -203,6 +203,7 @@ agy の有効化後に Codex と agy のどちらを先に使うかは、引き�
   - `stop_kind` は role 自身の申告であり、上限で止まったことそのものを機械は確かめない。主文脈が逐語を確かめてから再 dispatch する規律と併用する。
   - receipt の sha256 は主文脈が marker に渡す値なので、主文脈が回収 receipt に欄を書き足せば機械は止めない。主文脈は欄を書き足さず、3欄が揃わなければ打ち上げる、と規律で定めた。
   - Claude の role 自身が上限で止まったときの「同じ構成での再投入」は、同じ role の再 dispatch でも `stop_kind` を書かないので、従来どおり継続検査に拒否される。この PR では変えていない。
+    （後の変更：是正ラウンド8で `stop_kind: claude-limit` を加え、この再投入も通すようにした＝下記11〜13。この項は是正ラウンド4の時点の記述である。）
   - 実 dispatch の完走は未実測で、単体テストで確かめたのは継続検査と dispatch parser までである。
 - 影響範囲：コードは `issue_start/author_continuation.py` と新規の `issue_start/executor_limit_receipt.py`。文書は `.ai/skills/issue-pipeline/SKILL.md`「作者間のbranch継承」「Codex 実行者が上限で止まったときの切替」、`.claude/skills/issue-pipeline/SKILL.md`、`.ai/troubleshooting/issue-pipeline.md`、`docs/tools/issue-start-and-branch-source.md`、3 role の共通契約と wrapper。A を覆す場合は、判別子の置き場に合わせてこれらと `executor_limit_receipt.py` を書き換える。
 - 再 dispatch の入力：引き継ぎ commit で remote の OID が進むので、主文脈は `dispatch_target` と `expected_oid` をその OID で作り、引き継ぎ commit が変えた path を `binding.expected.source_changes` に加える（`codex_worktree_exec/source_snapshot.py` が承認外の path を拒否するため）。`handoff_path` は新しく採番する。`context_id` も新しい dispatch のものにするが、コードは再利用を検査しない（規律）。
@@ -255,3 +256,72 @@ agy の有効化後に Codex と agy のどちらを先に使うかは、引き�
   - 受理：`|-`、CRLF、先頭の空行、逐語の中の8文字。
 - 範囲外として残したもの：コロンの後に空白の無い行（`status:stop`）と、`---` 以降の2つ目の文書は、引き続き受理される。どちらも書き手の様式から生じない形で、再レビューも指摘にしていない。
 - 影響範囲：`issue_start/executor_limit_receipt.py`、同テスト、`docs/tools/issue-start-and-branch-source.md` の通過条件の文、本節の「読み方」。B に替える場合は、`_block_has_content` はそのままにして、分割の前に文字の検査を足し、受理テストの最後のケースを拒否側へ移す。
+
+### オーナー決定（2026-11-17・是正ラウンド8）
+
+再レビュー r4 の new-24（Claude の role 自身が上限で止まったとき、rules 03 の「同じ構成でそのまま再投入する」が継続検査に拒否される）について、次の決定が出た。決定は依頼文に結論だけ記録されており、逐語はリポジトリ内に無い。
+
+1. `stop_kind: claude-limit` を足し、Claude の role 自身の上限による同じ role の再 dispatch を継続検査が通すようにする。
+2. この PR の規範・文書には、止まったエージェントを別の経路で再開する手順を書かない（再 dispatch だけを手順とする）。
+3. new-20・new-21 の処置方針は未決のまま触らない。
+
+### 是正ラウンド8の暫定決定（AI の推奨。覆る場合の影響範囲を併記）
+
+#### 11. `claude-limit` を通す role の範囲
+
+- 論点：依頼は「`PREDECESSORS` の対象の4ロール（ac-designer・change-planner・test-writer・issue-implementer）」としていた。どこまでを通すか。
+- コードの事実（head 09ec7b1c で読んだ範囲）：
+  - `validate_author_continuation` は `ack.agent_type not in PREDECESSORS` のとき何も検査せずに返る。`PREDECESSORS` のキーは change-planner・test-writer・issue-implementer の3つで、ac-designer は値（change-planner の直前 role）としてだけ現れる。
+  - ac-designer は manifest（`issue_start/managed-entrypoints-v2.json`）の managed 区分で、`issue_start/gate_dispatch.py` が `validate_phase_target(..., initial=True)`（base から新しい branch を作る初回著作）で検査する。継続検査は呼ばれない。
+  - issue-fixer は isolation_only 区分だが `PREDECESSORS` に無いので、元から継続検査の対象外である。
+- 選択肢：
+  - A：`PREDECESSORS` のキー3つ（change-planner・test-writer・issue-implementer）すべてに `claude-limit` を通す。
+  - B：A から change-planner を除く（Codex 既定の2 role だけ）。
+  - C：ac-designer の再 dispatch も継続検査に載せる。
+- 暫定決定：A。
+- 理由：
+  - Claude の role 自身の上限は、Claude 固定の change-planner でも、Codex 既定 role の Claude 側（dispatch された Claude サブエージェント自身）でも起きる。rules 03 の「同じ構成で再投入する」は role を限定していないので、継続検査が扱う role はすべて通す必要がある。B は change-planner について new-24 と同じ食い違いを残す。
+  - C は ac-designer の検査経路（初回著作の managed 区分）を変える変更で、最小ではない。ac-designer の再 dispatch は元から継続検査に拒否されていないので、new-24 の食い違いは ac-designer には無い。
+- `codex-limit` は従来どおり test-writer・issue-implementer（`SWITCH_ROLES`）だけに通し、change-planner の `codex-limit` は拒否する（Claude 固定の role に Codex 実行者は無いので、取り違えの receipt である）。
+- 既知の限界：ac-designer が上限で止まった後の再 dispatch（初回著作の経路）が、止まる前に push 済みの branch がある状態で完走するかは確かめていない（継続検査の外の論点で、本ラウンドでは変えていない）。
+- 影響範囲：`issue_start/author_continuation.py`（同じ role の判定から `SWITCH_ROLES` を外し、receipt の種別と role の組み合わせを `issue_start/executor_limit_receipt.py` の `require_limit_stop` で確かめる）。B へ覆す場合は `require_limit_stop` で `claude-limit` の role も `SWITCH_ROLES` に限る。
+
+#### 12. Agent が上限で落ちて receipt が書かれなかったときの記録の作り方
+
+- 論点：Claude の role 自身が上限で止まると、role は handoff を書けない（モデルの呼び出しそのものが失敗する）。主文脈が `worktree-release --force-uncollected` で解放すると `collected_to` が空になり、継続検査は「collected receipt path invalid」で拒否する。どう記録するか。
+- コードの事実：
+  - `gitgate collect-worktree`（`gitgate/worktree_collect_handoff.py`）は、台帳 entry の `handoff_path`（または `--handoff`）が指す、止まった role の作業ツリーの中のファイルを読み、`tmp/_handoff/collected/<entry-id>--<basename>` へ写して sha256 を照合し、entry を `collected` にして解放する。内容は解釈しない。対象は `stopped`・`stale` の entry で、`running`・`open` は拒否する（`gitgate/worktree_collect_target.py`）。
+  - 解放は `git worktree remove --force` で、作業ツリーの未 commit 変更は消える（`gitgate/worktree_release_safety.py`）。
+  - 継続検査は、回収 receipt の bytes を台帳 entry と marker の sha256 で束縛するだけで、誰が書いたかは見ない。
+- 選択肢：
+  - A：主文脈が、止まった role の作業ツリーの `handoff_path` に receipt を新しく書き（`status: stop`・`stop_kind: claude-limit`・Agent の結果に出た上限の逐語を入れた `stop_reason`）、既存の `collect-worktree` で回収・解放する。gitgate は変えない。
+  - B：gitgate に、主文脈が書いた receipt を直接 `collected/` へ置いて束縛する verb を足す。
+  - C：継続検査で、`collected_to` が空の entry を `claude-limit` 相当として通す。
+- 暫定決定：A。
+- 理由：
+  - A は既存の collect・release の経路だけで実現でき、コードを変えない。B は gitgate の変更で最小ではない。C は「回収済みの bytes で止まった理由を確かめる」という継続検査の前提を外し、fail-close を弱める。
+  - 既存の規律「主文脈は回収 receipt に欄を書き足さない」との関係：この規律が防ぐのは、role が書いた receipt に主文脈が `stop_kind` を足して、引き継げなかった STOP を通すことである。A では role が receipt を書けていないので、書き足す対象が無い。上限の証拠（Agent の結果の逐語）を受け取ったのも主文脈だけなので、記録を書く主体は主文脈になる。両者を両立させるため、主文脈が receipt を書くのは「role の handoff がその位置に無いとき」に限り、role の handoff があるときは書き足さず打ち上げる、と規律で分ける。
+  - 主文脈が receipt を書くのは記録であって、委譲すべき作業の代行（rules 03 の禁止③）ではない。
+- 条件（いずれかを満たさなければ書かずにオーナーへ打ち上げる）：
+  - Agent の結果に上限（レート制限・セッション上限）を示す逐語がある。逐語の無い失敗は Codex 実行者の場合と同じく証拠にならない。
+  - 止まった作業ツリーに未 commit の変更が無く、HEAD が remote の branch の OID と一致する（未 push の commit が無い）。解放が `--force` で変更を消すので、回収の前に確かめる。主文脈は commit・push を代行しない。
+  - 止まった role の handoff が `handoff_path` に無い。
+  - entry が `stopped` か `stale` である（`running` のままなら既存の troubleshooting の手順に従い、推測で回収しない）。
+- 既知の限界：`claude-limit` の receipt は主文脈の記録であり、上限で止まったことそのものを機械は確かめない（`codex-limit` の「role 自身の申告」と同じ種類の限界）。主文脈が条件を確かめずに書いても機械は止めない。主文脈が止まった role の作業ツリーへ書けることと、この経路の実 dispatch の完走は未実測である。
+- 影響範囲：`.ai/skills/issue-pipeline/SKILL.md`「Claude の role 自身が上限で止まったときの再投入」、`.claude/skills/issue-pipeline/SKILL.md`、`.ai/troubleshooting/issue-pipeline.md`、`docs/tools/issue-start-and-branch-source.md`。B へ覆す場合は gitgate の verb を足し、これらの手順をその verb に書き換える。
+
+#### 13. `stop_kind` の2値の意味と、引き継ぎ commit の扱い
+
+- 論点：`codex-limit` は「上限で止まり、切替へ進める STOP」で、引き継ぎ commit を済ませたか未 commit の変更が無かったときだけ書く。`claude-limit` はどう定義し、`Handover:`／`Tests:` の固定行をどう扱うか。
+- 暫定決定：
+  - `codex-limit`：委譲先の Codex 実行者が上限で止まり、role が引き継げた STOP。書くのは role。同じ role を Codex 実行者の指定なしで再 dispatch する（切替）。
+  - `claude-limit`：Claude の role 自身が上限で止まり、作業ツリーに引き継ぐべき変更が無い STOP。書くのは主文脈（上の12）。同じ role を止まる前と同じ構成（Codex 実行者の指定の有無を含む）で再 dispatch する。
+  - 両者に共通するのは「同じ role の再 dispatch へ進めてよい STOP」という意味で、`status: stop`・block scalar の `stop_reason` の要求と、逐語を `stop_reason` に置くことは同じ。
+  - `claude-limit` には引き継ぎ commit が無い。role は止まった時点で commit できず、主文脈は代行しない。したがって `Handover:`／`Tests:` の固定行は使わない。作業ツリーに変更が残っていれば `claude-limit` を書かずにオーナーへ打ち上げる（`codex-limit` で「引き継げなかった STOP には書かない」としたのと同じ考え方）。role が止まる前に自分で commit・push した変更は、通常の commit として remote の OID に含まれ、再 dispatch はその OID から続ける。
+- 理由：書く主体と「引き継げた／引き継ぐものが無い」の条件を2値で分けると、主文脈が receipt を読んで次の手（切替か同じ構成か）を一意に決められる。1値（`limit`）にまとめると、どちらの構成で再 dispatch するかを receipt から読めない。
+- 既知の限界：台帳 entry には実行者（Codex か Claude か）の欄が無いので、継続検査が確かめられる取り違えは「Claude 固定の role の `codex-limit`」だけである。Codex 既定 role の `claude-limit` と `codex-limit` の取り違えは機械では見分けられず、主文脈が逐語を確かめる規律と併用する。
+- 固定したテスト（`tests/unit/test_author_continuation_claude_limit.py`）：
+  - 受理：3 role の `claude-limit`、change-planner の dispatch parser 層。
+  - 拒否：change-planner の `codex-limit`、別 role（issue-implementer→test-writer、issue-fixer→issue-implementer、test-writer→change-planner）、未回収・未解放（`running`・`stopped`・`stale`・`collected`・`abandoned`、`closed_at` 無し、`collected_to` 無し・空）、`stop_kind` 無し、`status: ready`、`stop_kind` の重複（2値の組み合わせ両順）、逐語の中だけの `stop_kind`、block でない `stop_reason`、空の block、`stop_reason` 無し、値違い（`claude_limit`・`Claude-limit`・`limit`・2値の連結・引用符付き）、receipt の改変、remote OID の不一致。
+  - 既存の `tests/unit/test_author_continuation_limit_switch.py` と `tests/unit/test_author_continuation.py` は変えずに全パスする。
+- 影響範囲：`issue_start/executor_limit_receipt.py`（`require_executor_limit_stop` を、種別を返す `read_limit_stop_kind` と role との組み合わせを見る `require_limit_stop` に分けた。読み方は変えていない）、rules 03・`governance-directives.md` 項10、共通本文、各 role の共通契約の `stop_kind` の行。2値を1値にまとめる場合は、再 dispatch の構成を receipt 以外（切替の記録）から読む規律に書き換える。

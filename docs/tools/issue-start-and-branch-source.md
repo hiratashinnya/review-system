@@ -65,9 +65,10 @@ readonlyのdispatchはworktree所有台帳を起票せず、直接編集とpush�
 worktree継承決定は [FBK-20261017-工程別worktreeへ同一branchを継承する](../../.ai/feedback/ledger/FBK-20261017-工程別worktreeへ同一branchを継承する.toml) を参照する。
 後続作者は6field bindingに加え `ISSUE_PHASE_PREDECESSOR_V1` のentry IDと回収receipt sha256を渡す。
 前roleの最新台帳owner・Issue/branch・released/closed_at・collected_to実bytesとremote exact OIDを照合する。
-`test-writer`／`issue-implementer` に限り、最新ownerが同じroleでも、回収receiptがtop-levelの `status: stop`・
-`stop_kind: codex-limit`・block scalarの `stop_reason` を各1行持てば通す（Codex実行者の上限による切替・
-`issue_start/executor_limit_receipt.py`・Issue #829）。行は `\n` だけで分け（`\r\n` は正規化）、
+最新ownerが同じroleでも、回収receiptがtop-levelの `status: stop`・`stop_kind`・block scalarの `stop_reason` を各1行持ち、
+`stop_kind` が `codex-limit`（`test-writer`／`issue-implementer` に限る。Codex実行者の上限による切替）か
+`claude-limit`（`change-planner`／`test-writer`／`issue-implementer`。Claudeのrole自身の上限による同じ構成の再dispatch）なら通す
+（`issue_start/executor_limit_receipt.py`・Issue #829）。行は `\n` だけで分け（`\r\n` は正規化）、
 `stop_reason` の直後に空白で字下げした中身のある行が無ければ拒否する。
 既存collect/releaseを省略しない。native availabilityは有効であり、Codex profile pinと実測責任は別に維持する。
 

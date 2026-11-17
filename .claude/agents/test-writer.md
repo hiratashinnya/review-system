@@ -26,6 +26,7 @@ Codexが上限で止まったら、dispatchの `handoff_path` が指す完了rec
 チャットにはreceiptの絶対パスを返す。記録先はこの1か所で、TestDesignには書かない。receiptの様式とTestDesignの同名欄との
 区別は[共通契約](../../.ai/agents/test-writer.md)「出力とハンドオフ」に従う。継続検査はこの3欄で切替へ進めるSTOPと判別するので、
 `stop_kind` は引き継ぎcommitを済ませたときか未commitの変更が無かったときだけ書き、引き継げなかったときは書かない。
+`stop_kind: claude-limit` は書かない（Claude自身が上限で止まったときのreceiptは主文脈が書く）。
 Codexが未commitの変更を残していたら、差分とテストで確かめる。依頼範囲に収まると確かめられたら、テストが赤くてもcommit・pushし、
 commit、変更path、テスト結果、残作業を逐語と一緒に `stop_reason` へ記録する。このcommitのコミットメッセージは、本文の末尾に
 `Handover: codex-limit` と、`Tests: red-unfinished`／`Tests: red-intended`／`Tests: green` のどれか1行を置く。

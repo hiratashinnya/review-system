@@ -62,7 +62,7 @@ PlanReviewをcommitted envelopeにしない。capture本体は #375、karteの�
 初回1aだけnew-branch、後続1b/2a/2bは前作者自身がcommit/pushした同branchのremote exact OIDをadoptする。
 主文脈は前role完了receiptと終了・pushを確認し、既存collect/releaseで回収・解放を完了してから次roleを起動する。
 回収receipt bytes、台帳の最新owner、Issue/branch/直前role、remote exact OIDを正規hookで照合する。
-直前roleの唯一の例外は、Codex実行者の上限で止まった同じroleの再dispatchである（下記「Codex 実行者が上限で止まったときの切替」）。
+直前roleの例外は、上限で止まった同じroleの再dispatchだけである（Codex実行者の上限は下記「Codex 実行者が上限で止まったときの切替」、Claudeのrole自身の上限は下記「Claude の role 自身が上限で止まったときの再投入」）。
 dispatch元cwd（検査作業面）は主文脈のセッションcwdで、主文脈のlinked作業面とし、primary checkoutのbranchは切り替えない。
 その作業面をfetch後にHEADをそのremote exact OIDへ置いたdetachedにし、binding/approvalはその作業面のtmp配下に置く。
 検査はdetachedだけを受理し、対象branch上・別名branch上は入口で拒否する。検査面がdetachedでも、primary checkoutを含む他のworktreeが
@@ -146,7 +146,7 @@ policy/catalog hash、取得surface/方法/日時、resolved ID、実使用ID、
 
 #### Codex 実行者が上限で止まったときの切替
 
-委譲先の Codex 実行者がレート制限／セッション上限で止まったときに限り、同じ role の Claude サブエージェントへ切り替えてよい。Claude の role 自身が上限で止まったときは切り替えず、同一構成で再投入する。`codex-review` の再投入規定にも適用しない。
+委譲先の Codex 実行者がレート制限／セッション上限で止まったときに限り、同じ role の Claude サブエージェントへ切り替えてよい。Claude の role 自身が上限で止まったときは切り替えず、同一構成で再投入する（下記「Claude の role 自身が上限で止まったときの再投入」）。`codex-review` の再投入規定にも適用しない。
 
 - **発動条件**：Codex 実行者が上限到達を示した出力の逐語があること。主文脈がその逐語を切替の記録に残してから切り替える。これは逐語による暫定運用である（オーナー決定・2026-11-16）。上限を示す文字列・終了コードは、初回に実測できた出力をこの節へ追記して定める。
 - **証拠が無い失敗は STOP する。** profile pin 拒否、timeout、権限拒否、起動失敗、検査不合格は上限の証拠ではない。遅い・無応答からの推測も証拠にしない。
@@ -155,10 +155,10 @@ policy/catalog hash、取得surface/方法/日時、resolved ID、実使用ID、
   - `stop_kind: codex-limit` は「切替へ進める STOP」を示す欄である。書くのは、Codex 実行者の上限で止まり、引き継ぎ commit を済ませたとき、または未 commit の変更が無かったときだけである。上限で止まっても引き継げなかったとき（範囲外の変更が混じる、範囲に収まると確かめられない）は書かず、逐語は `stop_reason` に残す。
   - 主文脈は、3欄が揃わない回収 receipt に欄を書き足して再 dispatch を通さない。揃わなければオーナーへ打ち上げる。receipt の sha256 は主文脈が marker に渡す値なので、書き足しは機械では止まらない。
   - read-only role：Codex を起動したのは主文脈の専用入口なので、主文脈が出力から逐語を確かめ、同じ role の Claude サブエージェントを dispatch する。
-  - 回収・解放から dispatch までの既存契約は、同じ role の再 dispatch にもそのまま適用する。test-writer・issue-implementer の継続検査は通常「最新 owner が直前の工程の role」であることを要求するが、最新 owner が同じ role で、その回収 receipt が上の3欄を持つときに限って通す（`issue_start/executor_limit_receipt.py`）。3欄が揃わない STOP と、Claude 固定の role（change-planner）の同じ role への再 dispatch は、従来どおり `ISSUE_START_CONTINUATION_INVALID` で拒否される。issue-fixer は継続検査の対象外である。
+  - 回収・解放から dispatch までの既存契約は、同じ role の再 dispatch にもそのまま適用する。test-writer・issue-implementer の継続検査は通常「最新 owner が直前の工程の role」であることを要求するが、最新 owner が同じ role で、その回収 receipt が上の3欄を持つときに限って通す（`issue_start/executor_limit_receipt.py`）。3欄が揃わない STOP と、Claude 固定の role（change-planner）の `codex-limit` の receipt は、`ISSUE_START_CONTINUATION_INVALID` で拒否される。issue-fixer は継続検査の対象外である。
   - 主文脈は、引き継ぎ commit の後の remote exact OID で `dispatch_target` と `ISSUE_PHASE_BINDING_V1` の `expected_oid` を作り、引き継ぎ commit が変えた path を `binding.expected.source_changes` に path→sha256 で加え（承認外の path は入力束縛が拒否する）、`handoff_path` を新しく採番する。`context_id` も新しい dispatch のものにする（コードは `context_id` の再利用を検査しないので、規律として守る）。`ISSUE_PHASE_PREDECESSOR_V1` には止まった role の entry ID と回収 receipt の sha256 を渡す。
   - 単体テストで確かめたのは継続検査と dispatch parser までで、切替の再 dispatch の完走は未実測である。
-- **上限による STOP は、この文書と troubleshooting の「STOP はオーナーへ打ち上げる」規定の例外である。** 対象は書込 role（test-writer・issue-implementer・issue-fixer）の handoff が `stop_kind: codex-limit` を持つ STOP と、read-only role（issue-investigator・adviser）の入口の出力が上限の逐語を示す停止である。主文脈はオーナーの判断を待たずに切替の再 dispatch へ進む。オーナーへの報告は切替の事実の通知であり、判断待ちではない。引き継げなかった STOP（範囲外の変更が混じる、確かめられない、上限の証拠が無い）は `stop_kind` を持たず、この例外に当たらないので、通常どおり打ち上げる。
+- **上限による STOP は、この文書と troubleshooting の「STOP はオーナーへ打ち上げる」規定の例外である。** 対象は書込 role（test-writer・issue-implementer・issue-fixer）の handoff が `stop_kind: codex-limit` を持つ STOP と、read-only role（issue-investigator・adviser）の入口の出力が上限の逐語を示す停止と、下記「Claude の role 自身が上限で止まったときの再投入」の条件を満たした停止である。主文脈はオーナーの判断を待たずに切替の再 dispatch へ進む。オーナーへの報告は切替の事実の通知であり、判断待ちではない。引き継げなかった STOP（範囲外の変更が混じる、確かめられない、上限の証拠が無い）は `stop_kind` を持たず、この例外に当たらないので、通常どおり打ち上げる。
 - **未 commit の変更が残ったときは、role が確かめてから引き継ぐ**（オーナー決定・2026-11-16）。対象は書込 role である。
   - role は Codex が残した変更を差分と単体テストで確かめる。依頼範囲に収まると確かめられたら、テストが赤くても commit・push し、handoff に `stop_kind: codex-limit` を書き、上限の逐語、commit、変更 path、テスト結果、残作業を `stop_reason` に記録して STOP を返す。主文脈は切替の再 dispatch へ進み、切替後の Claude role はその commit の続きから行う。
   - この引き継ぎ commit は、各 role の共通契約が定める「全パスを確認してから commit／PR」に対する唯一の例外である。例外になる手順と、issue-fixer の karte の記録は、`.ai/agents/issue-fixer.md`「Codex 実行者の上限による引き継ぎ」と `.ai/agents/issue-implementer.md`「実装契約」に従う。
@@ -181,6 +181,24 @@ policy/catalog hash、取得surface/方法/日時、resolved ID、実使用ID、
 Codex の low と mid は現在同じ系統に解決されるが、対応は抽象層で引く。推論予算は「最小／小／中／大／最大」の同じ段以上とする。Claude は「最大」を `xhigh` へ畳むので、Codex の「最大」には Claude の `xhigh` が対応する。
 
 - **切替時に記録する項目**：切替の理由、上限の証拠（出力の逐語）、切替前の Codex の層・推論予算と切替後の Claude の層・推論予算、作者とレビュー担当が同じモデルファミリになる影響、部分変更の扱い（引き継いだ commit、または打ち上げた理由）。
+
+#### Claude の role 自身が上限で止まったときの再投入
+
+dispatch した Claude のサブエージェント自身がレート制限／セッション上限で止まったときは、実行者を切り替えず、止まる前と同じ構成（モデル・推論予算・`Codex 実行者:` の行の有無）で同じ role を再 dispatch する。降格・推論予算の低下・主文脈による代行をしない点は切替と同じである。
+
+- **発動条件**：止まった dispatch の結果に、上限を示す逐語があること。逐語の無い失敗（timeout・権限拒否・起動失敗など）と推測は証拠にならず、STOP してオーナーへ報告する。
+- **継続検査の対象外の role**（ac-designer・issue-fixer と read-only role）は、既存の回収・解放の契約に従って同じ構成で再 dispatch する。
+- **継続検査の対象の role**（change-planner・test-writer・issue-implementer）は、role が handoff を書けずに止まるので、主文脈が次の順で記録を作ってから再 dispatch する。
+  1. 台帳の entry が `stopped` か `stale` であることを確かめる（`running` のままなら troubleshooting の手順に従い、推測で回収しない）。
+  2. 止まった作業ツリーに未 commit の変更が無く、HEAD が remote の branch の OID と一致することを確かめる。解放は作業ツリーを変更ごと消すので、回収の前に確かめる。変更や未 push の commit があれば、主文脈は commit・push を代行せず、記録も書かずにオーナーへ打ち上げる。
+  3. entry の `handoff_path` に role の handoff が無いことを確かめる。あれば書き足さず、オーナーへ打ち上げる。
+  4. 止まった作業ツリーの `handoff_path` に receipt を新しく書く。欄は top-level の `status: stop`、`stop_kind: claude-limit`、`stop_reason`（`|` の block scalar で、dispatch の結果に出た上限の逐語を字下げした行に置く）。
+  5. `python3 -m gitgate collect-worktree --entry <entry-id>` で回収・解放する。`--allow-missing-handoff` と `worktree-release --force-uncollected` は使わない（`collected_to` が空になり、継続検査が拒否する）。
+  6. 再 dispatch の `ISSUE_PHASE_PREDECESSOR_V1` に、止まった role の entry ID と回収 receipt の sha256 を渡す。`dispatch_target` と `expected_oid` は remote の exact OID で作り、`handoff_path` と `context_id` は新しくする。round は止まった dispatch と同じ値を使う。
+- 継続検査は、最新 owner が同じ role で、回収 receipt が `status: stop`・`stop_kind: claude-limit`・中身のある block scalar の `stop_reason` を持つときに同じ role を通す（`issue_start/executor_limit_receipt.py`）。読み方は `codex-limit` と同じである。
+- `stop_kind` の2値：`codex-limit` は委譲先の Codex 実行者の上限で role が引き継げた STOP（role が書き、切替へ進む）、`claude-limit` は Claude の role 自身の上限で作業ツリーに引き継ぐ変更が無い STOP（主文脈が書き、同じ構成で再 dispatch する）。`claude-limit` には引き継ぎ commit が無いので、`Handover:`／`Tests:` の行は使わない。role が止まる前に自分で push した commit は、remote の OID に含まれ、再 dispatch はそこから続ける。
+- この記録はオーナーへ打ち上げる規定の例外で、主文脈は判断を待たずに再 dispatch へ進み、オーナーへは事実を通知する。台帳 entry には実行者の欄が無いので、継続検査が見分けられる取り違えは Claude 固定の role の `codex-limit` だけである。主文脈は逐語を確かめてから種別を選ぶ。
+- 単体テストで確かめたのは継続検査と dispatch parser までで、この経路の再 dispatch の完走は未実測である。
 
 #### agy の振り分け方針
 
