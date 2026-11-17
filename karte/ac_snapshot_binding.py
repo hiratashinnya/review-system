@@ -4,12 +4,8 @@ from pathlib import Path
 
 from . import paths
 from .ac_snapshot import digest, from_issue_body
+from .ac_snapshot_archive import path_for_stage, path_for_record
 from .errors import KarteUsageError
-
-
-def _archived(repo_root, issue, number):
-    directory = paths.karte_dir(repo_root, create=True)
-    return paths.resolve_within_repo(directory / f"issue-{issue}-ac-round-{number}.md", repo_root)
 
 
 def stage(repo_root, issue, round_no, source):
@@ -17,7 +13,7 @@ def stage(repo_root, issue, round_no, source):
     candidate = paths.resolve_within_repo(source, repo_root)
     body = paths.read_text(candidate)
     items = from_issue_body(body)
-    archived = _archived(repo_root, issue, round_no)
+    archived = path_for_stage(repo_root, issue, round_no, body)
     if archived.exists():
         if paths.read_text(archived) != body:
             raise KarteUsageError("同一roundのAC snapshotの差し替えを拒否")
@@ -43,9 +39,7 @@ def read_for_dispatch(repo_root, issue, round_no):
         raise KarteUsageError("AC snapshot無しのreview envelopeは受理しない")
     if not isinstance(record, dict) or set(record) != {"digest", "count", "source"}:
         raise KarteUsageError("AC snapshotの期待値が不正")
-    path = _archived(repo_root, issue, round_no)
-    if record["source"] != str(path.relative_to(Path(repo_root).resolve())):
-        raise KarteUsageError("AC snapshotの保存先が不一致")
+    path = path_for_record(repo_root, issue, round_no, record)
     criteria = from_issue_body(paths.read_text(path))
     if (type(record["count"]) is not int or record["count"] != len(criteria)
             or record["digest"] != digest(criteria)):
@@ -61,9 +55,7 @@ def validate(repo_root, issue, round_no, report):
     record = read_active(repo_root, required=True).get("ac_snapshot")
     if not isinstance(record, dict) or set(record) != {"digest", "count", "source"}:
         raise KarteUsageError("mainによるAC snapshotの期待値が無い")
-    file = _archived(repo_root, issue, round_no)
-    if record["source"] != str(file.relative_to(Path(repo_root).resolve())):
-        raise KarteUsageError("AC snapshotの保存先が不一致")
+    file = path_for_record(repo_root, issue, round_no, record)
     items = from_issue_body(paths.read_text(file))
     if record["digest"] != digest(items) or type(record["count"]) is not int or record["count"] != len(items):
         raise KarteUsageError("AC snapshotの原本と期待値が不一致")

@@ -68,7 +68,10 @@ finding_refs: [new@1]
   **tmp の消去・別環境への転送後までの永続性は保証しない**。原本を保管する前に台帳を更新しない。
 - 主文脈はレビューdispatch時にGitHub元Issueの本文を凍結し、`karte activate ... --ac-snapshot-file <保存したUTF-8本文>` を実行する。
   `ingest-reviewer` はこのtrusted snapshotの `ac_count` / `ac_snapshot_digest` とSummaryを照合し、食い違いを拒否する。
-  保存先は `tmp/_karte/issue-N-ac-round-R.md`、Codexには同じ凍結済み本文とdigestをtrusted callerがpromptへ含める。
+  保存先は `tmp/_karte/issue-N-ac-round-R-<Issue本文SHA256>.md`（旧保存名も読み取り可）、
+  Codexには同じ凍結済み本文とAC digestをtrusted callerがpromptへ含める。
+  待機取消後の再activateでは、未取り込みの旧snapshotを消さず、更新後のIssue本文を別名の
+  不変snapshotとして保存する。再開後は新しいenvelopeのみ受理し、旧handoffを拒否する。
   main以外のロールはIssueチェック編集禁止。owner報告時の更新案生成には `karte.ac_check_update.plan`、更新後には `verify_written` を用いる。
 - **移行状態・既知の制約**：旧来の指摘ありレポートはSummaryなしでも受理する。
   review envelopeにAC snapshotが必須で、無しの起動・取り込み・Codex起動は拒否する。

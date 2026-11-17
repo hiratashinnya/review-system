@@ -214,6 +214,58 @@ class ACReviewerBindingTest(unittest.TestCase):
         judgments = (ACJudgment(1, "satisfied", "証拠", ()),)
         self.assertEqual(plan(prose, prose, judgments), (prose, []))
 
+    def test_cancel_then_reactivate_preserves_old_snapshot_and_rejects_old_handoff(self):
+        from karte.active_pointer import read_active
+        for change in ("outside", "ac"):
+            with self.subTest(change=change):
+                with tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    (root / "tmp" / "_handoff").mkdir(parents=True)
+                    source = root / "tmp" / "issue.md"
+                    source.write_text(BODY, encoding="utf-8")
+                    previous_root, previous_source = self.root, self.source
+                    try:
+                        self.root, self.source = root, source
+                        self.assertEqual(self.activate()[0], EXIT_OK)
+                        first = read_active(root, required=True)["ac_snapshot"]
+                        saved = root / first["source"]
+                        self.assertEqual(saved.read_text(encoding="utf-8"), BODY)
+                        cancelled, _, err = self.run_cli(
+                            owner_cli.cmd_activate, issue="801", repair_declared_scope=False,
+                        )
+                        self.assertEqual(cancelled, EXIT_OK, err)
+                        new_body = (BODY.replace("# Issue", "# Issue changed") if change == "outside"
+                                    else BODY.replace("AC1", "AC1 changed"))
+                        source.write_text(new_body, encoding="utf-8")
+                        new_options = {**OPTIONS, "run_id": "run-802"}
+                        restarted, _, err = self.run_cli(
+                            owner_cli.cmd_activate, issue="801", ac_snapshot_file=str(source),
+                            repair_declared_scope=False, **new_options,
+                        )
+                        self.assertEqual(restarted, EXIT_OK, err)
+                        second = read_active(root, required=True)["ac_snapshot"]
+                        self.assertNotEqual(first["source"], second["source"])
+                        self.assertEqual(saved.read_text(encoding="utf-8"), BODY)
+                        self.assertEqual((root / second["source"]).read_text(encoding="utf-8"), new_body)
+                        old, _, _ = self.ingest(
+                            self.make_report(digest_value=first["digest"]),
+                            "pr-reviewer--old-activation.md",
+                        )
+                        self.assertEqual(old, EXIT_ERROR)
+                        self.assertFalse(paths.karte_path(801, root).exists())
+                        expected = review_envelope.expected_of(issue=801, **new_options)
+                        new_report = self.make_report(digest_value=digest(from_issue_body(new_body)))
+                        handoff = root / "tmp" / "_handoff" / "pr-reviewer--restarted.md"
+                        handoff.write_text(handoff_header.render_header(1, expected) + "\n" + new_report,
+                                           encoding="utf-8")
+                        good, _, err = self.run_cli(reviewer_cli.cmd_ingest_reviewer,
+                                                   source=str(handoff), issue=None, round=None)
+                        self.assertEqual(good, EXIT_OK, err)
+                        self.assertEqual(len(model.parse(paths.read_text(
+                            paths.karte_path(801, root))).review_rounds), 1)
+                    finally:
+                        self.root, self.source = previous_root, previous_source
+
     def test_no_pointer_and_replayed_handoff_fail(self):
         report = self.make_report()
         self.assertEqual(self.ingest(report)[0], EXIT_ERROR)
