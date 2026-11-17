@@ -67,7 +67,8 @@ worktree継承決定は [FBK-20261017-工程別worktreeへ同一branchを継承�
 前roleの最新台帳owner・Issue/branch・released/closed_at・collected_to実bytesとremote exact OIDを照合する。
 `test-writer`／`issue-implementer` に限り、最新ownerが同じroleでも、回収receiptがtop-levelの `status: stop`・
 `stop_kind: codex-limit`・block scalarの `stop_reason` を各1行持てば通す（Codex実行者の上限による切替・
-`issue_start/executor_limit_receipt.py`・Issue #829）。
+`issue_start/executor_limit_receipt.py`・Issue #829）。行は `\n` だけで分け（`\r\n` は正規化）、
+`stop_reason` の直後に空白で字下げした中身のある行が無ければ拒否する。
 既存collect/releaseを省略しない。native availabilityは有効であり、Codex profile pinと実測責任は別に維持する。
 
 ## Hook parity と限界

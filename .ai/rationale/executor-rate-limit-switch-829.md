@@ -193,10 +193,11 @@ agy の有効化後に Codex と agy のどちらを先に使うかは、引き�
   - top-level（字下げ無し）の `status`・`stop_kind`・`stop_reason` の行を数え、同じ欄が2行あれば拒否する。
   - `status: stop`、`stop_kind: codex-limit`、`stop_reason` が `|` または `|-` の block scalar の3つが揃わなければ拒否する。UTF-8 として読めなければ拒否する。
   - `stop_reason` を block scalar に限ったのは、逐語を字下げした行に閉じ込めるためである。逐語の中に `stop_kind: codex-limit` という行があっても、字下げされているので判定に入らない。既存の YAML リーダ（`dsv2/nodeyaml.py` はノード frontmatter 用）は block scalar と重複キーの扱いがこの用途に合わないので使わなかった。
+  - 行は `\n` だけで分け、`\r\n` は先に `\n` へ正規化する。top-level の値の前後は空白とタブだけを除く。`stop_reason` の直後（空行か空白始まりの行が続く範囲）に、空白以外を含む行が1行も無ければ拒否する（是正ラウンド6・下記10）。
 - 通す範囲：
   - 同じ role を通すのは `test-writer` と `issue-implementer` だけ（`SWITCH_ROLES`）。change-planner は Claude 固定なので、同じ role の再 dispatch は従来どおり拒否する。issue-fixer は元から継続検査の対象外である。
   - 同じ Issue・branch の最新 owner であること、`released` と `closed_at`、`collected_to` の位置、receipt の sha256、remote exact OID の照合は、通常の継続と同じくすべて要求する。
-  - 既存の `tests/unit/test_author_continuation.py` は変えずに全パスする。新しい許可条件は `tests/unit/test_author_continuation_limit_switch.py` で、通る場合（2 role・dispatch parser 層）と拒否される場合（Claude 固定 role、別 role、未回収・未解放、`stop_kind` 無し、`status` が stop でない、値違い、重複、字下げ内だけ、block scalar でない、`stop_reason` 無し、非 UTF-8、receipt 改変、より新しい owner）を固定した。
+  - 既存の `tests/unit/test_author_continuation.py` は変えずに全パスする。新しい許可条件は `tests/unit/test_author_continuation_limit_switch.py` で、通る場合（2 role・dispatch parser 層）と拒否される場合（Claude 固定 role、別 role、未回収・未解放、`stop_kind` 無し、`status` が stop でない、値違い、重複、字下げ内だけ、block scalar でない、`stop_reason` 無し、非 UTF-8、receipt 改変、より新しい owner）を固定した。是正ラウンド6で、`\n` 以外の行区切り文字による注入と空の `stop_reason` の拒否、`|-`・CRLF・逐語中の行区切り文字の受理を加えた（下記10）。
 - 欄の意味：`stop_kind: codex-limit` は「上限で止まった」ではなく「上限で止まり、切替へ進める」STOP を示す。書くのは引き継ぎ commit を済ませたときと、未 commit の変更が無かったときだけで、範囲外の変更が混じる・確かめられないために commit しなかった STOP には書かない。理由は、オーナーの条件が「上限による引き継ぎ STOP」であり、引き継げなかった STOP は規範上オーナーへ打ち上げるので、その再 dispatch を継続検査が通してはならないためである。逐語はどちらの場合も `stop_reason` に残す。
 - 既知の限界：
   - `stop_kind` は role 自身の申告であり、上限で止まったことそのものを機械は確かめない。主文脈が逐語を確かめてから再 dispatch する規律と併用する。
@@ -225,3 +226,28 @@ agy の有効化後に Codex と agy のどちらを先に使うかは、引き�
 - 暫定決定：「単調増加」を「レビューを挟むごとに進め、前の値より小さくしない」に書き換え、切替の再 dispatch はレビューを挟まないので同じ値を使う、と両方の共通契約に書く。共通本文の round の項は書込3 role に広げた。
 - 理由：機械は round が 1 以上の整数であることしか検査しない（`issue_start/gate_markers.py`）。同じ値を許す読み方を明記すれば、2文が同じ値を指しても矛盾しない。
 - 影響範囲：`.ai/agents/issue-fixer.md` の入力の1行、`.ai/agents/creation-stage-contract.md` の1文、共通本文と `.claude` 側 SKILL の round の項。
+
+### 是正ラウンド6の暫定決定（AI の推奨。覆る場合の影響範囲を併記）
+
+#### 10. receipt の行の分け方と空の `stop_reason`（new-22）
+
+- 論点：`str.splitlines()` は `\x0b`・`\x0c`・`\x1c`〜`\x1e`・`\x85`・U+2028・U+2029 でも行を分ける。このため、字下げした逐語の中に `stop_kind: codex-limit` を置くと top-level の行として通っていた（再レビュー r4 の実測）。中身の無い `stop_reason: |` も通っていた。
+- 選択肢：
+  - A：`\n` だけで分ける（`\r\n` は正規化）。逐語の中のこれらの文字は字下げした行の内容として扱い、判定に入れない。
+  - B：これらの文字を1つでも含む receipt を拒否する。
+- 暫定決定：A。あわせて、`stop_reason` の直後に空白以外を含む字下げ行が無ければ拒否する。
+- 理由：
+  - 守りたいのは「逐語の中身が top-level の判定に入らない」ことで、A でそれが満たされる。
+  - B は、上限の逐語（Codex の出力）に制御文字が混じるだけで、正しい切替の STOP まで拒否する。再レビューの harm_detail は、こうした誤った拒否も害に挙げている。
+  - YAML 1.2 の行区切りは CR／LF だけなので、A は YAML の読み方とも揃う。
+- 細目：
+  - top-level の値は空白とタブだけを除く。`str.strip()` は `\x0c` なども除くので、`status: stop\x85` のような行も通してしまう。
+  - 中身の有無は `str.strip()` で見る。制御文字だけの行は空として扱うので、厳しい側の判定になる。
+  - タブで始まる行は block の中身に数えない。YAML では字下げに空白しか使えない。
+  - 範囲は、次の「空でなく空白で始まらない行」の手前までとする。後ろに続く別の欄の block だけに中身がある場合は拒否する。
+- 固定したテスト（`tests/unit/test_author_continuation_limit_switch.py`）：
+  - 8文字それぞれによる注入の拒否。
+  - 空 block の6形の拒否：EOF、直後に別の欄、空白だけの行、別の欄の block だけに中身、タブ始まり、制御文字だけ。
+  - 受理：`|-`、CRLF、先頭の空行、逐語の中の8文字。
+- 範囲外として残したもの：コロンの後に空白の無い行（`status:stop`）と、`---` 以降の2つ目の文書は、引き続き受理される。どちらも書き手の様式から生じない形で、再レビューも指摘にしていない。
+- 影響範囲：`issue_start/executor_limit_receipt.py`、同テスト、`docs/tools/issue-start-and-branch-source.md` の通過条件の文、本節の「読み方」。B に替える場合は、`_block_has_content` はそのままにして、分割の前に文字の検査を足し、受理テストの最後のケースを拒否側へ移す。
