@@ -107,6 +107,46 @@ class ACSnapshotUpdateTest(unittest.TestCase):
         self.assertNotEqual(digest(items), digest(from_issue_body(
             body.replace("real condition", "new real condition"))))
 
+    def test_nested_heading_does_not_end_ac_section_or_lose_following_checkbox(self):
+        body = ("## Acceptance criteria\n- [ ] AC1\n"
+                "  ## Details\n  details\n- [ ] AC2\n")
+        items = from_issue_body(body)
+        self.assertEqual(len(items), 2)
+        self.assertIn("## Details", items[0].text)
+        self.assertEqual(items[1].text, "AC2")
+        modified = body.replace("- [ ] AC2", "- [ ] AC2 modified")
+        self.assertNotEqual(digest(items), digest(from_issue_body(modified)))
+        with self.assertRaisesRegex(KarteUsageError, "live本文"):
+            plan(body, modified, judge("satisfied", "satisfied"))
+        updated, changed = plan(body, body, judge("satisfied", "satisfied"))
+        self.assertEqual(changed, [1, 2])
+        self.assertIn("- [x] AC1", updated)
+        self.assertIn("- [x] AC2", updated)
+
+    def test_four_space_closer_does_not_close_outer_fence(self):
+        body = ("# Issue\n ```text\n"
+                "    ```\n## Acceptance criteria\n- [ ] fake AC\n"
+                "```\n## Acceptance criteria\n- [ ] real AC\n")
+        items = from_issue_body(body)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].text, "real AC")
+        updated, changed = plan(body, body, judge("satisfied"))
+        self.assertEqual(changed, [1])
+        self.assertIn("- [ ] fake AC", updated)
+        self.assertIn("- [x] real AC", updated)
+
+    def test_six_space_indented_code_is_not_list_fence(self):
+        body = ("## Acceptance criteria\n- [ ] AC1\n"
+                "      ```\n      sample\n- [ ] AC2\n")
+        items = from_issue_body(body)
+        self.assertEqual(len(items), 2)
+        self.assertEqual(items[1].text, "AC2")
+        self.assertNotEqual(digest(items), digest(from_issue_body(
+            body.replace("- [ ] AC2", "- [ ] AC2 changed"))))
+        updated, changed = plan(body, body, judge("satisfied", "satisfied"))
+        self.assertEqual(changed, [1, 2])
+        self.assertIn("- [x] AC2", updated)
+
     def test_fence_info_string_does_not_close_and_hide_next_ac(self):
         body = ("## Acceptance criteria\n"
                 "- [ ] AC1\n"

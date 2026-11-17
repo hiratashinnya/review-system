@@ -75,6 +75,9 @@ class ACReviewerBindingTest(unittest.TestCase):
         ledger = model.parse(paths.read_text(paths.karte_path(801, self.root)))
         self.assertEqual(ledger.findings, [])
         self.assertEqual(ledger.review_rounds[0].number, 1)
+        from karte.scope_records import exists, ledger_path
+        self.assertTrue(exists(801, self.root))
+        self.assertEqual(ledger_path(801, self.root).read_text(encoding="utf-8").strip(), "")
         archived = self.root / ledger.review_rounds[0].source
         self.assertIn("Review Summary", archived.read_text(encoding="utf-8"))
 

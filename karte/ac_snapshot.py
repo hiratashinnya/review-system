@@ -33,25 +33,29 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
     items: list[tuple[list[str], bool | None, int]] = []
     base_indent: int | None = None
     list_context = False
-    fence: str | None = None
+    fence = None  # 全Issue本文のフェンス状態をAC節の外でも追跡
     for number, line in enumerate(body.splitlines(), start=1):
         stripped = line.strip()
         leading = line[:len(line) - len(line.lstrip(" \t"))]
         indent = len(leading)
         was_fenced = fence is not None
-        heading = HEADING.fullmatch(stripped) if not was_fenced and indent <= 3 and "\t" not in leading else None
+        # ACリスト下の字下げ見出しは子要件であり、セクション終端ではない。
+        child = (in_ac and list_context and base_indent is not None
+                 and indent >= base_indent + 2)
+        is_heading = not was_fenced and not child and indent <= 3 and "\t" not in leading
+        heading = HEADING.fullmatch(stripped) if is_heading else None
         if heading:
             if found:
                 raise KarteFormatError("Issue本文のAcceptance criteriaセクションが重複")
             in_ac, level, found = True, len(heading.group(1)), True
-        h = NEXT_HEADING.match(line) if not was_fenced else None
+        h = NEXT_HEADING.match(line) if is_heading else None
         if in_ac and not heading and h and len(h.group(1)) <= level:
             in_ac = False
-        # セクション外のコード例に含まれる偽AC見出しも無視する。
+            list_context = False
         fence = advance_fence(
             fence, line,
-            allow_indented=(in_ac and list_context and base_indent is not None
-                            and indent >= base_indent + 2),
+            list_indent=(base_indent + 2 if in_ac and list_context
+                         and base_indent is not None else None),
         )
         if heading or not in_ac:
             continue
