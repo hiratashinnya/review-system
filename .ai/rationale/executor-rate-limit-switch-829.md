@@ -197,12 +197,14 @@ agy の有効化後に Codex と agy のどちらを先に使うかは、引き�
   - 同じ role を通すのは `test-writer` と `issue-implementer` だけ（`SWITCH_ROLES`）。change-planner は Claude 固定なので、同じ role の再 dispatch は従来どおり拒否する。issue-fixer は元から継続検査の対象外である。
   - 同じ Issue・branch の最新 owner であること、`released` と `closed_at`、`collected_to` の位置、receipt の sha256、remote exact OID の照合は、通常の継続と同じくすべて要求する。
   - 既存の `tests/unit/test_author_continuation.py` は変えずに全パスする。新しい許可条件は `tests/unit/test_author_continuation_limit_switch.py` で、通る場合（2 role・dispatch parser 層）と拒否される場合（Claude 固定 role、別 role、未回収・未解放、`stop_kind` 無し、`status` が stop でない、値違い、重複、字下げ内だけ、block scalar でない、`stop_reason` 無し、非 UTF-8、receipt 改変、より新しい owner）を固定した。
+- 欄の意味：`stop_kind: codex-limit` は「上限で止まった」ではなく「上限で止まり、切替へ進める」STOP を示す。書くのは引き継ぎ commit を済ませたときと、未 commit の変更が無かったときだけで、範囲外の変更が混じる・確かめられないために commit しなかった STOP には書かない。理由は、オーナーの条件が「上限による引き継ぎ STOP」であり、引き継げなかった STOP は規範上オーナーへ打ち上げるので、その再 dispatch を継続検査が通してはならないためである。逐語はどちらの場合も `stop_reason` に残す。
 - 既知の限界：
   - `stop_kind` は role 自身の申告であり、上限で止まったことそのものを機械は確かめない。主文脈が逐語を確かめてから再 dispatch する規律と併用する。
+  - receipt の sha256 は主文脈が marker に渡す値なので、主文脈が回収 receipt に欄を書き足せば機械は止めない。主文脈は欄を書き足さず、3欄が揃わなければ打ち上げる、と規律で定めた。
   - Claude の role 自身が上限で止まったときの「同じ構成での再投入」は、同じ role の再 dispatch でも `stop_kind` を書かないので、従来どおり継続検査に拒否される。この PR では変えていない。
   - 実 dispatch の完走は未実測で、単体テストで確かめたのは継続検査と dispatch parser までである。
 - 影響範囲：コードは `issue_start/author_continuation.py` と新規の `issue_start/executor_limit_receipt.py`。文書は `.ai/skills/issue-pipeline/SKILL.md`「作者間のbranch継承」「Codex 実行者が上限で止まったときの切替」、`.claude/skills/issue-pipeline/SKILL.md`、`.ai/troubleshooting/issue-pipeline.md`、`docs/tools/issue-start-and-branch-source.md`、3 role の共通契約と wrapper。A を覆す場合は、判別子の置き場に合わせてこれらと `executor_limit_receipt.py` を書き換える。
-- 再 dispatch の入力：引き継ぎ commit で remote の OID が進むので、主文脈は `dispatch_target` と `expected_oid` をその OID で作り、引き継ぎ commit が変えた path を `binding.expected.source_changes` に加える（`codex_worktree_exec/source_snapshot.py` が承認外の path を拒否するため）。`context_id` と `handoff_path` は新しく採番する。
+- 再 dispatch の入力：引き継ぎ commit で remote の OID が進むので、主文脈は `dispatch_target` と `expected_oid` をその OID で作り、引き継ぎ commit が変えた path を `binding.expected.source_changes` に加える（`codex_worktree_exec/source_snapshot.py` が承認外の path を拒否するため）。`handoff_path` は新しく採番する。`context_id` も新しい dispatch のものにするが、コードは再利用を検査しない（規律）。
 
 #### 7. test-writer の完了 receipt の様式（new-17）
 

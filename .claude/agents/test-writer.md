@@ -24,7 +24,8 @@ Claude Code主文脈からのmanaged dispatchのみ受け、issue-start/command�
 Codexが上限で止まったら、dispatchの `handoff_path` が指す完了receiptに `status: stop`・`stop_kind: codex-limit`・
 `stop_reason`（`|` のblock scalarで、字下げした行に上限を示す出力の逐語）を書いてSTOPを返し、自分でClaude実行へ切り替えない。
 チャットにはreceiptの絶対パスを返す。記録先はこの1か所で、TestDesignには書かない。receiptの様式とTestDesignの同名欄との
-区別は[共通契約](../../.ai/agents/test-writer.md)「出力とハンドオフ」に従う。継続検査はこの3欄で上限によるSTOPと判別する。
+区別は[共通契約](../../.ai/agents/test-writer.md)「出力とハンドオフ」に従う。継続検査はこの3欄で切替へ進めるSTOPと判別するので、
+`stop_kind` は引き継ぎcommitを済ませたときか未commitの変更が無かったときだけ書き、引き継げなかったときは書かない。
 Codexが未commitの変更を残していたら、差分とテストで確かめる。依頼範囲に収まると確かめられたら、テストが赤くてもcommit・pushし、
 commit、変更path、テスト結果、残作業を逐語と一緒に `stop_reason` へ記録する。このcommitのコミットメッセージは、本文の末尾に
 `Handover: codex-limit` と、`Tests: red-unfinished`／`Tests: red-intended`／`Tests: green` のどれか1行を置く。

@@ -10,7 +10,7 @@ dispatch の戻りが `HANDOFF: <絶対パス>` でも、isolated worktree の�
 2. `agent_type` と dispatch の `branch_name` が一致する最新エントリを特定する。
 3. `collected_to` があれば `<main-worktree>/<collected_to>`（通常は `tmp/_handoff/collected/<entry-id>--<basename>`）を Read する。
 4. `collected_to` が `null` で `status` が `stopped`/`stale` の場合は、主文脈で `python3 -m gitgate collect-worktree --entry <entry-id>` を実行してから 3 を再試行する。
-5. `status: stop` の handoff は `stop_reason` とともにオーナーへ報告する。ただし `stop_kind: codex-limit` を持つ handoff（Codex 実行者の上限による STOP）は、オーナーの判断を待たずに切替の再 dispatch へ進み、報告は事実の通知に留める（`.ai/skills/issue-pipeline/SKILL.md`「Codex 実行者が上限で止まったときの切替」）。
+5. `status: stop` の handoff は `stop_reason` とともにオーナーへ報告する。ただし `stop_kind: codex-limit` を持つ handoff（Codex 実行者の上限で止まり、引き継げた STOP。引き継げなかった STOP はこの欄を持たない）は、オーナーの判断を待たずに切替の再 dispatch へ進み、報告は事実の通知に留める（`.ai/skills/issue-pipeline/SKILL.md`「Codex 実行者が上限で止まったときの切替」）。
 
 `status` が `running` のままなら回収を強行しない。handoff 未作成、契約違反、クラッシュの可能性を確認し、下記の「保留」手順へ進む。`released` なのに `collected_to` が無い場合は worktree 実体と対応 PR の有無を read-only で確認して報告する。
 

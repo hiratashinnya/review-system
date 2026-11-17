@@ -151,22 +151,24 @@ policy/catalog hash、取得surface/方法/日時、resolved ID、実使用ID、
 - **発動条件**：Codex 実行者が上限到達を示した出力の逐語があること。主文脈がその逐語を切替の記録に残してから切り替える。これは逐語による暫定運用である（オーナー決定・2026-11-16）。上限を示す文字列・終了コードは、初回に実測できた出力をこの節へ追記して定める。
 - **証拠が無い失敗は STOP する。** profile pin 拒否、timeout、権限拒否、起動失敗、検査不合格は上限の証拠ではない。遅い・無応答からの推測も証拠にしない。
 - **切替の主体は主文脈である。** role は自分で Claude 実行へ切り替えない。
-  - 書込 role：role が handoff に `status: stop`、`stop_kind: codex-limit`、証拠の逐語を書いた `stop_reason` を記録して STOP を返す。主文脈が逐語を確かめ、同じ role を Codex 実行者の指定なしで再 dispatch する。handoff は dispatch の marker が `handoff_path` で渡したファイルで、3 role とも同じ3欄を使う。`stop_kind` は上限による STOP にだけ書き、`stop_reason` は `|` の block scalar とし、逐語は字下げした行に置く（様式は `.ai/agents/test-writer.md` と `.ai/agents/issue-implementer.md` の「出力とハンドオフ」）。
+  - 書込 role：role が handoff に `status: stop`、`stop_kind: codex-limit`、証拠の逐語を書いた `stop_reason` を記録して STOP を返す。主文脈が逐語を確かめ、同じ role を Codex 実行者の指定なしで再 dispatch する。handoff は dispatch の marker が `handoff_path` で渡したファイルで、3 role とも同じ3欄を使う。`stop_reason` は `|` の block scalar とし、逐語は字下げした行に置く（様式は `.ai/agents/test-writer.md` と `.ai/agents/issue-implementer.md` の「出力とハンドオフ」）。
+  - `stop_kind: codex-limit` は「切替へ進める STOP」を示す欄である。書くのは、Codex 実行者の上限で止まり、引き継ぎ commit を済ませたとき、または未 commit の変更が無かったときだけである。上限で止まっても引き継げなかったとき（範囲外の変更が混じる、範囲に収まると確かめられない）は書かず、逐語は `stop_reason` に残す。
+  - 主文脈は、3欄が揃わない回収 receipt に欄を書き足して再 dispatch を通さない。揃わなければオーナーへ打ち上げる。receipt の sha256 は主文脈が marker に渡す値なので、書き足しは機械では止まらない。
   - read-only role：Codex を起動したのは主文脈の専用入口なので、主文脈が出力から逐語を確かめ、同じ role の Claude サブエージェントを dispatch する。
   - 回収・解放から dispatch までの既存契約は、同じ role の再 dispatch にもそのまま適用する。test-writer・issue-implementer の継続検査は通常「最新 owner が直前の工程の role」であることを要求するが、最新 owner が同じ role で、その回収 receipt が上の3欄を持つときに限って通す（`issue_start/executor_limit_receipt.py`）。3欄が揃わない STOP と、Claude 固定の role（change-planner）の同じ role への再 dispatch は、従来どおり `ISSUE_START_CONTINUATION_INVALID` で拒否される。issue-fixer は継続検査の対象外である。
-  - 主文脈は、引き継ぎ commit の後の remote exact OID で `dispatch_target` と `ISSUE_PHASE_BINDING_V1` の `expected_oid` を作り、引き継ぎ commit が変えた path を `binding.expected.source_changes` に path→sha256 で加え、新しい `context_id` と `handoff_path` を採番する。`ISSUE_PHASE_PREDECESSOR_V1` には止まった role の entry ID と回収 receipt の sha256 を渡す。
+  - 主文脈は、引き継ぎ commit の後の remote exact OID で `dispatch_target` と `ISSUE_PHASE_BINDING_V1` の `expected_oid` を作り、引き継ぎ commit が変えた path を `binding.expected.source_changes` に path→sha256 で加え（承認外の path は入力束縛が拒否する）、`handoff_path` を新しく採番する。`context_id` も新しい dispatch のものにする（コードは `context_id` の再利用を検査しないので、規律として守る）。`ISSUE_PHASE_PREDECESSOR_V1` には止まった role の entry ID と回収 receipt の sha256 を渡す。
   - 単体テストで確かめたのは継続検査と dispatch parser までで、切替の再 dispatch の完走は未実測である。
-- **上限による STOP は、この文書と troubleshooting の「STOP はオーナーへ打ち上げる」規定の例外である。** 対象は書込 role（test-writer・issue-implementer・issue-fixer）の handoff が `stop_kind: codex-limit` を持つ STOP と、read-only role（issue-investigator・adviser）の入口の出力が上限の逐語を示す停止である。主文脈はオーナーの判断を待たずに切替の再 dispatch へ進む。オーナーへの報告は切替の事実の通知であり、判断待ちではない。引き継げなかった STOP（範囲外の変更が混じる、確かめられない、上限の証拠が無い）はこの例外に当たらず、通常どおり打ち上げる。
+- **上限による STOP は、この文書と troubleshooting の「STOP はオーナーへ打ち上げる」規定の例外である。** 対象は書込 role（test-writer・issue-implementer・issue-fixer）の handoff が `stop_kind: codex-limit` を持つ STOP と、read-only role（issue-investigator・adviser）の入口の出力が上限の逐語を示す停止である。主文脈はオーナーの判断を待たずに切替の再 dispatch へ進む。オーナーへの報告は切替の事実の通知であり、判断待ちではない。引き継げなかった STOP（範囲外の変更が混じる、確かめられない、上限の証拠が無い）は `stop_kind` を持たず、この例外に当たらないので、通常どおり打ち上げる。
 - **未 commit の変更が残ったときは、role が確かめてから引き継ぐ**（オーナー決定・2026-11-16）。対象は書込 role である。
-  - role は Codex が残した変更を差分と単体テストで確かめる。依頼範囲に収まると確かめられたら、テストが赤くても commit・push し、上限の逐語、commit、変更 path、テスト結果、残作業を handoff の `stop_reason` に記録して STOP を返す。主文脈は切替の再 dispatch へ進み、切替後の Claude role はその commit の続きから行う。
+  - role は Codex が残した変更を差分と単体テストで確かめる。依頼範囲に収まると確かめられたら、テストが赤くても commit・push し、handoff に `stop_kind: codex-limit` を書き、上限の逐語、commit、変更 path、テスト結果、残作業を `stop_reason` に記録して STOP を返す。主文脈は切替の再 dispatch へ進み、切替後の Claude role はその commit の続きから行う。
   - この引き継ぎ commit は、各 role の共通契約が定める「全パスを確認してから commit／PR」に対する唯一の例外である。例外になる手順と、issue-fixer の karte の記録は、`.ai/agents/issue-fixer.md`「Codex 実行者の上限による引き継ぎ」と `.ai/agents/issue-implementer.md`「実装契約」に従う。
   - 引き継ぎ commit のコミットメッセージは、本文の末尾に次の2行を置く（オーナー決定・2026-11-16）。`Co-Authored-By` などの末尾行があるときは、その行の並びに置く。
     - `Handover: codex-limit`：Codex 実行者の上限による途中停止の引き継ぎであることを示す。引き継ぎ commit だけに書く。
     - `Tests: red-unfinished`、`Tests: red-intended`、`Tests: green` のどれか1行：commit 時点のテストの状態を示す。`red-unfinished` は未完了のために赤いテストがある、`red-intended` は赤いテストが意図した Red（test-writer の Red テスト）だけである、`green` は全パスである。
     - 未完了の赤と意図した Red が両方あるときは `Tests: red-unfinished` とし、どのテストがどちらかを本文に分けて書く。
   - 引き継ぎではない commit でも、意図した Red を含むもの（test-writer の通常の Red commit）には `Tests: red-intended` を書き、`Handover:` 行は付けない。引き継ぎかどうかは `Handover:` 行の有無で、赤の理由は `Tests:` 行で見分ける。
-  - 依頼範囲外の変更が混じっているとき、または範囲に収まると確かめられないときは、role は commit せず、変更 path と理由を handoff の `stop_reason` に記録して STOP を返す。この場合、主文脈は切替の再 dispatch をせず、オーナーへ打ち上げる。
-  - 未 commit の変更が無いときは、role は逐語を handoff の `stop_reason` に記録して STOP を返し、主文脈は切替へ進む。
+  - 依頼範囲外の変更が混じっているとき、または範囲に収まると確かめられないときは、role は commit せず、`stop_kind` を書かずに、上限の逐語、変更 path、理由を handoff の `stop_reason` に記録して STOP を返す。この場合、主文脈は切替の再 dispatch をせず、オーナーへ打ち上げる。
+  - 未 commit の変更が無いときは、role は handoff に `stop_kind: codex-limit` を書き、逐語を `stop_reason` に記録して STOP を返し、主文脈は切替へ進む。
   - 切替の再 dispatch は、書込3 role とも止まった dispatch と同じ round で行う。round はレビューを挟むごとに進める番号で、レビューを挟まない切替では進めない。`handoff_path` だけ新しく採番する。
 - **切替後の層と推論予算は Codex 実行者に指定していたもの以上にする。** 対応は下の表で引く。Claude 側の role 定義がそれを下回るなら、主文脈が dispatch で引き上げる。引き上げられなければ STOP する。主文脈による代行、層の降格、推論予算の引下げはしない。
 

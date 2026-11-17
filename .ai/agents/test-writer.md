@@ -36,7 +36,7 @@ test_design: TestDesignのrepo相対path（未成立なら空文字）
 test_design_digest: そのcommit済みbytesのSHA-256（未成立なら空文字）
 commits:
   - commit OID
-stop_kind: codex-limit（Codex実行者の上限によるSTOPのときだけ書く）
+stop_kind: codex-limit（Codex実行者の上限で止まり、切替へ進めるSTOPのときだけ書く）
 stop_reason: |
   STOPの理由（doneのときは空文字 `stop_reason: ""`）
 ```
@@ -45,9 +45,10 @@ stop_reason: |
 - 通常のSTOP（入力不一致・矛盾など）は `status: stop` と `stop_reason` を書き、`stop_kind` は書かない。
 - Codex実行者の上限でSTOPするときは、TestDesignの成立に関係なくこのreceiptだけに記録する。
   TestDesignは `red_evidence` を1件以上要するので、途中で止まると成立しないことがある。
-  `status: stop`・`stop_kind: codex-limit`・`stop_reason` の3欄を書く。継続検査はこの3欄で上限によるSTOPと判別する。
   `stop_reason` は `|` のblock scalarとし、字下げした行に上限を示す出力の逐語を書く。
-  変更を引き継いだときは、引き継ぎcommit、変更path、テスト結果、残作業も書く。commitしなかったときは、変更pathと理由を書く。
+  引き継ぎcommitを済ませたとき、または未commitの変更が無かったときは、`status: stop`・`stop_kind: codex-limit`・`stop_reason` の
+  3欄を書く。継続検査はこの3欄で切替へ進めるSTOPと判別する。引き継いだときは、引き継ぎcommit、変更path、テスト結果、残作業も書く。
+  範囲外の変更が混じる、または範囲に収まると確かめられずcommitしなかったときは、`stop_kind` を書かず、逐語、変更path、理由を書く。
 - チャットにはreceiptの絶対パスと1行要約だけを返す。STOPでもreceiptは書く。
 
 入力の `expected.work_unit` は承認CP内の単一IDへ束縛し、TestDesignの `work_unit` に保持する。TestDesignは `input_refs=[承認CPのID]` と `input_digest=そのCPのSHA-256` を記録し、別unitへ取り替えない。
