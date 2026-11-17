@@ -51,7 +51,7 @@ class TestModelCompatibilityExtra(unittest.TestCase):
         # Issue #804: 旧仕様の4例外は全て修正済みで、例外を残さない。
         self.assertEqual(GOLDEN['roundtrip_exceptions'], {})
         cases = [('base', VALID), *karte_extras()]
-        cases.extend((name, '\\n'.join(lines)) for name, lines in mutations(VALID))
+        cases.extend((name, '\n'.join(lines)) for name, lines in mutations(VALID))
         accepted = 0
         for name, text in cases:
             try:
@@ -72,7 +72,7 @@ class TestModelCompatibilityExtra(unittest.TestCase):
             'nonint-56-note': ('note', '[1x]'),
         }
         inputs = {
-            name: '\\n'.join(lines) for name, lines in mutations(VALID) if name in expected
+            name: '\n'.join(lines) for name, lines in mutations(VALID) if name in expected
         }
         self.assertEqual(set(inputs), set(expected))
         for name, (field, value) in expected.items():
@@ -86,7 +86,7 @@ class TestModelCompatibilityExtra(unittest.TestCase):
                 self.assertEqual(field_value(parsed), value)
                 for _ in range(3):
                     serialized = model.dumps(parsed)
-                    self.assertIn(f'{field}: {value}\\n', serialized)
+                    self.assertIn(f'{field}: {value}\n', serialized)
                     reparsed = model.parse(serialized)
                     self.assertEqual(reparsed, parsed)
                     self.assertEqual(field_value(reparsed), value)
