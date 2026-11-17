@@ -26,7 +26,7 @@ class LimitSwitchContinuationTests(unittest.TestCase):
                           collected_to='tmp/_handoff/collected/wl-stopped--test-writer--issue-371-phase.yaml')
         self.ack = SimpleNamespace(agent_type='test-writer', issue=371, branch_name='feature/371',
                                    expected_oid='a'*40, repository='owner/repo')
-        self.runner = lambda *a, **kw: subprocess.CompletedProcess(a, 0, 'a'*40+'\trefs/heads/feature/371\n', '')
+        self.runner = lambda *a, **_kw: subprocess.CompletedProcess(a, 0, 'a'*40+'\trefs/heads/feature/371\n', '')
         self.write_receipt(LIMIT_RECEIPT.format(role='test-writer'))
 
     def write_receipt(self, text):
@@ -99,18 +99,21 @@ class LimitSwitchContinuationTests(unittest.TestCase):
 
     def test_production_parser_accepts_same_role_limit_switch(self):
         from issue_start.gate_dispatch import parse_dispatch_payload
+        from issue_start.gate_support import IsolationOnlyAck
         binding = dict(issue=371, round=2, branch_name='feature/371', repository='owner/repo',
                        expected_oid='a'*40, handoff_path='tmp/_handoff/test-writer--issue-371-phase-switch.yaml')
         prompt = 'ISSUE_PHASE_BINDING_V1='+json.dumps(binding)+'\nISSUE_PHASE_INPUT_V1={}\n'+MARKER+json.dumps(self.raw)
-        payload = dict(tool_name='Agent', tool_input=dict(subagent_type='test-writer',
-                                                        isolation='worktree', prompt=prompt))
+        tool_input: dict[str, str] = dict(subagent_type='test-writer', isolation='worktree', prompt=prompt)
+        payload = dict(tool_name='Agent', tool_input=tool_input)
         with patch('issue_start.gate_isolation_dispatch.validate_phase_dispatch', return_value=None):
             with patch('issue_start.author_continuation.worktree_ledger.main_worktree_root', return_value=self.root), patch(
                 'issue_start.author_continuation.worktree_ledger.read_ledger', return_value={'entries': [self.entry]}):
                 ack = parse_dispatch_payload(payload, cwd=self.root, runner=self.runner)
+                self.assertIsInstance(ack, IsolationOnlyAck)
+                assert isinstance(ack, IsolationOnlyAck)
                 self.assertEqual(ack.agent_type, 'test-writer')
                 self.write_receipt('schema_version: 1\nagent: test-writer\nstatus: stop\nstop_reason: |\n  x\n')
                 prompt = prompt.rsplit(MARKER, 1)[0] + MARKER + json.dumps(self.raw)
-                payload['tool_input']['prompt'] = prompt
+                tool_input['prompt'] = prompt
                 with self.assertRaisesRegex(IssueStartError, 'CONTINUATION_INVALID'):
                     parse_dispatch_payload(payload, cwd=self.root, runner=self.runner)
