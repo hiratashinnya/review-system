@@ -25,10 +25,10 @@ selected_solution = '''
 AC-5（Issue #783 AC5: 入力整合を欠く成果は採用しない）。verify_review が、呼び出し側の期待値 expected と署名済み review の全束縛項目（issue/phase/round/run_id/target_key/input_digest/snapshot_oid/review_oid）を比較し、1 項目でも不一致なら review を採用しない。
 '''
 interfaces = '''
-対象関数は verify_review(raw, signature, key, expected)、verify_context、verify_capture、validate_proposal、codex_worktree_exec の triager_dispatch.validate_binding。いずれも不一致・欠落・形式不正は ValueError（CLI 経由では終了コード 2 と CODEX_EXEC_TRIAGER_INVALID）。
+関数として直接呼ぶ範囲: verify_review(raw, signature, key, expected)、verify_context、verify_capture、validate_proposal は、不一致・欠落・形式不正を ValueError で拒否する。CLI 経由の範囲: codex_worktree_exec の triager_dispatch.validate_binding を含む dispatch は、ValueError のほか KeyError・OSError・subprocess のエラーも CODEX_EXEC_TRIAGER_INVALID に変換し、終了コード 2 で終了する（ST-1〜ST-5 の対象。validate_binding の直接呼び出しは UT の対象にしない）。
 '''
 invariants = '''
-全束縛項目（issue/phase/round/run_id/target_key/input_digest/snapshot_oid/review_oid）が一致した場合だけ review を受理する。除外される項目はない。この計画は新しい振る舞いを足さず、基準コードの既存の拒否経路を維持し、Issue #783 AC5 前半の回帰テストで固定する（VD-783 の UT-1〜UT-12・ST-1〜ST-5）。
+次の不変条件を維持し、各条件を VD-783 のケースで固定する。(1) 署名: review の署名（UT-2）、capture の署名（UT-7）、binding の署名（ST-1）、receipt の署名（ST-2）が正しいものだけを採用する。(2) 束縛: verify_review と verify_capture は 8 項目（issue/phase/round/run_id/target_key/input_digest/snapshot_oid/review_oid）の全てを review と照合し、除外される項目はない（UT-3・UT-7・UT-10）。verify_context は issue/snapshot_oid/review_oid/input_digest の 4 項目を照合し（UT-9）、context digest を検査する（UT-6）。(3) 形式・欠落・構造（UT-4・UT-5・UT-11・UT-12）。(4) triager worktree の HEAD は review_oid と一致する（ST-3）。(5) reviewer worktree は triager 自身と別の登録済み worktree（ST-4）。(6) review 鍵と capture 鍵は別（ST-5）。この計画は新しい振る舞いを足さず、基準コードの既存の拒否経路を維持し、Issue #783 AC5 前半の回帰テストで固定する。
 '''
 failure_behavior = '''
 不一致・署名不正・欠落・形式不正は ValueError で拒否し、triage 成果物を生成しない（fail-close）。
@@ -37,7 +37,7 @@ oos = '''
 triage の自動処置・台帳更新・merge は対象外。AC5 後半（元成果の不変）は Issue #852 の E01・E07、出力先の扱いと子プロセス失敗は E09、評価の完全性は #783 の AC3 で扱う。VD-783 が委譲した経路（E07）も対象外。
 '''
 operational_verification = '''
-2a で VD-783 の UT-1〜UT-12 を UT-TD/UT-TC として著作し、ST-1〜ST-5 を実 CLI で実施する。束縛項目を 1 つずつ変えた入力で verify_review・verify_capture・verify_context がすべて ValueError になること。
+2a で VD-783 の UT-1〜UT-12 を UT-TD/UT-TC として著作し、ST-1〜ST-5 を実 CLI で実施する。照合項目は関数ごとに異なる: verify_review と verify_capture は 8 項目を 1 つずつ変えた入力で ValueError、verify_context は 4 項目（issue/snapshot_oid/review_oid/input_digest）を 1 つずつ変えた入力で ValueError になること。
 '''
 adr_refs = []
 
