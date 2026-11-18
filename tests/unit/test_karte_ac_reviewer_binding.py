@@ -90,13 +90,13 @@ class ACReviewerBindingTest(unittest.TestCase):
                     self.assertEqual(self.activate()[0], EXIT_OK)
                     missing, _, _ = self.ingest(
                         self.make_report(count=1, digest_value=digest(criteria)),
-                        f"pr-reviewer--gfm-missing-{first.replace('.', 'dot').replace(')', 'paren')}.md",
+                        f"pr-reviewer--gfm-missing-{first.replace('+', 'plus').replace('.', 'dot').replace(')', 'paren')}.md",
                     )
                     self.assertEqual(EXIT_ERROR, missing)
                     self.assertFalse(paths.karte_path(801, root).exists())
                     valid, _, err = self.ingest(
                         self.make_report(count=2, digest_value=digest(criteria)),
-                        f"pr-reviewer--gfm-valid-{first.replace('.', 'dot').replace(')', 'paren')}.md",
+                        f"pr-reviewer--gfm-valid-{first.replace('+', 'plus').replace('.', 'dot').replace(')', 'paren')}.md",
                     )
                     self.assertEqual(EXIT_OK, valid, err)
                     decisions = (SimpleNamespace(number=1, result="satisfied"),
