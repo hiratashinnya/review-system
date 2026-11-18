@@ -1,0 +1,12 @@
+# 2026-10 / 11 部分照合
+
+対象158件。Open Issue の PR 関連状態と旧スナップショットの矛盾候補。本文記述が歴史的スナップショットなら追加検証が必要。
+
+- #575「agy-delegate／silent-failure-diagnosis を .ai 正本構成で作り直し、agy 直接実行へ移行して agy-mcp-bridge を撤去する（PR #259・#260 の再実装）」：廃止・置換可能性の要確認。参照PR: #259 closed, #260 closed
+- #606「agy-delegate を agy 直接実行ラッパーへ移行し、許可ルール検査と規範を整備する（#575 の子 S1）」：PR #680 merged / Codex（AI）による2026-11-03更新：PR #680→#627 の main 到達と #628 実機5UCの既存根拠に加え、#726 マージ後の Codex 専用 delegate の共有リファレンス読込と実行経路の live 検証を反映しました。Claude の共有リファレンス読込と受入範囲全体の最終独立レビューは未完了で、Issue は open を維持します。#676/#679 への切出しと owner waiver は維持し、それらを今回解消したとは扱いません。。参照PR: #680 merged, #615 merged
+- #607「agy-mcp-bridge を撤去する（MCP 登録と実体の削除・オーナー実行）（#575 の子 S3）」：廃止・置換可能性の要確認。参照PR: #680 merged
+- #679「agy-delegate: 会話記録・結果ファイルの確定と CLI 返却の一致（二重故障の窓）」：PR #627 merged / PR #627（Issue #606 の agy-delegate 直接実行ラッパー実装・draft）の Codex 再レビュー（ffe61dc・e8e31af）で、所見 F-606-34・F-606-35 が報告された。オーナー判断により、この所見が指す残存問題を #606・PR #627 から切り出し、本 Issue で扱う。。参照PR: #627 merged, #733 merged
+- #691「[トラッキング] レビュー指摘の自動仕分けとAdvisory中央台帳を導入する」：PR #696 merged / - **コード統合前提（PRはIssue blockerへ置換しない）**: #784でPR #696→#697のmain統合確認。#785は統合後のKarteを対象とし、#745 Stack Kと同一ファイルを並行編集しない。。参照PR: #696 merged, #816 open
+- #745「[Tracking / Refactor] maintainability_lint 既存負債75件を全解消する（33ファイル・領域別stack）」：PR #696 merged / - karte: PR #696 → PR #697（#375関連）。PR #696/#697は現状open・mergeable=falseであり、競合と独立レビューを先に解決。；PR #697 merged / - karte: PR #696 → PR #697（#375関連）。PR #696/#697は現状open・mergeable=falseであり、競合と独立レビューを先に解決。；PR #740 merged / - branch_source: PR #740 → PR #741（#719関連）。現状open・mergeable=true。；PR #741 merged / - branch_source: PR #740 → PR #741（#719関連）。現状open・mergeable=true。。参照PR: #696 merged, #697 merged, #740 merged, #741 merged
+- #802「[#375 子3] Claude pr-reviewer 実機で finding が欠落なく karte へ取り込まれることを実測する」：PR #697 merged / - PR #697（draft）本文の記載：Claude `pr-reviewer` 実機で finding が欠落なく取り込まれることの実測は未完了。PR #697 の検証は単体テスト（本文記載で 2,879 件成功）と CI であり、実エージェントでの実測ではない。。参照PR: #697 merged
+- #803「[#375 子4] pr-reviewer の権限分離を機械で強制する（PR コメント投稿経路・worktree 隔離・Write パス制限の hook 依存）」：PR #697 merged / - 3点目（hook の fail-open）は #375 の AC として明示されていなかった論点で、PR #697 のレビュー（カルテ issue-375 の `F-375-26` として主文脈が記録する予定・本起票時点の `tmp/_karte/issue-375.md` は `F-375-23` までで未記載）に由来する。；PR #479 merged / - 関連：#694 項目 (10)（同じ hook の fail-open。境界は上記）、#129（`agent-command-gate` の静的検査の限界）、#340（gate の内部例外は deny にする・close 済み）、#337（`pr-reviewer` の権限に関する調査・close 済み。権限を増減する設計のため判断を踏まえる）、#452（Codex の implementer/fixer の隔離を機械束縛・close 済み）、#517、#409、#386、#722（SubagentStop ゲ。参照PR: #697 merged, #479 merged
