@@ -52,7 +52,10 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
             # Setext heading title was provisionally included in the last AC.
             if line.strip().startswith(("=", "-")) and items and items[-1][0]:
                 if items[-1][0][-1] == lines[number - 2]:
-                    items[-1][0].pop()
+                    if len(items[-1][0]) == 1 and items[-1][2] == number - 1:
+                        items.pop()
+                    else:
+                        items[-1][0].pop()
             in_ac = False
             list_context = False
         fence = advance_fence(
