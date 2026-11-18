@@ -48,28 +48,71 @@ class TestModelCompatibilityExtra(unittest.TestCase):
         self.assertEqual((model.FORMAT_VERSION, model.SHINGLE_SIZE, model.DUPLICATE_SIMILARITY_THRESHOLD), (1, 2, 0.6))
 
     def test_parse_roundtrip_for_all_successful_inputs(self):
+        # Issue #804: 旧仕様の4例外は全て修正済みで、例外を残さない。
+        self.assertEqual(GOLDEN['roundtrip_exceptions'], {})
         cases = [('base', VALID), *karte_extras()]
         cases.extend((name, '\n'.join(lines)) for name, lines in mutations(VALID))
         accepted = 0
-        exceptions = set()
         for name, text in cases:
             try:
                 parsed = model.parse(text)
             except model.KarteFormatError:
                 continue
             with self.subTest(name=name):
-                again = model.parse(model.dumps(parsed))
-                if name in GOLDEN['roundtrip_exceptions']:
-                    before = parsed.attempts[0].diagnosis if 'diagnosis' in name else parsed.results[0].note
-                    after = again.attempts[0].diagnosis if 'diagnosis' in name else again.results[0].note
-                    self.assertEqual({'before': before, 'after': after}, GOLDEN['roundtrip_exceptions'][name])
-                    self.assertNotEqual(again, parsed)
-                    exceptions.add(name)
-                else:
-                    self.assertEqual(again, parsed)
+                self.assertEqual(model.parse(model.dumps(parsed)), parsed)
             accepted += 1
         self.assertGreater(accepted, 1)
-        self.assertEqual(exceptions, set(GOLDEN['roundtrip_exceptions']))
+
+    def test_bracketed_diagnosis_and_note_remain_stable(self):
+        # 原因となった4入力を明示的に固定し、複数回の書き戻しも検証する。
+        expected = {
+            'list-49-diagnosis': ('diagnosis', '[x, y]'),
+            'nonint-49-diagnosis': ('diagnosis', '[1x]'),
+            'list-56-note': ('note', '[x, y]'),
+            'nonint-56-note': ('note', '[1x]'),
+        }
+        inputs = {
+            name: '\n'.join(lines) for name, lines in mutations(VALID) if name in expected
+        }
+        self.assertEqual(set(inputs), set(expected))
+        for name, (field, value) in expected.items():
+            with self.subTest(name=name):
+                parsed = model.parse(inputs[name])
+                def field_value(record):
+                    if field == 'diagnosis':
+                        return record.attempts[0].diagnosis
+                    return record.results[0].note
+
+                self.assertEqual(field_value(parsed), value)
+                for _ in range(3):
+                    serialized = model.dumps(parsed)
+                    self.assertIn(f'{field}: {value}\n', serialized)
+                    reparsed = model.parse(serialized)
+                    self.assertEqual(reparsed, parsed)
+                    self.assertEqual(field_value(reparsed), value)
+                    parsed = reparsed
+
+    def test_empty_brackets_empty_and_plain_text_are_stable(self):
+        # Issue #804: リスト風の空値と普通のスカラも既存のまま保持する。
+        originals = {
+            'diagnosis': 'dict リテラルで作り直している',
+            'note': 'aria が欠ける',
+        }
+        for field, original in originals.items():
+            for value in ('[]', '', 'plain text'):
+                with self.subTest(field=field, value=value):
+                    source = VALID.replace(f'{field}: {original}', f'{field}: {value}', 1)
+                    self.assertNotEqual(source, VALID)
+                    parsed = model.parse(source)
+                    for _ in range(3):
+                        record_value = (parsed.attempts[0].diagnosis if field == 'diagnosis'
+                                        else parsed.results[0].note)
+                        self.assertEqual(record_value, value)
+                        serialized = model.dumps(parsed)
+                        self.assertIn(f'{field}: {value}\n', serialized)
+                        parsed_again = model.parse(serialized)
+                        self.assertEqual(parsed_again, parsed)
+                        parsed = parsed_again
 
     def test_dedup_boundaries(self):
         for value, expected in GOLDEN['normalize']:
