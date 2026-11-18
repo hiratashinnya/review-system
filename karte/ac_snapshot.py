@@ -75,7 +75,7 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
             else:
                 items.append(([plain.group(1).strip()], None, number))
         elif items:
-            if (stripped and fence is None and base_indent is not None
+            if (stripped and next_level is None and fence is None and base_indent is not None
                     and indent <= base_indent and items[-1][0]
                     and not items[-1][0][-1].strip()):
                 items.append(([line], None, number))
