@@ -76,8 +76,8 @@ finding_refs: [new@1]
 - **移行状態・既知の制約**：旧来の指摘ありレポートはSummaryなしでも受理する。
   review envelopeにAC snapshotが必須で、無しの起動・取り込み・Codex起動は拒否する。
   旧finding-only経路は `activate --legacy-finding-only` の明示指定を要し、0件Review Summaryとしての受理を禁止する。
-  owner reportのチェック更新はCLI書込入口への強制結線がなく、書込前の機械停止を保証しない。
-  これらはPR #846の未完了条件である。経緯・方式選択の理由は
+  owner reportのACチェック更新は `python3 -m karte.ac_owner_update --issue N --round R --repository owner/repo --snapshot-source <activateで保存したsource>` の専用入口のみを使用し、一般の `gh issue edit` によるAC自動チェック更新は禁止する。`--dry-run` は書込なし。
+  この入口は受理済みreview原本のdigest・最新round・clean判定・AC原本を照合し、live本文を再取得して必要なcheckboxだけを更新し、再取得で完全一致を確認する。GitHub APIの競合（2回目の読取とPATCHの間）と、別の任意GitHub書込入口の存在は完全には排除しない。経緯・方式選択の理由は
   [rationale](../.ai/rationale/issue-801-review-round-ac.md) を参照する。
 
 ## `scope` / `disposition` と `status` の verdict（Issue #495）
