@@ -44,3 +44,15 @@ def heading_level(lines: list[str], number: int, allowed: bool) -> int | None:
             or LIST_LINE.match(previous)):
         return None
     return 1 if line.strip().startswith("=") else 2
+
+
+def remove_setext_title(lines: list[str], number: int, items: list) -> None:
+    """Remove the Setext title line previously classified as AC prose."""
+    if (not lines[number - 1].strip().startswith(("=", "-"))
+            or number < 2 or not items or not items[-1][0]
+            or items[-1][0][-1] != lines[number - 2]):
+        return
+    if len(items[-1][0]) == 1 and items[-1][2] == number - 1:
+        items.pop()
+    else:
+        items[-1][0].pop()

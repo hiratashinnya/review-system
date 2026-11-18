@@ -11,7 +11,7 @@ import re
 
 from .format_error import KarteFormatError
 from .ac_snapshot_fence import advance as advance_fence
-from .ac_snapshot_heading import heading_level, section_level
+from .ac_snapshot_heading import heading_level, remove_setext_title, section_level
 
 CHECKBOX = re.compile(r"^(\s*[-*]\s+)\[([ xX])\](\s+\S.*)$")
 ITEM = re.compile(r"^\s*(?:[-*]|[1-9][0-9]*[.)])\s+(\S.*)$")
@@ -49,13 +49,7 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
             in_ac, level, found = True, heading, True
         next_level = heading_level(lines, number, is_heading)
         if in_ac and not heading and next_level is not None and next_level <= level:
-            # Setext heading title was provisionally included in the last AC.
-            if line.strip().startswith(("=", "-")) and items and items[-1][0]:
-                if items[-1][0][-1] == lines[number - 2]:
-                    if len(items[-1][0]) == 1 and items[-1][2] == number - 1:
-                        items.pop()
-                    else:
-                        items[-1][0].pop()
+            remove_setext_title(lines, number, items)
             in_ac = False
             list_context = False
         fence = advance_fence(
