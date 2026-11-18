@@ -68,6 +68,44 @@ class ACReviewerBindingTest(unittest.TestCase):
         self.assertEqual(self.ingest(self.make_report())[0], EXIT_ERROR)
         self.assertFalse(paths.karte_path(801, self.root).exists())
 
+    def test_gfm_task_list_rejects_missing_ac_and_preserves_checked_regression(self):
+        from karte.ac_check_update import plan
+        from karte.errors import KarteUsageError
+        from types import SimpleNamespace
+
+        for first, second in (("+", "+"), ("1.", "2."), ("1)", "2)"), ("0.", "1.")):
+            with self.subTest(marker=first), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "tmp" / "_handoff").mkdir(parents=True)
+                old_root, old_source = self.root, self.source
+                try:
+                    self.root = root
+                    self.source = root / "tmp" / "issue.md"
+                    body = (f"## Acceptance criteria\n{first} [ ] AC1\n"
+                            f"{second} [x] AC2\n")
+                    self.source.write_text(body, encoding="utf-8")
+                    criteria = from_issue_body(body)
+                    self.assertEqual(2, len(criteria))
+                    self.assertEqual([False, True], [ac.checked for ac in criteria])
+                    self.assertEqual(self.activate()[0], EXIT_OK)
+                    missing, _, _ = self.ingest(
+                        self.make_report(count=1, digest_value=digest(criteria)),
+                        f"pr-reviewer--gfm-missing-{first.replace('.', 'dot').replace(')', 'paren')}.md",
+                    )
+                    self.assertEqual(EXIT_ERROR, missing)
+                    self.assertFalse(paths.karte_path(801, root).exists())
+                    valid, _, err = self.ingest(
+                        self.make_report(count=2, digest_value=digest(criteria)),
+                        f"pr-reviewer--gfm-valid-{first.replace('.', 'dot').replace(')', 'paren')}.md",
+                    )
+                    self.assertEqual(EXIT_OK, valid, err)
+                    decisions = (SimpleNamespace(number=1, result="satisfied"),
+                                 SimpleNamespace(number=2, result="not_met"))
+                    with self.assertRaisesRegex(KarteUsageError, "オーナー判断"):
+                        plan(body, body, decisions)
+                finally:
+                    self.root, self.source = old_root, old_source
+
     def test_zero_findings_accepts_and_persists(self):
         self.assertEqual(self.activate()[0], EXIT_OK)
         code, _, err = self.ingest(self.make_report())

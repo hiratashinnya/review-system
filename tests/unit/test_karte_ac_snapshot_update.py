@@ -31,6 +31,46 @@ class ACSnapshotUpdateTest(unittest.TestCase):
         self.assertNotEqual(digest(before), digest(from_issue_body(BODY.replace("AC1 動作する", "AC1 改訂"))))
         self.assertNotEqual(digest(before), digest(from_issue_body(BODY.replace("[ ] AC1", "[x] AC1"))))
 
+    def test_gfm_task_list_markers_are_independent_ac_with_checked_state(self):
+        markers = (
+            ("-", "-"), ("*", "*"), ("+", "+"),
+            ("1.", "2."), ("1)", "2)"), ("0.", "1."), ("12.", "13."),
+        )
+        for first, second in markers:
+            with self.subTest(marker=first):
+                body = ("## Acceptance criteria\n"
+                        f"{first} [ ] AC1\n{second} [x] AC2\n"
+                        "\n## Notes\n- [ ] unrelated\n")
+                items = from_issue_body(body)
+                self.assertEqual(2, len(items))
+                self.assertEqual(["AC1", "AC2"], [ac.text for ac in items])
+                self.assertEqual([False, True], [ac.checked for ac in items])
+                self.assertNotEqual(digest(items), digest(from_issue_body(
+                    body.replace("AC2", "updated AC2"))))
+                updated, changed = plan(body, body, judge("satisfied", "satisfied"))
+                self.assertEqual([1], changed)
+                self.assertIn(f"{first} [x] AC1", updated)
+                self.assertIn(f"{second} [x] AC2", updated)
+                self.assertIn("- [ ] unrelated", updated)
+                with self.assertRaisesRegex(KarteUsageError, "オーナー判断"):
+                    plan(body, body, judge("satisfied", "not_met"))
+
+    def test_gfm_task_list_inside_indented_code_or_child_is_not_top_ac(self):
+        body = ("## Acceptance criteria\n"
+                "    + [ ] indented example\n"
+                "+ [ ] AC1\n"
+                "  1. [ ] nested example\n"
+                "1. [ ] AC2\n")
+        items = from_issue_body(body)
+        self.assertEqual(2, len(items))
+        self.assertIn("nested example", items[0].text)
+        updated, changed = plan(body, body, judge("satisfied", "satisfied"))
+        self.assertEqual([1, 2], changed)
+        self.assertIn("    + [ ] indented example", updated)
+        self.assertIn("  1. [ ] nested example", updated)
+        self.assertIn("+ [x] AC1", updated)
+        self.assertIn("1. [x] AC2", updated)
+
     def test_only_satisfied_ac_is_checked_and_unrelated_edit_survives(self):
         live = BODY.replace("# Issue", "# Owner edited issue")
         updated, changed = plan(BODY, live, judge("satisfied", "unverified", "satisfied"))

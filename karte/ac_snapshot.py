@@ -13,8 +13,8 @@ from .format_error import KarteFormatError
 from .ac_snapshot_fence import advance as advance_fence
 from .ac_snapshot_heading import heading_level, remove_setext_title, section_level
 
-CHECKBOX = re.compile(r"^(\s*[-*]\s+)\[([ xX])\](\s+\S.*)$")
-ITEM = re.compile(r"^\s*(?:[-*]|[1-9][0-9]*[.)])\s+(\S.*)$")
+CHECKBOX = re.compile(r"^(\s*(?:[-*+]|[0-9]{1,9}[.)])\s+)\[([ xX])\](\s+\S.*)$")
+ITEM = re.compile(r"^\s*(?:[-*+]|[0-9]{1,9}[.)])\s+(\S.*)$")
 
 
 @dataclass(frozen=True)
