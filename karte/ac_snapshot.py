@@ -30,7 +30,7 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
         raise KarteFormatError("Issue本文は文字列であること")
     in_ac, level, found = False, 0, False
     items: list[tuple[list[str], bool | None, int]] = []
-    base_indent: int | None = None
+    base_indent = content_indent = None
     list_context = False
     fence = None  # 全Issue本文のフェンス状態をAC節の外でも追跡
     lines = body.splitlines()
@@ -54,8 +54,7 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
             list_context = False
         fence = advance_fence(
             fence, line,
-            list_indent=(base_indent + 2 if in_ac and list_context
-                         and base_indent is not None else None),
+            list_indent=(content_indent if in_ac and list_context else None),
         )
         if heading or not in_ac:
             continue
@@ -68,6 +67,7 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
         )
         if is_top_item:
             list_context = True
+            content_indent = len(checkbox.group(1)) if checkbox else len(line) - len(plain.group(1))
             if base_indent is None:
                 base_indent = indent
             if checkbox is not None:

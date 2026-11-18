@@ -220,6 +220,25 @@ class ACSnapshotUpdateTest(unittest.TestCase):
         self.assertEqual(changed, [1, 2])
         self.assertIn("- [x] AC2", updated)
 
+    def test_padded_list_marker_fence_closes_relative_to_content_indent(self):
+        body = ("## Acceptance criteria\n"
+                "-   [ ] AC1\n"
+                "    ```text\n"
+                "    example\n"
+                "      ```\n"
+                "- [ ] AC2\n")
+        items = from_issue_body(body)
+        self.assertEqual(2, len(items))
+        self.assertTrue(items[0].text.startswith("AC1"))
+        self.assertEqual("AC2", items[1].text)
+        self.assertNotEqual(
+            digest(items), digest(from_issue_body(body.replace("AC2", "new AC2"))),
+        )
+        updated, changed = plan(body, body, judge("satisfied", "satisfied"))
+        self.assertEqual([1, 2], changed)
+        self.assertIn("-   [x] AC1", updated)
+        self.assertIn("- [x] AC2", updated)
+
     def test_fence_info_string_does_not_close_and_hide_next_ac(self):
         body = ("## Acceptance criteria\n"
                 "- [ ] AC1\n"
