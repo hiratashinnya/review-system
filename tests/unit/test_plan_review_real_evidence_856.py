@@ -73,9 +73,15 @@ class PlanReviewRealEvidence856Tests(unittest.TestCase):
     def test_non_planreview_cases_are_not_claimed_as_1a_1b(self):
         cases = load_cases()
         for case in cases:
-            if case["kind"] in ("design-review-karte", "pr-review-recheck",
-                                "pr-review-finding", "pr-review-owner-decision"):
+            if case["kind"] in ("design-review-karte", "implementation-review-karte",
+                                "pr-review-recheck", "pr-review-finding",
+                                "pr-review-owner-decision"):
                 self.assertNotIn(case["phase"], ("1a", "1b"))
+        by_id = {case["id"]: case for case in cases}
+        self.assertEqual(by_id["809-F21-owner"]["kind"],
+                         "implementation-review-karte")
+        self.assertEqual(by_id["809-F01-design"]["kind"],
+                         "design-review-karte")
         audit = AUDIT.read_text(encoding="utf-8")
         self.assertIn("F-809-01", audit)
         self.assertIn("PR #731", audit)
