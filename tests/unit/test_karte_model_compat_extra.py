@@ -92,6 +92,28 @@ class TestModelCompatibilityExtra(unittest.TestCase):
                     self.assertEqual(field_value(reparsed), value)
                     parsed = reparsed
 
+    def test_empty_brackets_empty_and_plain_text_are_stable(self):
+        # Issue #804: リスト風の空値と普通のスカラも既存のまま保持する。
+        originals = {
+            'diagnosis': 'dict リテラルで作り直している',
+            'note': 'aria が欠ける',
+        }
+        for field, original in originals.items():
+            for value in ('[]', '', 'plain text'):
+                with self.subTest(field=field, value=value):
+                    source = VALID.replace(f'{field}: {original}', f'{field}: {value}', 1)
+                    self.assertNotEqual(source, VALID)
+                    parsed = model.parse(source)
+                    for _ in range(3):
+                        record_value = (parsed.attempts[0].diagnosis if field == 'diagnosis'
+                                        else parsed.results[0].note)
+                        self.assertEqual(record_value, value)
+                        serialized = model.dumps(parsed)
+                        self.assertIn(f'{field}: {value}\n', serialized)
+                        parsed_again = model.parse(serialized)
+                        self.assertEqual(parsed_again, parsed)
+                        parsed = parsed_again
+
     def test_dedup_boundaries(self):
         for value, expected in GOLDEN['normalize']:
             self.assertEqual(model.normalize_text(value), expected)
