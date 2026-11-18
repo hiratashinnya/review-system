@@ -7,6 +7,7 @@ from . import ac_owner_evidence, ac_owner_github, paths
 from .ac_check_update import plan, verify_written
 from .errors import KarteUsageError
 from .format_error import KarteFormatError
+from .int_args import parse_int
 
 
 def perform(repo_root, issue, round_no, snapshot_source, repository, *,
@@ -44,11 +45,9 @@ def main(argv=None):
     try:
         # Reject noncanonical integers rather than silently normalizing an Issue.
         issue = paths.validate_issue(args.issue)
-        if not args.round.isascii() or not args.round.isdecimal() or args.round.startswith("0"):
-            raise KarteUsageError("roundは1以上のASCII整数")
-        round_no = int(args.round)
-        if round_no < 1:
-            raise KarteUsageError("roundは1以上のASCII整数")
+        if args.round.startswith("0"):
+            raise KarteUsageError("roundは1以上のASCII整数（前置ゼロ不可）")
+        round_no = parse_int(args.round, "round")
         root = Path(args.repo_root).resolve()
         changes = perform(root, issue, round_no, args.snapshot_source,
                           args.repository, dry_run=args.dry_run)
