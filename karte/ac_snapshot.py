@@ -49,6 +49,10 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
             in_ac, level, found = True, heading, True
         next_level = heading_level(lines, number, is_heading)
         if in_ac and not heading and next_level is not None and next_level <= level:
+            # Setext heading title was provisionally included in the last AC.
+            if line.strip().startswith(("=", "-")) and items and items[-1][0]:
+                if items[-1][0][-1] == lines[number - 2]:
+                    items[-1][0].pop()
             in_ac = False
             list_context = False
         fence = advance_fence(
