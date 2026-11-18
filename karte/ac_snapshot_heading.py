@@ -26,6 +26,8 @@ def section_level(lines: list[str], number: int, allowed: bool) -> int | None:
 
 ATX_GENERIC = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+|$)")
 LIST_LINE = re.compile(r"^ {0,3}(?:[-*+]|[0-9]+[.)])[ \t]+")
+FENCE_MARKER = re.compile(r"^ {0,3}(?:`{3,}|~{3,})[ \t]*$")
+THEMATIC_BREAK = re.compile(r"^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})$")
 
 
 def heading_level(lines: list[str], number: int, allowed: bool) -> int | None:
@@ -41,7 +43,10 @@ def heading_level(lines: list[str], number: int, allowed: bool) -> int | None:
     previous = lines[number - 2]
     leading = previous[:len(previous) - len(previous.lstrip(" \t"))]
     if (not previous.strip() or len(leading) > 3 or "\t" in leading
-            or LIST_LINE.match(previous)):
+            or LIST_LINE.match(previous) or ATX_GENERIC.match(previous)
+            or FENCE_MARKER.fullmatch(previous)
+            or THEMATIC_BREAK.fullmatch(previous)
+            or previous.lstrip().startswith(">")):
         return None
     return 1 if line.strip().startswith("=") else 2
 

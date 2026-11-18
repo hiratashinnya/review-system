@@ -266,6 +266,38 @@ class ACReviewerBindingTest(unittest.TestCase):
                     finally:
                         self.root, self.source = previous_root, previous_source
 
+    def test_thematic_break_cannot_hide_ac_from_reviewer_ingest(self):
+        cases = (
+            "### Details\n---\n",
+            "    ```text\n    example\n    ```\n---\n",
+        )
+        for index, between in enumerate(cases):
+            with self.subTest(index=index), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "tmp" / "_handoff").mkdir(parents=True)
+                old_root, old_source = self.root, self.source
+                try:
+                    self.root = root
+                    self.source = root / "tmp" / "issue.md"
+                    body = "## Acceptance criteria\n- [ ] AC1\n\n" + between + "- [ ] AC2\n"
+                    self.source.write_text(body, encoding="utf-8")
+                    criteria = from_issue_body(body)
+                    self.assertEqual(2, len(criteria))
+                    self.assertEqual(self.activate()[0], EXIT_OK)
+                    wrong, _, _ = self.ingest(
+                        self.make_report(count=1, digest_value=digest(criteria)),
+                        f"pr-reviewer--missing-ac-{index}.md",
+                    )
+                    self.assertEqual(EXIT_ERROR, wrong)
+                    self.assertFalse(paths.karte_path(801, root).exists())
+                    valid, _, err = self.ingest(
+                        self.make_report(count=2, digest_value=digest(criteria)),
+                        f"pr-reviewer--both-ac-{index}.md",
+                    )
+                    self.assertEqual(EXIT_OK, valid, err)
+                finally:
+                    self.root, self.source = old_root, old_source
+
     def test_cancelled_envelope_cannot_be_reused_for_new_issue_body(self):
         from karte.active_pointer import read_active
 

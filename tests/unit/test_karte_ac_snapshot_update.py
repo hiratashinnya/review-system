@@ -123,6 +123,27 @@ class ACSnapshotUpdateTest(unittest.TestCase):
                     self.assertEqual(indexes, [1])
                     self.assertIn("- [x] real condition", updated)
 
+    def test_thematic_break_after_atx_or_fence_is_not_a_setext_heading(self):
+        cases = (
+            "### Details\n---\n",
+            "### Details ###\n---\n",
+            "    ```text\n    example\n    ```\n---\n",
+            "    ~~~text\n    example\n    ~~~\n---\n",
+        )
+        for between in cases:
+            with self.subTest(between=between):
+                body = "## Acceptance criteria\n- [ ] AC1\n\n" + between + "- [ ] AC2\n"
+                items = from_issue_body(body)
+                self.assertEqual(2, len(items))
+                self.assertEqual("AC2", items[1].text)
+                self.assertNotEqual(
+                    digest(items), digest(from_issue_body(body.replace("AC2", "changed AC2"))),
+                )
+                updated, changed = plan(body, body, judge("satisfied", "satisfied"))
+                self.assertEqual([1, 2], changed)
+                self.assertIn("- [x] AC1", updated)
+                self.assertIn("- [x] AC2", updated)
+
     def test_setext_end_heading_excludes_checkbox_outside_ac(self):
         cases = (
             ("## Acceptance criteria", "Notes\n-----"),
