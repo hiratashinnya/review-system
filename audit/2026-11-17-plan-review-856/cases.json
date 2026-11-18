@@ -1,0 +1,197 @@
+{
+  "schema": "plan-review-evidence-856/v1",
+  "description": "Source-linked observations; NOT an LLM reviewer oracle, and no row asserts original PlanReview finding content unless independently archived.",
+  "cases": [
+    {
+      "id": "655-1a-r2-F16-21",
+      "source": "https://github.com/hiratashinnya/review-system/issues/662",
+      "kind": "phase-review-attestation",
+      "phase": "1a",
+      "finding_ids": [
+        "F-655-16",
+        "F-655-17",
+        "F-655-18",
+        "F-655-19",
+        "F-655-20",
+        "F-655-21"
+      ],
+      "rounds": [
+        2
+      ],
+      "resolved_round": null,
+      "observed": "r3 branch commit is described as remediation of r2 findings; finding text and review recheck not public",
+      "classification": "incomplete-finding-provenance",
+      "contract_anchor": [
+        "当該snapshot時点で有効",
+        "前回finding",
+        "実行基盤のdispatch/branch/recovery障害"
+      ]
+    },
+    {
+      "id": "655-1a-r7-owner",
+      "source": "https://github.com/hiratashinnya/review-system/pull/684",
+      "kind": "phase-review-owner-decision-attestation",
+      "phase": "1a",
+      "finding_ids": [],
+      "rounds": [
+        7
+      ],
+      "resolved_round": null,
+      "observed": "Owner selected failure test ID set parity; concrete bytecode strategy deferred to 1b CP; source ledger round=0/no finding link",
+      "classification": "owner-decision-not-reviewer-invented-ac",
+      "contract_anchor": [
+        "実現手段を確定・強制せず",
+        "未承認の方式決定",
+        "決定が必要なら未決のまま合格させずSTOPする"
+      ]
+    },
+    {
+      "id": "809-F01-design",
+      "source": "https://github.com/hiratashinnya/review-system/pull/809#issuecomment-6888926449",
+      "kind": "design-review-karte",
+      "phase": "design-not-formal-1a-1b",
+      "finding_ids": [
+        "F-809-01"
+      ],
+      "rounds": [
+        1,
+        2
+      ],
+      "resolved_round": 2,
+      "observed": "Target binding prevents inappropriate stall exemption; finding resolved in r2",
+      "classification": "valid-harm-and-same-id-recheck",
+      "contract_anchor": [
+        "重大な実害を生む欠落",
+        "依然残る差分または新証拠",
+        "是正で欠陥が残るなら再掲を省略せず"
+      ]
+    },
+    {
+      "id": "809-F07-design",
+      "source": "https://github.com/hiratashinnya/review-system/pull/809#issuecomment-6888926449",
+      "kind": "design-review-karte",
+      "phase": "design-not-formal-1a-1b",
+      "finding_ids": [
+        "F-809-07"
+      ],
+      "rounds": [
+        2,
+        3
+      ],
+      "resolved_round": 3,
+      "observed": "gh exception class mismatch with exit-code contract; new evidence found in later design round",
+      "classification": "new-evidence-must-not-be-suppressed",
+      "contract_anchor": [
+        "新たに判明した不整合",
+        "前回判定との差分",
+        "重大な実害"
+      ]
+    },
+    {
+      "id": "809-F21-owner",
+      "source": "https://github.com/hiratashinnya/review-system/pull/809#issuecomment-6888926449",
+      "kind": "implementation-review-karte",
+      "phase": "implementation-not-formal-1a-1b",
+      "finding_ids": [
+        "F-809-21"
+      ],
+      "rounds": [
+        6,
+        7
+      ],
+      "resolved_round": 7,
+      "observed": "Implementation-review r6/r7 out-of-scope harm; owner selected documented Codex gate limitation, not a new gate.",
+      "classification": "scope-out-real-harm-owner-choice",
+      "contract_anchor": [
+        "工程内外を問わず",
+        "オーナー判断・処置確定",
+        "却下済み提案"
+      ]
+    },
+    {
+      "id": "847-new12-owner",
+      "source": "https://github.com/hiratashinnya/review-system/pull/847#issuecomment-6920614473",
+      "kind": "pr-review-owner-decision",
+      "phase": "2b-like-not-planreview",
+      "finding_ids": [
+        "new-12"
+      ],
+      "rounds": [],
+      "resolved_round": null,
+      "observed": "Owner chose to retain historical #606/#628 text without editing",
+      "classification": "rejected-or-no-change-proposal-no-reask",
+      "contract_anchor": [
+        "却下済み提案を新しい根拠なしに再要求しない",
+        "既存オーナー判断"
+      ]
+    },
+    {
+      "id": "847-new16-code",
+      "source": "https://github.com/hiratashinnya/review-system/pull/847#issuecomment-6934793848",
+      "kind": "pr-review-finding",
+      "phase": "2b-like-not-planreview",
+      "finding_ids": [
+        "new-16"
+      ],
+      "rounds": [],
+      "resolved_round": null,
+      "observed": "PREDECESSORS gate rejects same-role redispatch despite documented limit handoff; owner selected fix",
+      "classification": "existing-contract-violation-positive",
+      "contract_anchor": [
+        "既存の設計制約",
+        "実際の参照箇所",
+        "新たに判明した不整合"
+      ]
+    },
+    {
+      "id": "847-new22-rounds",
+      "source": "https://github.com/hiratashinnya/review-system/pull/847#issuecomment-6937784384",
+      "kind": "pr-review-finding",
+      "phase": "2b-like-not-planreview",
+      "finding_ids": [
+        "new-22"
+      ],
+      "rounds": [],
+      "resolved_round": null,
+      "observed": "splitlines() control character input defect demonstrated with probe; later new-25/26 distinct evidence",
+      "classification": "new-evidence-after-recheck-positive",
+      "contract_anchor": [
+        "新証拠",
+        "裏付けが取れない点は断定せず",
+        "根拠なし"
+      ]
+    },
+    {
+      "id": "846-F801-04-recheck",
+      "source": "https://github.com/hiratashinnya/review-system/pull/846#issuecomment-6894808995",
+      "kind": "pr-review-recheck",
+      "phase": "2b-like-not-planreview",
+      "finding_ids": [
+        "F-801-04"
+      ],
+      "rounds": [],
+      "resolved_round": null,
+      "observed": "Re-review marks earlier missing durable source and hash receipt resolved; subsequent PR changes not covered",
+      "classification": "recheck-resolved-not-global-clean",
+      "contract_anchor": [
+        "前回finding",
+        "実施された是正",
+        "1aの合格だけで1b"
+      ]
+    },
+    {
+      "id": "662-685-infra",
+      "source": "https://github.com/hiratashinnya/review-system/pull/695",
+      "kind": "phase-dispatch-defect",
+      "phase": "non-review-infrastructure",
+      "finding_ids": [],
+      "rounds": [],
+      "resolved_round": null,
+      "observed": "1a redo created r2/r3 branches; 1b dispatch from target-branch or detached could not satisfy adopt; separate implementation faults",
+      "classification": "infra-not-unnecessary-review-finding",
+      "contract_anchor": [
+        "実行基盤のdispatch/branch/recovery障害をPlanReview観点の誤りと混同しない"
+      ]
+    }
+  ]
+}

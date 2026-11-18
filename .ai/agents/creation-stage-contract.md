@@ -24,6 +24,7 @@ investigation（必要時）→ verification_design → 独立単独レビュー
 solution_planning → 独立整合レビュー → owner plan/split承認 →
 test_design → 独立単独レビュー → implementation → PRレビューの順とする。
 軽量Issueでも1a/1b/2aと各レビューは省略せず、対象範囲だけを縮小する。
+1a/1bの審査責務・根拠・再レビュー・未承認要求の扱いは [plan-reviewer共通契約](plan-reviewer.md) を参照する。レビューは既存の独立性とSTOP条件を維持する。
 検証設計と本体、著作者とレビューア、相談役と独立レビューアは別コンテキストにする。
 任意のTask/Agent、spawn、CLIへの再委譲は行わない。
 
