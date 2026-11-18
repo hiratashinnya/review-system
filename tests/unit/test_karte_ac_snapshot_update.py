@@ -123,6 +123,35 @@ class ACSnapshotUpdateTest(unittest.TestCase):
                     self.assertEqual(indexes, [1])
                     self.assertIn("- [x] real condition", updated)
 
+    def test_setext_end_heading_excludes_checkbox_outside_ac(self):
+        cases = (
+            ("## Acceptance criteria", "Notes\n-----"),
+            ("## Acceptance criteria", "Notes\n====="),
+            ("Acceptance criteria\n-----", "Notes\n-----"),
+            ("Acceptance criteria\n=====", "Notes\n-----"),
+            ("## 受け入れ基準", "メモ\n-----"),
+            ("受け入れ基準\n=====", "メモ\n====="),
+            ("## Acceptance criteria", "## Notes"),
+        )
+        for begin, end in cases:
+            with self.subTest(begin=begin, end=end):
+                body = begin + "\n- [ ] real AC\n\n" + end + "\n- [ ] example\n"
+                criteria = from_issue_body(body)
+                self.assertEqual(1, len(criteria))
+                self.assertEqual("real AC", criteria[0].text)
+                self.assertEqual(
+                    digest(criteria),
+                    digest(from_issue_body(body.replace("example", "edited example"))),
+                )
+                self.assertNotEqual(
+                    digest(criteria),
+                    digest(from_issue_body(body.replace("real AC", "updated AC"))),
+                )
+                updated, changed = plan(body, body, judge("satisfied"))
+                self.assertEqual([1], changed)
+                self.assertIn("- [x] real AC", updated)
+                self.assertIn("- [ ] example", updated)
+
     def test_indented_code_checkbox_is_not_an_ac_or_checkbox_update(self):
         for code_prefix in ("    ", "\t"):
             with self.subTest(prefix=repr(code_prefix)):

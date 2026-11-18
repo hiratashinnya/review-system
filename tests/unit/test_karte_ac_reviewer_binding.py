@@ -266,6 +266,37 @@ class ACReviewerBindingTest(unittest.TestCase):
                     finally:
                         self.root, self.source = previous_root, previous_source
 
+    def test_cancelled_envelope_cannot_be_reused_for_new_issue_body(self):
+        from karte.active_pointer import read_active
+
+        self.assertEqual(self.activate()[0], EXIT_OK)
+        first = read_active(self.root, required=True)["ac_snapshot"]
+        self.assertEqual(self.run_cli(owner_cli.cmd_activate, issue="801",
+                                      repair_declared_scope=False)[0], EXIT_OK)
+        new_body = BODY.replace("# Issue", "# Issue updated outside AC")
+        self.source.write_text(new_body, encoding="utf-8")
+        refused, _, err = self.activate()  # same run_id, AC digest unchanged
+        self.assertEqual(refused, EXIT_ERROR)
+        self.assertIn("新しい--run-id", err)
+        self.assertNotIn("review_expect", read_active(self.root, required=True))
+
+        new_options = {**OPTIONS, "run_id": "run-802"}
+        accepted, _, err = self.run_cli(owner_cli.cmd_activate, issue="801",
+                                        ac_snapshot_file=str(self.source),
+                                        repair_declared_scope=False, **new_options)
+        self.assertEqual(accepted, EXIT_OK, err)
+        second = read_active(self.root, required=True)["ac_snapshot"]
+        self.assertNotEqual(first["source"], second["source"])
+        old, _, _ = self.ingest(self.make_report(), "pr-reviewer--stale.md")
+        self.assertEqual(old, EXIT_ERROR)
+        expected = review_envelope.expected_of(issue=801, **new_options)
+        handoff = self.root / "tmp" / "_handoff" / "pr-reviewer--fresh.md"
+        handoff.write_text(handoff_header.render_header(1, expected) + "\n" +
+                           self.make_report(digest_value=second["digest"]), encoding="utf-8")
+        good, _, err = self.run_cli(reviewer_cli.cmd_ingest_reviewer,
+                                    source=str(handoff), issue=None, round=None)
+        self.assertEqual(good, EXIT_OK, err)
+
     def test_no_pointer_and_replayed_handoff_fail(self):
         report = self.make_report()
         self.assertEqual(self.ingest(report)[0], EXIT_ERROR)

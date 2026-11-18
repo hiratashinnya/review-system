@@ -11,9 +11,8 @@ import re
 
 from .format_error import KarteFormatError
 from .ac_snapshot_fence import advance as advance_fence
-from .ac_snapshot_heading import section_level
+from .ac_snapshot_heading import heading_level, section_level
 
-NEXT_HEADING = re.compile(r"^ {0,3}(#{1,6})\s+")
 CHECKBOX = re.compile(r"^(\s*[-*]\s+)\[([ xX])\](\s+\S.*)$")
 ITEM = re.compile(r"^\s*(?:[-*]|[1-9][0-9]*[.)])\s+(\S.*)$")
 
@@ -48,8 +47,8 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
             if found:
                 raise KarteFormatError("Issue本文のAcceptance criteriaセクションが重複")
             in_ac, level, found = True, heading, True
-        h = NEXT_HEADING.match(line) if is_heading else None
-        if in_ac and not heading and h and len(h.group(1)) <= level:
+        next_level = heading_level(lines, number, is_heading)
+        if in_ac and not heading and next_level is not None and next_level <= level:
             in_ac = False
             list_context = False
         fence = advance_fence(

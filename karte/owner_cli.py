@@ -1,6 +1,6 @@
 """主文脈専用の verb ``activate`` / ``decide``。"""
 
-from . import ac_snapshot_binding, handoff_header, karte_rounds, model, owner_decision, override_gate, paths, review_expectation, scope_ledger, scope_ledger_repair
+from . import ac_snapshot_binding, handoff_header, karte_rounds, model, owner_decision, override_gate, paths, review_attempt_history, review_expectation, scope_ledger, scope_ledger_repair
 from .active_pointer import write_active
 from .errors import KarteNotFound, KarteUsageError
 from .exit_codes import EXIT_OK
@@ -39,12 +39,16 @@ def cmd_activate(args, repo_root) -> int:
     if expected is not None and not snapshot_file and not legacy:
         raise KarteUsageError("review envelopeにはAC snapshot必須（旧形式は--legacy-finding-onlyを明示）")
     snapshot = ac_snapshot_binding.stage(repo_root, issue, next_number, snapshot_file) if snapshot_file else None
+    revoked = review_attempt_history.for_activation(repo_root, issue, last, expected, snapshot, legacy)
     if snapshot is not None:
-        write_active(repo_root, issue, last, expected, ac_snapshot=snapshot)
+        write_active(repo_root, issue, last, expected, ac_snapshot=snapshot,
+                     revoked_review_expectations=revoked)
     elif legacy:
-        write_active(repo_root, issue, last, expected, legacy_finding_only=True)
+        write_active(repo_root, issue, last, expected, legacy_finding_only=True,
+                     revoked_review_expectations=revoked)
     else:
-        write_active(repo_root, issue, last, expected)  # envelope無しの主文脈経路
+        write_active(repo_root, issue, last, expected,
+                     revoked_review_expectations=revoked)  # envelope無しの主文脈経路
     print(f"=== activate: issue-{issue} round {last}（次の ingest-reviewer は round {next_number}）===")
     if expected is not None:
         print(f"  review envelope の期待値を記録（run_id={expected['run_id']} phase={expected['phase']}・"
