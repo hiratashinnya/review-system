@@ -90,8 +90,8 @@
     {
       "id": "809-F21-owner",
       "source": "https://github.com/hiratashinnya/review-system/pull/809#issuecomment-6888926449",
-      "kind": "design-review-karte",
-      "phase": "design-not-formal-1a-1b",
+      "kind": "implementation-review-karte",
+      "phase": "implementation-not-formal-1a-1b",
       "finding_ids": [
         "F-809-21"
       ],
@@ -100,7 +100,7 @@
         7
       ],
       "resolved_round": 7,
-      "observed": "Out-of-scope harm recorded; owner chose documentation of Codex gate limitation, not a new gate",
+      "observed": "Implementation-review r6/r7 out-of-scope harm; owner selected documented Codex gate limitation, not a new gate.",
       "classification": "scope-out-real-harm-owner-choice",
       "contract_anchor": [
         "工程内外を問わず",
