@@ -128,7 +128,7 @@ class ACSnapshotUpdateTest(unittest.TestCase):
             ("## Acceptance criteria", "Notes\n-----"),
             ("## Acceptance criteria", "Notes\n====="),
             ("Acceptance criteria\n-----", "Notes\n-----"),
-            ("Acceptance criteria\n=====", "Notes\n-----"),
+            ("Acceptance criteria\n=====", "Notes\n====="),
             ("## 受け入れ基準", "メモ\n-----"),
             ("受け入れ基準\n=====", "メモ\n====="),
             ("## Acceptance criteria", "## Notes"),
