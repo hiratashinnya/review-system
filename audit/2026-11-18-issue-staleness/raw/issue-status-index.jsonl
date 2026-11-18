@@ -1,0 +1,444 @@
+{"number":3,"title":"資産の横展方法確立","state":"closed","bodylen":107,"refs":[],"prRefs":[]}
+{"number":4,"title":"コンフィグ操作方法のカスタムエージェント作成","state":"closed","bodylen":100,"refs":[],"prRefs":[]}
+{"number":5,"title":"設計⇔実装ドリフト対策：実装変更時に影響する設計書へ必ず反映する仕組みを考える","state":"open","bodylen":2205,"refs":[2],"prRefs":[2]}
+{"number":6,"title":"要件/設計の「AI 文書タイプ判定」記述を MVP 実装（手動 --type）に合わせる（MVP印）","state":"closed","bodylen":835,"refs":[2,5],"prRefs":[2]}
+{"number":7,"title":"HTML フィードバックUIの設計：未選択時のデフォルト挙動＋決定肢（modify/修正欄）＋docstring/設計整合","state":"open","bodylen":1170,"refs":[2,5],"prRefs":[2]}
+{"number":8,"title":"discover_criteria が scope を無視（同一dirに team/project基準があると誤混入）","state":"closed","bodylen":711,"refs":[2],"prRefs":[2]}
+{"number":9,"title":"frontmatter パーサのデッドコード分岐を整理（list item の mapping/scalar 2分岐）","state":"closed","bodylen":724,"refs":[2],"prRefs":[2]}
+{"number":10,"title":"revert コマンドが git revert 失敗を捕捉せずクラッシュ（fail-close 漏れ）","state":"closed","bodylen":627,"refs":[2,6,7],"prRefs":[2]}
+{"number":11,"title":"テスト証跡（3点セット）の保守債務：8テストにケース/成績書/ログ欠落＋古いテスト名","state":"open","bodylen":1228,"refs":[7,5],"prRefs":[]}
+{"number":14,"title":"feat(lateral-deploy): copilot-instructions.md のスキル表からオーケストレータを除外または注記する","state":"closed","bodylen":834,"refs":[13],"prRefs":[13]}
+{"number":15,"title":"refactor(lateral-deploy): instructions 生成テンプレートを共通ヘルパに集約（DRY）","state":"closed","bodylen":580,"refs":[13],"prRefs":[13]}
+{"number":16,"title":"test(lateral-deploy): scan_assets / generate_copilot_instructions / write_outputs の単体テスト追加","state":"closed","bodylen":612,"refs":[13],"prRefs":[13]}
+{"number":17,"title":"docs(lateral-deploy): extract_spec_principles の spec-principles 依存をコメントで明記","state":"closed","bodylen":860,"refs":[13],"prRefs":[13]}
+{"number":18,"title":"chore(lateral-deploy): 生成ファイル内の相対リンク切れ（将来対応）","state":"closed","bodylen":606,"refs":[13],"prRefs":[13]}
+{"number":29,"title":"zバージョンの仕様欠落","state":"closed","bodylen":140,"refs":[],"prRefs":[]}
+{"number":30,"title":"必須辺の仕様化漏れ点検","state":"closed","bodylen":108,"refs":[],"prRefs":[]}
+{"number":40,"title":"DD-２１違反の是正","state":"closed","bodylen":184,"refs":[],"prRefs":[]}
+{"number":41,"title":"reconciliation: Step2 を docidx surgical read 化（対策A）","state":"closed","bodylen":685,"refs":[],"prRefs":[]}
+{"number":42,"title":"reconciliation: model を opus→sonnet に降格（対策B）","state":"closed","bodylen":412,"refs":[],"prRefs":[]}
+{"number":43,"title":"reconciliation: レイヤー別に読込対象を限定（対策C）","state":"closed","bodylen":480,"refs":[],"prRefs":[]}
+{"number":44,"title":"reconciliation: validation と write の分離（対策D）","state":"closed","bodylen":450,"refs":[],"prRefs":[]}
+{"number":47,"title":"バッジの型エラー排除","state":"closed","bodylen":52,"refs":[],"prRefs":[]}
+{"number":48,"title":"バックリファレンスエラーの排除","state":"closed","bodylen":36,"refs":[],"prRefs":[]}
+{"number":53,"title":"docidx の依存仕様参照を spec ベース（in-graph 版付きノード）へ統一する","state":"closed","bodylen":1429,"refs":[48],"prRefs":[]}
+{"number":58,"title":"[検証] レートリミット自動再開フック（WSL実機）","state":"closed","bodylen":681,"refs":[57],"prRefs":[57]}
+{"number":59,"title":"[検証/エージェント] レートリミット自動再開フック — Claude Code が WSL 上で自動検証できる項目","state":"closed","bodylen":1638,"refs":[58,57],"prRefs":[57]}
+{"number":60,"title":"[検証/人間] レートリミット自動再開フック — 実レートリミット・実機が必要な項目","state":"closed","bodylen":4347,"refs":[58,57],"prRefs":[57]}
+{"number":62,"title":"[doc-system] ①-C: pipeline skill の非対話 fan-out を orchestrator agent 化（DD-22 後続）","state":"closed","bodylen":968,"refs":[61],"prRefs":[61]}
+{"number":63,"title":"[doc-system] SPEC-61 検証の機械化：対象 skill 集合を config 宣言（SPEC 起票必須）・carrier スキーマ化・検査 RULE 新設要否","state":"closed","bodylen":2283,"refs":[61],"prRefs":[61]}
+{"number":64,"title":"[doc-system] backref check 既存 18 ERROR の是正（FND ライフサイクル不整合・main 由来）","state":"closed","bodylen":1172,"refs":[61],"prRefs":[61]}
+{"number":68,"title":"[doc-system] ノード本文中の孤立 `---` によるノード截断を予防検知する lint（PR #65 follow-up）","state":"closed","bodylen":1210,"refs":[65],"prRefs":[65]}
+{"number":70,"title":"Sub-A: 新フォーマット仕様確定＋サイドカー schema＋パス規約（ブロッカー）","state":"closed","bodylen":1358,"refs":[],"prRefs":[]}
+{"number":71,"title":"Sub-B: 現行 585 ノードの新フォーマット一括移行スクリプト","state":"closed","bodylen":839,"refs":[],"prRefs":[]}
+{"number":72,"title":"Sub-C: ツール刷新（docidx: meta.json 生成＋グラフ照会 / backref: サイドカー編集・rename・edge逆転＋git mv）","state":"closed","bodylen":992,"refs":[],"prRefs":[]}
+{"number":73,"title":"Sub-D: 著作パイプライン更新（*-author / reconciliation-validator / reconciliation）","state":"closed","bodylen":787,"refs":[],"prRefs":[]}
+{"number":74,"title":"Sub-E: テンプレート8種の md+yaml 化＋config・notation 改訂","state":"closed","bodylen":665,"refs":[],"prRefs":[]}
+{"number":75,"title":"Sub-F: doc_view.html 生成器（meta.json＋md 本文からのビルダー）","state":"closed","bodylen":610,"refs":[],"prRefs":[]}
+{"number":76,"title":"[tracking] doc-system フォーマット根本刷新（本文/メタ分離・slug id・1ファイル1ノード）","state":"closed","bodylen":1609,"refs":[70,71,72,73,74,75],"prRefs":[]}
+{"number":78,"title":"condition 語彙（アサーション条件区分）の要件レベル再設計【移行後】","state":"closed","bodylen":1380,"refs":[77,70,76,71],"prRefs":[77]}
+{"number":83,"title":"v1 由来の drift(45) / orphans(9) の棚卸し・是正【移行後】","state":"closed","bodylen":1053,"refs":[82,76],"prRefs":[82]}
+{"number":87,"title":"TERM 著作モデルの是正（共有用語集・両ステージ著作）— #85 レビュー派生","state":"closed","bodylen":1025,"refs":[85],"prRefs":[85]}
+{"number":88,"title":"scheduled のデフォルトを current_phase に（『空のみ許可』撤廃）— #85 レビュー派生","state":"closed","bodylen":1008,"refs":[85],"prRefs":[85]}
+{"number":89,"title":"dsv2 check-slug に --from-dir を追加（fail-close を tmp ミラー走査で堅牢化）— #85 レビュー派生","state":"closed","bodylen":951,"refs":[85],"prRefs":[85]}
+{"number":93,"title":"carrier フィールドの enum 化を検討（値集合の確定と機械強制）— #85/#91 派生","state":"closed","bodylen":791,"refs":[85,91,88],"prRefs":[85,91]}
+{"number":94,"title":"既存585ノードの scheduled backfill（#88/#91 派生・オーナー判断）","state":"closed","bodylen":810,"refs":[91,88],"prRefs":[91]}
+{"number":95,"title":"[.github] 著作エージェント・ミラー5本を v2 へ移行（asset-lateral-deploy・#85派生）","state":"closed","bodylen":879,"refs":[85,91,92],"prRefs":[]}
+{"number":97,"title":"既存ノード更新と check-slug fail-close の整合（TERM 追記フロー派生・#92 再レビュー）","state":"closed","bodylen":1060,"refs":[92,87],"prRefs":[]}
+{"number":98,"title":"Copilot ミラー本文の Claude 固有ツール名をローカライズ（#96 派生・低）","state":"closed","bodylen":533,"refs":[96],"prRefs":[96]}
+{"number":99,"title":"verification-author 伝播対象表を TERM 分業に整合（#96 派生）","state":"closed","bodylen":399,"refs":[96,87],"prRefs":[]}
+{"number":103,"title":"check-slug --update の契約明文化＋typo ハードニング（#97/#102 レビュー派生・low）","state":"closed","bodylen":624,"refs":[102,97],"prRefs":[102]}
+{"number":107,"title":"check-slug --update: 呼び出し元(*-author)からvalidatorへのupdate-slug申告を形式化","state":"closed","bodylen":974,"refs":[103,106,97,102],"prRefs":[106]}
+{"number":108,"title":"dsv2: ダッシュボード(open Q/FND/DD等)の自動集計サブコマンド","state":"closed","bodylen":1137,"refs":[76],"prRefs":[]}
+{"number":110,"title":"spec-pipeline: 並列author著作が未実装（DD-22の前提とズレ・#62前提修正）","state":"closed","bodylen":1161,"refs":[62],"prRefs":[]}
+{"number":112,"title":"docidx skillのPROMPTノードが欠落（RULE-032検出・#63由来）","state":"closed","bodylen":543,"refs":[63],"prRefs":[63]}
+{"number":114,"title":"dsv2: prompt_coverage_targetsをconfig.yml直読みへ（#63由来・query.py重複定義の解消）","state":"closed","bodylen":371,"refs":[113,63,74],"prRefs":[113]}
+{"number":115,"title":"dsv2: RULE-032のcarrier=skillフィルタがcarrier変更時に誤検知する潜在リスク（#63由来）","state":"closed","bodylen":432,"refs":[113,63,62,110],"prRefs":[113]}
+{"number":118,"title":"doc-system-v2: suppress機構を廃止（凍結の発想自体を撤去・依存先更新時の影響確認を必須化）","state":"closed","bodylen":918,"refs":[83,76],"prRefs":[]}
+{"number":120,"title":"Issue処理ワークフロー作成","state":"closed","bodylen":808,"refs":[],"prRefs":[]}
+{"number":121,"title":"doc-system-v2: impl-design-pipeline/test-strategyの著作ステップ欠落是正＋fan-out汎化","state":"closed","bodylen":1757,"refs":[62,110],"prRefs":[]}
+{"number":124,"title":"doc-system-v2: issue-implementer/pr-reviewer間のpush/merge境界をPreToolUseフックで機械強制","state":"closed","bodylen":1803,"refs":[120],"prRefs":[]}
+{"number":127,"title":"doc_system自体のシステム構築完了","state":"open","bodylen":110,"refs":[],"prRefs":[]}
+{"number":128,"title":"review_systemのドキュメントをdoc_system対応フォーマットに変更","state":"open","bodylen":0,"refs":[],"prRefs":[]}
+{"number":129,"title":"agent-command-gate.sh: PreToolUseフィールド名未検証(fail-open)＋正規表現の回避手段・誤検知バグ","state":"closed","bodylen":2543,"refs":[125,124],"prRefs":[125]}
+{"number":140,"title":"doc_system用コンフィグ操作エージェントの作成","state":"closed","bodylen":0,"refs":[],"prRefs":[]}
+{"number":141,"title":"review_system用コンフィグ操作エージェントの作成","state":"open","bodylen":2259,"refs":[4,5,405,406,407],"prRefs":[]}
+{"number":142,"title":"docidxのアーカイブ要否検討","state":"closed","bodylen":83,"refs":[],"prRefs":[]}
+{"number":152,"title":"scduled空欄対策","state":"closed","bodylen":26,"refs":[],"prRefs":[]}
+{"number":154,"title":"doc_systemのインストーラー作成","state":"open","bodylen":126,"refs":[],"prRefs":[]}
+{"number":155,"title":"エージェント、skillsのPF間同期","state":"open","bodylen":98,"refs":[],"prRefs":[]}
+{"number":157,"title":"Q-2を傘SPECマップ維持方針でDD化してcloseする","state":"closed","bodylen":442,"refs":[],"prRefs":[]}
+{"number":158,"title":"本文resolved済みopen FNDをlifecycle上もresolvedへ整理する","state":"closed","bodylen":465,"refs":[],"prRefs":[]}
+{"number":159,"title":"Sprint 1のSPEC本文系open FNDを解消する","state":"closed","bodylen":494,"refs":[],"prRefs":[]}
+{"number":160,"title":"Sprint 1対象のSRC実装ノードをmaterializeする","state":"open","bodylen":6048,"refs":[256,118,127,162,253,254,255,161,257],"prRefs":[257]}
+{"number":161,"title":"Sprint 1対象のTD/TC/TR検証ノードをmaterializeする","state":"open","bodylen":521,"refs":[],"prRefs":[]}
+{"number":162,"title":"current_stageをimplementationからverificationへ進める","state":"open","bodylen":553,"refs":[],"prRefs":[]}
+{"number":163,"title":"current_stageに応じたimplementation/verification必須接続gateを実装する","state":"closed","bodylen":803,"refs":[152],"prRefs":[]}
+{"number":164,"title":"out-of-graph著作資産伝播FNDのbackref対象を在グラフ化してcloseする","state":"closed","bodylen":492,"refs":[],"prRefs":[]}
+{"number":165,"title":"RULE横断索引とdashboard表記のopen FNDを解消する","state":"closed","bodylen":407,"refs":[],"prRefs":[]}
+{"number":170,"title":"review-system: .github/ (Copilot) 資産ミラーの欠落4件+3件を是正","state":"closed","bodylen":712,"refs":[155,169],"prRefs":[169]}
+{"number":172,"title":"docidx: nodeyaml.py をv2側へ分離しdocidx本体をarchiveへ退避する","state":"closed","bodylen":1256,"refs":[142],"prRefs":[]}
+{"number":173,"title":"docidx-lookup: v2ネイティブであることが分かる名前へ改名する","state":"closed","bodylen":747,"refs":[155],"prRefs":[]}
+{"number":174,"title":"agy(Antigravity CLI)をSkill同期対象に追加できないか検証する（保留・時期未定）","state":"open","bodylen":2158,"refs":[155,405,406,407],"prRefs":[]}
+{"number":181,"title":"Codex CLI に issue-implementer/pr-reviewer の push/merge 境界を機械強制する仕組みがない","state":"closed","bodylen":1372,"refs":[131,180,132,133,179,129],"prRefs":[132,133]}
+{"number":182,"title":"Codexレート制限自動リカバリの誤発火条件が緩く、無人でのエージェント再開を誘発しうる","state":"closed","bodylen":1105,"refs":[131,57,66,86],"prRefs":[131]}
+{"number":183,"title":"validate.py の走査基点変更（.md→.yaml）で、YAMLサイドカーを持たない孤立.mdが検証器から不可視になっている","state":"closed","bodylen":1069,"refs":[145],"prRefs":[145]}
+{"number":184,"title":"validate.py の TD-TC 1:1検証（exact_link_counts）が activate_stage を無視して常時発火し、段階的著作をブロックしうる","state":"closed","bodylen":1072,"refs":[147],"prRefs":[147]}
+{"number":185,"title":"pr-reviewer が CLAUDE.md「スケジュール独断禁止」規則の対象となる scheduled 値の決定を自己承認していた","state":"closed","bodylen":1098,"refs":[150,94],"prRefs":[150]}
+{"number":186,"title":"Codex製マージ済みPR見落としリスク監査（2026-07-11）の取りまとめ","state":"closed","bodylen":1097,"refs":[131,180,148,149,181,132,182,183,145,184,147,185,150],"prRefs":[132,131,145,147,150]}
+{"number":188,"title":"Codex CLI subagent の agent_type 実値を dogfooding で確認する（.codex/hooks/agent-command-gate.sh のfail-open検証）","state":"closed","bodylen":584,"refs":[181,187,129],"prRefs":[187]}
+{"number":189,"title":"agent-command-gate.sh（Claude/Codex共通）が引用リテラル内の禁止コマンド文字列を過剰denyするfalse positive","state":"closed","bodylen":439,"refs":[181,187],"prRefs":[187]}
+{"number":190,"title":"asset-parity CI が docidx/dsv2-lookup/reconciliation-validator の .github ミラー欠落で赤のまま","state":"closed","bodylen":464,"refs":[181,187,178,179,180],"prRefs":[187,178]}
+{"number":192,"title":"Codex CLI 対話TUI経路でagent-command-gate.sh(PreToolUse)が実際に発火するかを再検証する","state":"closed","bodylen":960,"refs":[188,191,181,187],"prRefs":[191,187]}
+{"number":195,"title":"Codexレート制限検知をtmux画面スクレイピングから構造化API(account/rateLimits/read)へ置き換える","state":"closed","bodylen":1984,"refs":[182,194,188,192],"prRefs":[194]}
+{"number":199,"title":"Codexレート制限検知のAPI持続ハング時にcooldownが働かず、Stopのたびに最大12秒のクエリを再試行しうる","state":"closed","bodylen":768,"refs":[195,197],"prRefs":[197]}
+{"number":203,"title":"importlib動的ロードヘルパのPyright reportOptionalMemberAccess警告を横断的に解消する","state":"closed","bodylen":787,"refs":[199,201,196,197,198],"prRefs":[201,196]}
+{"number":206,"title":"reconciliation-validator が DD 未整備時に self_fix で scheduled(current_phase) を自己判定充填する（PR #150 と同型の自己判定パターン）","state":"closed","bodylen":1563,"refs":[205,185,150,94],"prRefs":[205,150]}
+{"number":209,"title":"reconciliation.agent.md: v1時代の内容が残存（PR #96/#104 の更新漏れ）","state":"closed","bodylen":1440,"refs":[73,76,95,96,208,170],"prRefs":[96,208]}
+{"number":213,"title":"agent-command-gate.shがhere-string経由・xargsプレースホルダ置換経由の禁止コマンドを検知できない","state":"closed","bodylen":1067,"refs":[189,212,129],"prRefs":[212]}
+{"number":215,"title":"agent-command-gate.shの一般パイプ/xargs経由バイパス検知が多段パススルー(cat/tee)で外れる","state":"closed","bodylen":1258,"refs":[213,214],"prRefs":[214]}
+{"number":217,"title":"Claude review MCP: 長時間レビューを非同期ジョブ化する","state":"closed","bodylen":1929,"refs":[234,229,288,289,221],"prRefs":[234]}
+{"number":218,"title":"fix(hooks): agent-command-gate のサブシェル括弧パイプ＋sort/head/tail/uniq パススルー未対応バイパスを是正","state":"closed","bodylen":2572,"refs":[216,215],"prRefs":[216]}
+{"number":220,"title":"design(hooks): agent-command-gate の恒等変換フィルタ列挙方式の限界（cut/awk/sed/tr等・設計判断待ち）","state":"closed","bodylen":801,"refs":[219,218],"prRefs":[219]}
+{"number":221,"title":"Claude review MCP: 同期 claude_review API の廃止と非同期 API への移行管理","state":"closed","bodylen":740,"refs":[217,289],"prRefs":[]}
+{"number":222,"title":"design(hooks): agent-command-gate の producer/passthrough 追跡をfail-closedへ設計転換（whack-a-mole再発防止・#220統合）","state":"closed","bodylen":2555,"refs":[219,218,220],"prRefs":[219]}
+{"number":224,"title":"fix(hooks): agent-command-gate の quoted_subcommands が外部取得コンテンツ実行（bash -c \"$(curl ...)\"）を未検知","state":"closed","bodylen":422,"refs":[222,223],"prRefs":[]}
+{"number":225,"title":"fix(.gitignore): worktrees除外パターンの先頭ドット抜けを修正","state":"closed","bodylen":615,"refs":[222,223],"prRefs":[]}
+{"number":227,"title":"design(hooks): agent-command-gate をホワイトリスト方式へ根本再設計（危険パターン列挙のいたちごっこから脱却）","state":"closed","bodylen":4459,"refs":[189,213,215,218,222,223,220,224],"prRefs":[223]}
+{"number":228,"title":"chore: Issue #227完了後、agent-command-gate.shへの一時許可ルールをsettings.local.jsonから取り消す","state":"closed","bodylen":757,"refs":[227],"prRefs":[]}
+{"number":229,"title":"Spike: Claude OAuth broker transport と credential 物理隔離を検証する","state":"open","bodylen":1395,"refs":[217,288,289],"prRefs":[]}
+{"number":240,"title":"レートリミット自動再開フック: 既存潜在バグ(B群)・整理(C群)・設計課題(A5/A6)の対応","state":"closed","bodylen":3742,"refs":[232],"prRefs":[232]}
+{"number":253,"title":"必須辺検証ルールの見直し・修正（①scm←cfg）","state":"open","bodylen":6275,"refs":[160,163],"prRefs":[]}
+{"number":254,"title":"必須辺検証ルールの見直し・修正（② p←mod）","state":"open","bodylen":4234,"refs":[253,163,160,257],"prRefs":[257]}
+{"number":255,"title":"必須辺検証ルールの見直し・修正（③ ds←prs）＋ d←p 消費辺の補完","state":"open","bodylen":3374,"refs":[253,254,160],"prRefs":[]}
+{"number":256,"title":"必須辺検証ルールの見直し・修正（④ implementation 段 src 系規則の対称化・担体/粒度適格性）","state":"open","bodylen":6218,"refs":[160,253,118,254,255,163],"prRefs":[]}
+{"number":261,"title":"doc_system 完了までの処置計画（2026-07-28 棚卸し）— 取りまとめ","state":"open","bodylen":4110,"refs":[127,253,256,160,162,255,254,161,163],"prRefs":[]}
+{"number":262,"title":"[Phase 0] ブランチ claude/doc-system-dashboard-issue-check-8gq7ay の決着（是正 → rebase → PR → merge）","state":"closed","bodylen":3211,"refs":[261,163,255,254,256,253],"prRefs":[]}
+{"number":263,"title":"[Phase 1] 陳腐化・起票漏れの解消（#160 訂正コメント／新規 FND・Q の Issue 化／#253 本文）","state":"closed","bodylen":2771,"refs":[261,160,253,254,255,256,152],"prRefs":[]}
+{"number":264,"title":"[Phase 2] design 段 53 ERROR の解消（必須辺検証ルールの是正・#253/#254/#255/#256）","state":"open","bodylen":3517,"refs":[261,254,253,255,257,256,160,163],"prRefs":[257]}
+{"number":265,"title":"[Phase 3] SRC/TD/TC/TR の materialize と current_stage 前進（#160 → #161 → #162）","state":"open","bodylen":3608,"refs":[261,127,256,160,161,162,118,254],"prRefs":[]}
+{"number":266,"title":"leaf 限定必須辺規則の表現機構を実測比較して決定する（#253 の着手ブロッカー・J3）","state":"open","bodylen":3399,"refs":[261,264,253,254,256,165,163],"prRefs":[]}
+{"number":269,"title":"gh 不在環境では GitHub MCP へフォールバックする（＋ agent-command-gate を MCP ツール呼び出しにも拡張する）","state":"open","bodylen":5453,"refs":[267,129,227,262,224,405,406,407],"prRefs":[267]}
+{"number":270,"title":"settings.json のフック登録で ${CLAUDE_PROJECT_DIR} が未引用（両フック・fail-open 経路）","state":"closed","bodylen":2624,"refs":[273,259,260,268],"prRefs":[259]}
+{"number":271,"title":"agy のログイン状態を観測する手段を調査し、agy-delegate の疎通ゲートを事実に合わせる","state":"open","bodylen":3518,"refs":[273,259,260,268,405,406,407],"prRefs":[259]}
+{"number":272,"title":"変更手順の規律（現物再確認・他所 grep・状態確認）を CLAUDE.md に恒久ルールとして記載する","state":"open","bodylen":3057,"refs":[273,259,260,268],"prRefs":[259]}
+{"number":273,"title":"PR #259/#260/#268 レビュー指摘・残課題の処置トラッキング","state":"open","bodylen":6181,"refs":[259,260,268,290,271,272,291,285,258,292,286,287,270,284,6,7,11,141],"prRefs":[259,260,258,268]}
+{"number":274,"title":"context-mode 実行系ツール(ctx_execute/ctx_execute_file/ctx_batch_execute)の解禁可否と、解禁するなら必要な agent-command-gate 拡張","state":"closed","bodylen":3084,"refs":[129],"prRefs":[]}
+{"number":275,"title":"context-mode プラグイン導入と、注入ブロックに合わせたエージェント設計の見直し","state":"closed","bodylen":2601,"refs":[274],"prRefs":[]}
+{"number":277,"title":"check-governance-drift.sh のハッシュマーカー比較は写し本文の手動改変を検知できない","state":"open","bodylen":1240,"refs":[276],"prRefs":[276]}
+{"number":278,"title":"authoring-fanout の target_key/batch_id 決定論的採番はクロスバッチ衝突を排除できない","state":"closed","bodylen":1374,"refs":[276],"prRefs":[276]}
+{"number":279,"title":"reconciliation Step 3 のバッチ書込は親単位でアトミックでない(git 管理下で緩和済み)","state":"open","bodylen":1875,"refs":[276,405,406,407],"prRefs":[276]}
+{"number":280,"title":"dsv2 clean-tmp のTOCTOU対策はパスベース再検査に留まり、dir_fd/inode基点の完全な原子的削除ではない","state":"closed","bodylen":2157,"refs":[276],"prRefs":[276]}
+{"number":283,"title":"FND の深刻度語彙・本文必須項目・docs/doc-system の状態表現不一致を解消する(#263 アイテム2)","state":"open","bodylen":3525,"refs":[263,261,253,256],"prRefs":[]}
+{"number":284,"title":"agy-mcp-bridge のローカルパッチを更新・再 clone 後も安全に維持する","state":"open","bodylen":2342,"refs":[259,273,290,270],"prRefs":[259]}
+{"number":285,"title":"CLAUDE.md の codex-review 要約を正本の安全な実行契約へ同期する","state":"open","bodylen":1235,"refs":[260,273],"prRefs":[260]}
+{"number":286,"title":"Q26: criteria / policy lint を本番経路へ結線し契約テストを追加する","state":"open","bodylen":2071,"refs":[268,273],"prRefs":[268]}
+{"number":287,"title":"Q27: 複数 finding 修正で workspace 更新が上書き消失しないようにする","state":"open","bodylen":1861,"refs":[268,273],"prRefs":[268]}
+{"number":288,"title":"Claude review MCP: 非同期job/control planeの実装前設計を確定する","state":"closed","bodylen":1689,"refs":[217,234,229,221,289],"prRefs":[234]}
+{"number":289,"title":"Claude review MCP: 非同期job/control planeを実装・検証する","state":"closed","bodylen":1384,"refs":[217,234,221,229,288],"prRefs":[234]}
+{"number":290,"title":"PR #259: agy-delegate の workspace / fail-close gate を安全に成立させる","state":"open","bodylen":2717,"refs":[259,270,284,271,260,273,272],"prRefs":[259,260]}
+{"number":291,"title":"PR #260: silent-failure 診断資産と codex-review の安全な実行契約を確立する","state":"open","bodylen":1594,"refs":[260,259,285,273,290,272],"prRefs":[260,259]}
+{"number":292,"title":"PR #268: review_system の仕様・設計文書を実装実態へ同期する","state":"closed","bodylen":1616,"refs":[268,258,6,286,287,273,272,7,11,141],"prRefs":[268,258]}
+{"number":293,"title":"blocker依存をIssue処理開始時とPR merge command送信前に自動gateする","state":"closed","bodylen":5946,"refs":[294,295,296,297,298,299,5,273],"prRefs":[]}
+{"number":294,"title":"GitHub blocker・sub-issue・PR closing Issue APIと無料gate構成を検証する","state":"closed","bodylen":2271,"refs":[300,295,297,298,299,296,293,273],"prRefs":[300]}
+{"number":295,"title":"blocker gateのpre-use policy・実行順序・fail-close制御を設計する","state":"closed","bodylen":3385,"refs":[299,296,293,294,300,5,273],"prRefs":[]}
+{"number":296,"title":"Issue/PRで共有するblocker dependency resolverを実装する","state":"closed","bodylen":2558,"refs":[294,295,298,299,273,293],"prRefs":[]}
+{"number":297,"title":"issue-pipelineの処理開始pre-use hookでblockerをfail-closeする","state":"closed","bodylen":1320,"refs":[296,299,293,273],"prRefs":[]}
+{"number":298,"title":"PR merge command送信直前にblockerをfail-closeするpre-use gateを実装する","state":"closed","bodylen":3159,"refs":[296,295,293,294,273],"prRefs":[]}
+{"number":299,"title":"blocker gate hook・merge経路・policy driftを継続監査する","state":"closed","bodylen":2368,"refs":[297,298,293,5,273],"prRefs":[]}
+{"number":302,"title":"Codex rate-limit watcherの固定epoch期限切れでunit testが失敗する","state":"closed","bodylen":2640,"refs":[301,295],"prRefs":[301]}
+{"number":303,"title":"agent-command-gate.sh を context-mode 実行系MCPツール(ctx_execute/ctx_execute_file/ctx_batch_execute)に拡張する（ツール付与は含まない）","state":"closed","bodylen":3329,"refs":[274],"prRefs":[]}
+{"number":304,"title":"拡張済みゲートを前提に ctx_batch_execute / ctx_execute(shell) を対象ロールへ付与する（解禁）","state":"closed","bodylen":1867,"refs":[274],"prRefs":[]}
+{"number":305,"title":"Codex CLI側 (.codex/hooks/agent-command-gate.sh) へゲート拡張ロジックを移植する（context-mode採用時に有効化）","state":"open","bodylen":1313,"refs":[274],"prRefs":[]}
+{"number":306,"title":"governance: ハーネス開発では FND/Q/DD 起票・ダッシュボード更新を求めず Issue 運用に一本化する","state":"closed","bodylen":2636,"refs":[],"prRefs":[]}
+{"number":307,"title":"feat(karte): 是正ループの診断カルテ CLI を追加し「類似アプローチの反復」を機械判定する","state":"closed","bodylen":4493,"refs":[120],"prRefs":[]}
+{"number":308,"title":"feat(agents): 是正専用 issue-fixer を新設し pr-reviewer の指摘出力を ID 付きで構造化する","state":"closed","bodylen":4504,"refs":[307,310,227,129],"prRefs":[]}
+{"number":309,"title":"feat(hooks): SubagentStart でカルテ手順を注入し SubagentStop で未更新をブロックする","state":"closed","bodylen":4233,"refs":[307,308,310,192,129],"prRefs":[]}
+{"number":310,"title":"refactor(issue-pipeline): 是正ループ ②-c をカルテ機構へ書き換え実害基準とエスカレーション条件を明文化する","state":"open","bodylen":9619,"refs":[371,409,375,350,308,309,369,354,383,387,423,307,339,330,405,406,407,691,783,784,785],"prRefs":[]}
+{"number":312,"title":"test(hooks): CLAUDE.md と governance-directives.md の synced-from 同期を unittest で固定する","state":"closed","bodylen":2036,"refs":[311,276,6,306],"prRefs":[311,276]}
+{"number":315,"title":"karte: 実測信号の強制点・自動 resolved の fail-open ほかレビュー残指摘（PR #314 K-02/K-04〜K-07/K-09/K-11）","state":"closed","bodylen":5754,"refs":[314,307,308,309,312],"prRefs":[314]}
+{"number":317,"title":"実装ブランチの分岐元を pre-use gate で検証する（他 Issue の未マージ変更が混入するのを防ぐ）","state":"closed","bodylen":4517,"refs":[293,306,307,314,311,297,298,296,269],"prRefs":[314,311]}
+{"number":318,"title":"karte: カルテ書込の symlink 再検査を原子的にする（O_NOFOLLOW で検査と open を1システムコールに畳む）","state":"closed","bodylen":2763,"refs":[314,315,307],"prRefs":[314]}
+{"number":321,"title":"governance: レートリミット由来の品質降格を禁止する（モデル降格・effort 低下・委譲の取りやめ）","state":"closed","bodylen":2443,"refs":[319,315],"prRefs":[319]}
+{"number":323,"title":"issue-implementer の handoff_path 完全一致規定と CLAUDE.md の key 一意化規約が矛盾している","state":"closed","bodylen":5605,"refs":[319,278,315,307,350,353,354],"prRefs":[319,353]}
+{"number":325,"title":"governance: session 上限時の `codex-review`（別モデルファミリ）への切替が「品質降格」に当たるかを確定する","state":"closed","bodylen":3339,"refs":[321,324],"prRefs":[324]}
+{"number":329,"title":"Context-modeの導入","state":"open","bodylen":0,"refs":[],"prRefs":[]}
+{"number":330,"title":"指摘修正ループの改善(karte system)","state":"open","bodylen":0,"refs":[],"prRefs":[]}
+{"number":331,"title":"Codex サブエージェント呼び出しの中断対策","state":"closed","bodylen":303,"refs":[],"prRefs":[]}
+{"number":333,"title":"FND「検査対象探索の欠陥」と「ミラー未同期」を1件に統合すべきか（双方 ERROR・同じ下流損害）","state":"open","bodylen":3244,"refs":[326,405,406,407],"prRefs":[326]}
+{"number":334,"title":"reconciliation の書込が途中で止まると部分適用が作業ツリーに残り、欠落を機械的に検出できない","state":"open","bodylen":3200,"refs":[326],"prRefs":[326]}
+{"number":336,"title":"CodexにもContext-modeを導入する。","state":"open","bodylen":40,"refs":[306],"prRefs":[]}
+{"number":337,"title":"調査: pr-reviewer が自分の権限を増やす PR を自己マージできる構造の是非と対策を比較検討する","state":"closed","bodylen":2421,"refs":[335,304,303,313,129,124],"prRefs":[335,313]}
+{"number":338,"title":"dsv2-lookup.md の手順に統制下で必ず deny される python3 -c 例が残っている（FND 起票して是正）","state":"closed","bodylen":2571,"refs":[335,224,304,227],"prRefs":[335]}
+{"number":339,"title":"[トラッキング] test_blocker_gate_contract_cli の時刻依存失敗（解消済み）と、main の赤を merge 前に止める手当て","state":"closed","bodylen":6404,"refs":[316,335,304,344,322,293,299,303,302,296],"prRefs":[316,335,322]}
+{"number":340,"title":"agent-command-gate.sh は内部例外で fail-open する（deny すべき呼び出しが素通しになる）","state":"closed","bodylen":2857,"refs":[308,129,339,227,224],"prRefs":[]}
+{"number":342,"title":"issue-implementer の定義が同一ファイル内で自己矛盾し、ゲートが deny する `gh issue comment` を「使える」と書いている","state":"closed","bodylen":3994,"refs":[308,310,227,340,339,341,129],"prRefs":[341]}
+{"number":344,"title":"main の赤を merge 前に止める：PR で unit test 全体スイートを回す＋時刻依存 test data の再発防止","state":"closed","bodylen":5556,"refs":[339,335,302,322,316],"prRefs":[335,322,316]}
+{"number":345,"title":"issue-start gate が Claude Code on the web 環境で常に API_PERMISSION となり /issue-pipeline を起動できない","state":"closed","bodylen":20078,"refs":[344,293,303,5,296,297,317,322,129,1],"prRefs":[322]}
+{"number":346,"title":".claude/skills/issue-pipeline と issue-implementer.md に ISSUE_START_BINDING_V1 marker 契約の記載が無く、issue-start-gate が初回 dispatch で必ず deny する","state":"closed","bodylen":3122,"refs":[344,345,342],"prRefs":[]}
+{"number":350,"title":"issue-implementer の「isolated worktree」記述が実装と食い違う：gitgate new-branch は worktree を作らず呼び出し元の working tree を branch switch する","state":"closed","bodylen":2188,"refs":[344,323],"prRefs":[]}
+{"number":354,"title":"issue-fixer にも worktree 分離を強制する（＋既存 PR ブランチを worktree 側で取得する機構の比較検討）","state":"closed","bodylen":3313,"refs":[350,353,323,310,308],"prRefs":[353]}
+{"number":355,"title":"karte close-attempt の既定 --base HEAD が push 直後に空 diff を生み、実測 touched-set が空のまま append-only で固定される","state":"closed","bodylen":2287,"refs":[307,350,353,315,330,309],"prRefs":[353]}
+{"number":356,"title":"gated ロールが python3 -m asset_parity check を実行できない（層2 の python module allowlist 未収録）","state":"closed","bodylen":2386,"refs":[350,353,155,305,129],"prRefs":[353]}
+{"number":357,"title":"PR8「消さない」の適用範囲を見直す——訂正を追記でなく修正で行えるようにする","state":"closed","bodylen":3108,"refs":[345],"prRefs":[]}
+{"number":360,"title":"docs(harness): PR #358 で同時に処置すべきだった残件3件（README の ctx_* stale・SKILL ②-d の worktree 解放手順・エージェント定義のセッション固定）","state":"closed","bodylen":4878,"refs":[323,358,303,304,312,350,353,309,310,354,355],"prRefs":[358,353]}
+{"number":362,"title":"blocker-gate: snapshot 入力の版照合規則を設計文書に明記する（実装の完全一致に合わせる）","state":"closed","bodylen":2842,"refs":[359,345,293],"prRefs":[359]}
+{"number":363,"title":"blocker-snapshot の cron が5分間隔で起動せず（実測74〜104分）、snapshot が常に staleness 上限超過で gate が機能しない","state":"closed","bodylen":4527,"refs":[359,345,293],"prRefs":[359]}
+{"number":365,"title":"[トラッキング] 版付き文書の本文中バージョンリテラルが bump に追従しない問題を機械検査で塞ぐ","state":"open","bodylen":2270,"refs":[359,364,345,363,366,367],"prRefs":[359,364]}
+{"number":366,"title":"[調査設計] 版リテラル追従漏れの機械検査 — 検査対象・判定規則・誤検出方針・実装場所を決める","state":"open","bodylen":2579,"refs":[365,364,367,363,345],"prRefs":[364]}
+{"number":367,"title":"[実装] 版リテラル追従漏れの機械検査を実装し CI に組み込む","state":"open","bodylen":1525,"refs":[365,366,364,363,345],"prRefs":[364]}
+{"number":368,"title":"[トラッキング] issue-pipeline の再設計 — 欠陥混入率・トークン効率・フェーズ構成の見直し（2026-08-16 棚卸し）","state":"open","bodylen":6161,"refs":[371,370,375,409,310,376,353,354,355,356,357,358,360,359,362,363,369,372,373,374,307,309,318,330,120,365,366,367,405,406,407,445],"prRefs":[353,358,359]}
+{"number":369,"title":"実害の定義とエスカレーション条件を SKILL.md へ反映する（#310 から分離・#309 非依存）","state":"closed","bodylen":4753,"refs":[310,341,309,308,330,368],"prRefs":[341]}
+{"number":370,"title":"merge 後に判明する「同時に処置すべきだった」欠陥の混入率を下げる","state":"open","bodylen":9657,"refs":[371,357,353,345,362,359,363,358,360,354,355,356,349,368,369,409,365,366,367,488,489,155,405,406,407,445,428,414,378,431,461,691,784,785,786,451,652],"prRefs":[353,359,358,349,451]}
+{"number":371,"title":"issue-pipeline の作成工程を分離し、権限を維持した実行委譲と adviser 相談を導入する","state":"closed","bodylen":29045,"refs":[451,627,633,542,538,604,625,605,615,606,628,375,310,632,626,631,370,368,540,354,360,355,378,356,362,428,363,414,365,366,367,461,460,470,578,543,452,409,608,610,565,589,653,652,537,575,607,513,517,603,576,582,523,539,376,405,407,386,337,308,323,488],"prRefs":[615,627,633,451,625,610,653,604]}
+{"number":372,"title":"エージェント/スキル契約を「規範」と「経緯」に分離し、コンテキスト常駐量を削る","state":"closed","bodylen":5585,"refs":[129,373,375,374,368,371,277,312,384,150,385,386,388,389,354],"prRefs":[384,150]}
+{"number":373,"title":"機械が強制済みの契約を散文で再掲している箇所を削り、ツール出力へ寄せる","state":"closed","bodylen":3196,"refs":[365,366,367,372,368,346,129],"prRefs":[]}
+{"number":374,"title":"散文で書かれた定型手順をツールの verb に落とす（worktree 解放・ブランチ受け渡し等）","state":"closed","bodylen":3202,"refs":[360,354,372,373,368,350,356],"prRefs":[]}
+{"number":375,"title":"pr-reviewer の finding をファイルハンドオフ化する（主文脈のコンテキスト通過を止める）","state":"open","bodylen":15913,"refs":[800,697,801,802,803,341,371,310,797,523,694,792,793,409,308,369,368,372,373,312,337,405,406,407,479,466,129,386,452,531,691,784,783,696],"prRefs":[697,341,479,696]}
+{"number":376,"title":"バックログのバッチ棚卸し運用を定める（オーナー処分のスループット向上）","state":"open","bodylen":4562,"refs":[371,261,263,264,265,108,372,375,370,368,405,406,407,691,786,782,524],"prRefs":[]}
+{"number":378,"title":"karte: close-attempt の --attempt 省略時の既定値が誤った Attempt への記録を誘発する（2ラウンド連続で発生）","state":"closed","bodylen":3371,"refs":[364,363,341],"prRefs":[364]}
+{"number":379,"title":"オーナーへの報告はチャットが正本と規約に明記する（PR コメント・カルテ・ファイルは永続化目的の副次）","state":"closed","bodylen":4175,"refs":[377,375,369,372,376,368],"prRefs":[377]}
+{"number":381,"title":"pr-reviewer の merge が gh 認証共有により GitHub Approve を得られない構造を「既知の制約」として契約に明記する","state":"closed","bodylen":3303,"refs":[362,380,337,129,124],"prRefs":[380]}
+{"number":385,"title":"gated ロールが AC 必須の検証コマンド（asset_parity/time_fixture_lint）を層2 allowlist の穴で実行できない","state":"closed","bodylen":4802,"refs":[356,372,129,350,353,305,155],"prRefs":[353]}
+{"number":386,"title":"[調査] issue-pipeline agentのtools宣言・実効ツール・呼出形式を検証する","state":"closed","bodylen":3118,"refs":[371,405,372,406,407],"prRefs":[]}
+{"number":387,"title":"PR #383（CLAUDE.md → .claude/rules/ 分割）のCI赤とgovernance-drift検知の穴を是正する","state":"closed","bodylen":3596,"refs":[383,372,312],"prRefs":[383]}
+{"number":388,"title":"契約経緯（rationale）trim の4ツリーミラー波及要否を決める（Issue #372 F-372-02）","state":"closed","bodylen":2482,"refs":[372,384,383,387],"prRefs":[384,383]}
+{"number":389,"title":"gitgate new-branch の出力がチェックアウト実行を隠蔽し誤解を招く","state":"closed","bodylen":3526,"refs":[372,384,354,388],"prRefs":[384]}
+{"number":391,"title":"ミラーツリー（.github/.codex/.agents）に分割前のCLAUDE.md本文の手写しが残存","state":"closed","bodylen":1665,"refs":[387,383],"prRefs":[383]}
+{"number":392,"title":"「スコープ拡大禁止」「意図的設計の尊重」規範が .claude/rules/ に不在（引用は各所に実在）","state":"closed","bodylen":2732,"refs":[387,383,391],"prRefs":[383]}
+{"number":405,"title":"Skill、エージェントの改善","state":"closed","bodylen":3515,"refs":[371,407,386,368,406,141,174,269,271,279,310,333,370,375,376,5,11,337,7,160,256,265],"prRefs":[]}
+{"number":406,"title":"PF間の同期漏れ撲滅","state":"closed","bodylen":677,"refs":[],"prRefs":[]}
+{"number":407,"title":"手順と変更経緯の混在によるコンテキスト汚染の撲滅","state":"closed","bodylen":750,"refs":[371,405],"prRefs":[]}
+{"number":409,"title":"AgentRun ledgerとclose gateでサブエージェント実行ライフサイクルを機械管理する","state":"open","bodylen":8122,"refs":[371,310,375,331,406,408,445,368,217,289,691,783,784,785,733,683,703],"prRefs":[408,733]}
+{"number":412,"title":"pr_merge_gate/blocker_gate: 正当なPRのmergeをMESSAGE_SOURCE_INCOMPLETEで誤ブロック・gh allowlist漏れによる過検知","state":"closed","bodylen":4972,"refs":[348,354,402],"prRefs":[402]}
+{"number":414,"title":"pr_merge_gate: merge成功後にPOST_AUDIT_INTEGRITY_ERROR/AuditErrorが発生する（監査ログ書き込み経路の不具合疑い）","state":"closed","bodylen":2378,"refs":[413,412],"prRefs":[413]}
+{"number":415,"title":"blocker_gate: _branch_protection_evidence にRESTレスポンスの完全一致検証が残存（Issue #412と同種の潜在リスク）","state":"open","bodylen":1742,"refs":[412,413,414],"prRefs":[413]}
+{"number":417,"title":"impl-design-pipeline が .github/ で Skill と Prompt の二重ミラーになっている（disable-model-invocation:true との不整合疑い）","state":"closed","bodylen":2434,"refs":[391],"prRefs":[]}
+{"number":418,"title":".claude/tailoring-registry.md に doc-system-v2-authoring・authoring-fanout・doc-system-config-operator の記載が漏れている","state":"closed","bodylen":1794,"refs":[391],"prRefs":[]}
+{"number":419,"title":"pr-reviewer契約にsquashマージ時の--body明示指示が無く、squash_merge_commit_message=COMMIT_MESSAGES設定のリポジトリで必ずMERGE_MESSAGE_AMBIGUOUSになる","state":"closed","bodylen":2853,"refs":[416,391,412,413,414,415],"prRefs":[416,413]}
+{"number":423,"title":"SubagentStopが多段の入れ子dispatch中に誤って回収を試み、同一dispatch自身の後続委譲をブロックする","state":"closed","bodylen":5252,"refs":[338,354,417,418,309],"prRefs":[]}
+{"number":426,"title":"worktree解放時にブランチのローカル参照が消し忘れられ、後続issue-fixerのadopt-branchが必ず詰まる（2回目の再現）","state":"closed","bodylen":2917,"refs":[423,354,425],"prRefs":[425]}
+{"number":428,"title":"pr-merge-gate.sh（classifier.py）が gh を含まない無関係な read-only Bash コマンドまで誤って deny する（_split_shell_commands のリダイレクト一律拒否・#412 Out of scope の残課題）","state":"closed","bodylen":4117,"refs":[412,413],"prRefs":[413]}
+{"number":430,"title":"pr-merge-gate.sh（classifier.py）: リダイレクトのみ／execのみ leaf の新規素通りが回帰テストで未凍結（#428 PR#429 完了基準の取りこぼし）","state":"closed","bodylen":1868,"refs":[428,429],"prRefs":[429]}
+{"number":431,"title":"pr-merge-gate.sh（classifier.py）: 括弧類(){}の一律拒否・依存仕様アンカー不在（#428 派生・将来対応トラッキング）","state":"closed","bodylen":1727,"refs":[428,429],"prRefs":[429]}
+{"number":434,"title":"pr_merge_gate: PR#433レビュー残課題（型安全性nit・docstring不一致・runbook版数記載陳腐化）","state":"closed","bodylen":3111,"refs":[433,435,443,414],"prRefs":[433,443]}
+{"number":435,"title":"pr_merge_gate/audit.py: audit.jsonl運用改善（破損行可視化・件数ローテーション・PR番号相関・classifier誤ブロック緩和）","state":"closed","bodylen":5013,"refs":[433,436,414,442,428,429,430,431,434],"prRefs":[433,442]}
+{"number":436,"title":"pr_merge_gate: audit.jsonlのローテーション不在・複数clone間排他制御不在・CLASSIFIER_UNKNOWN大量発生を調査する","state":"closed","bodylen":1565,"refs":[414,433,428,429],"prRefs":[433]}
+{"number":437,"title":"karte close-attempt の diff 計算が isolated worktree の cwd を解決できず spurious に fail-close する（実測 touched-set が常に空になる）","state":"closed","bodylen":4838,"refs":[307,355,426,309,315,354,330],"prRefs":[]}
+{"number":445,"title":"[トラッキング] issue-pipeline ロール分離・artifact・close gate の横断処置を実行する","state":"closed","bodylen":6657,"refs":[310,371,375,409,368,330,405,374,386,407,452,453,370,376,448,449,451,293,337],"prRefs":[453,448]}
+{"number":447,"title":"pr_merge_gate: connector分類(_connector_operation)がGitHub MCP serverの実スキーマ(owner/repo/pullNumber)を受理できずCLASSIFIER_UNKNOWNで全merge拒否","state":"closed","bodylen":4426,"refs":[446],"prRefs":[446]}
+{"number":452,"title":"Codex issue-pipeline の implementer/fixer を隔離worktreeへ機械束縛する","state":"closed","bodylen":17918,"refs":[538,448,449,451,506,518,520,409,445,293,337,386,475,477],"prRefs":[448,506,518,520,475,477]}
+{"number":456,"title":"fix(codex): レートリミット解除時刻の推定が参考情報の枠に引きずられ、画面文字列読み取りへのフォールバックが発動しない","state":"closed","bodylen":3521,"refs":[455,195],"prRefs":[455]}
+{"number":457,"title":"improvement(pr-merge-gate): ブロック時メッセージが単一定型文でreason codeごとの状況が伝わらない","state":"closed","bodylen":4756,"refs":[434,456,428,431,412],"prRefs":[]}
+{"number":460,"title":"GitHub Project の Status 自動同期の機構を実装する（手動 dispatch まで・cron 有効化は #470）","state":"closed","bodylen":13986,"refs":[465,470,345,363,461,376,466,467,468,469,368,371],"prRefs":[465]}
+{"number":461,"title":"CI の失敗をAIが読み取ってオーナーへチャット報告する経路を作る","state":"closed","bodylen":6507,"refs":[345,379,460,344,466,479,370,368],"prRefs":[479]}
+{"number":464,"title":"SubagentStop の collect-worktree が自エージェントの git ロックで削除に失敗し、毎回台帳残留で次の dispatch が止まる（変更ゼロ STOP ではハンドオフも消える）","state":"closed","bodylen":7718,"refs":[460,423,425,323,375,350,354,374,426,452],"prRefs":[425]}
+{"number":466,"title":"stateReason が DUPLICATE / null の closed Issue が UNKNOWN 扱いになり、blocker gate と Project Status 同期を止めうる","state":"closed","bodylen":3806,"refs":[465,460,345,295,297,298],"prRefs":[465]}
+{"number":467,"title":"asset-parity ワークフローの paths フィルタに .ai/** が無く、共通本文だけを変更した PR で資産整合検査が起動しない","state":"closed","bodylen":2822,"refs":[465,460,448,478,190,155],"prRefs":[465,478]}
+{"number":468,"title":"issue-pipeline の Copilot / Codex 向け写しが正本から乖離している（staleness 3.9x / 2.3x・PR #465 の②-a 追記が未反映）","state":"closed","bodylen":2907,"refs":[465,460,538,603,371,368,467,391,155],"prRefs":[465]}
+{"number":469,"title":"blocker_gate の UrlLibReadTransport が「読み取り専用」と名乗りながら POST を公開している（名前と実体の不一致）","state":"closed","bodylen":2214,"refs":[465,460,345,434],"prRefs":[465]}
+{"number":470,"title":"project-status-sync の初回 dry-run を確認して cron を有効化する（#460 の成果を実稼働させる）","state":"closed","bodylen":3240,"refs":[460,465,466,461],"prRefs":[465]}
+{"number":472,"title":"MAX_SNAPSHOT_AGE_SECONDS の直上コメントに、F-470-02 で否定した旧因果が残っている","state":"closed","bodylen":2534,"refs":[471,470,460],"prRefs":[471]}
+{"number":480,"title":"[検証用・使い捨て] duplicate クローズ状態を作るための Issue（#466 AC #6 実測用）","state":"closed","bodylen":1197,"refs":[466,6,479],"prRefs":[479]}
+{"number":481,"title":"[検証用・使い捨て] AC #6 実測の open 側起点（#466）","state":"closed","bodylen":678,"refs":[466,6,480,479],"prRefs":[479]}
+{"number":482,"title":"起票先の判断に「対策検討材料」軸を追加し、root cause 軸との2軸比較を gh-create-issue skill へ明文化する","state":"closed","bodylen":6539,"refs":[466,479,375,369,406,483,370],"prRefs":[479,483]}
+{"number":484,"title":"セッション記憶にしか無い作業規則を棚卸ししてリポジトリの正本へ移し、置き場の判定規則を明文化する","state":"closed","bodylen":4669,"refs":[482,365,366,367,479,483,1,464,474,4,6,363,364,466,3,468],"prRefs":[479,483,474,364]}
+{"number":485,"title":"issue-pipeline ① に Issue 構成の妥当性検査（分割漏れ・集約漏れ）を追加する","state":"closed","bodylen":3612,"refs":[482,370,483,376,445,368],"prRefs":[483]}
+{"number":488,"title":"欠陥混入率の指標を機械計測し、レポートを孤立ブランチへ publish する","state":"closed","bodylen":4627,"refs":[370,371,409,368,406,407,430,431,434,435,436,414,415,419,472,363,461,489],"prRefs":[]}
+{"number":489,"title":"混入率レポートの外部 cron を設定し、初回レポートの到達を実測確認する","state":"closed","bodylen":2912,"refs":[488,371,460,470,461,363,546,370,431],"prRefs":[546]}
+{"number":491,"title":"codex CLI の feature catalog 更新に追随できず、codex 導入済みローカルで test_codex_supervisor が常に error になる","state":"closed","bodylen":4231,"refs":[488,490,431],"prRefs":[490]}
+{"number":492,"title":".claude/rules/02-decision-process.md の汎用ハーネス列挙が実在ツールに追随しておらず、起票先を判定表から引けない","state":"closed","bodylen":3733,"refs":[490,488,431],"prRefs":[490]}
+{"number":493,"title":"defect_metrics の派生 Issue 判定が #N 記法にのみ依存し、指標の正しさが未記録の前提に乗っている","state":"closed","bodylen":4856,"refs":[490,488,487,456,455,370,461,489,431],"prRefs":[490]}
+{"number":495,"title":"レビューのスコープ外指摘が実害判定とカルテを迂回でき、実害ありの指摘が未処置のまま merge される","state":"closed","bodylen":7390,"refs":[490,488,493,370,371,431],"prRefs":[490]}
+{"number":498,"title":"codex-cli 0.153.4 が features.* config override（特に unified_exec）を反映するか切り分ける","state":"closed","bodylen":7246,"refs":[491,452],"prRefs":[]}
+{"number":502,"title":"異常終了したサブエージェントの worktree が running のまま残り、後続 dispatch の adopt-branch が必ず詰まる（同一クラス3回目）","state":"closed","bodylen":7295,"refs":[493,426,464,423,409,500],"prRefs":[500]}
+{"number":503,"title":"karte check が disposition: deferred/waived の finding にも診断を要求し、停止ゲートが毎ラウンド必ず 1 回 block する","state":"closed","bodylen":7552,"refs":[493,495,491,502,489,500],"prRefs":[500]}
+{"number":507,"title":"カスタムエージェントやSkillから不要記載を削除","state":"closed","bodylen":342,"refs":[562],"prRefs":[]}
+{"number":508,"title":"Codex の 5h レートリミット到達後に自動復帰しない（Stop hook がリミット到達 turn で発火しない）","state":"closed","bodylen":5343,"refs":[195,182,456,240],"prRefs":[]}
+{"number":510,"title":"tests/unit/test_pr_merge_classifier.py の Pyright reportOptionalMemberAccess 警告を解消する（#431 F-431-07 申し送り）","state":"closed","bodylen":7003,"refs":[515,509,431,203,434],"prRefs":[515,509]}
+{"number":511,"title":"pr-reviewer 契約が harm_detail に処置方針を書けと指示し、karte がそれを検証せず通す（#495 実装の取りこぼし）","state":"closed","bodylen":3591,"refs":[495,503,509,431,375,468],"prRefs":[509]}
+{"number":512,"title":"karte status をオーナーのチャットへ直送し、finding ID 単位で既読分を再表示しない（#310 から可視化経路を分離）","state":"closed","bodylen":4643,"refs":[509,431,310,379,461,375,445,371,330,368,468,511],"prRefs":[509]}
+{"number":513,"title":"是正ループの停止要件（escalate・処置方針未決定の実害 finding）が機械的に強制されず、AI が停止せずに作業を続行できる","state":"open","bodylen":11377,"refs":[509,431,564,530,512,523,305,370,428,414,371,310,330,495,511,409,368,691,683,785,733],"prRefs":[509,564,733]}
+{"number":517,"title":"gated ロールが Task で非 gated サブエージェントを spawn し agent-command-gate の allowlist を迂回できる","state":"closed","bodylen":4881,"refs":[516,510,515,129,452],"prRefs":[516,515]}
+{"number":519,"title":"PR #516 merge 後に gated ロールの Task 迂回経路が実際に塞がったかを実測する（#517 の事後検証）","state":"closed","bodylen":2875,"refs":[517,516,129,510],"prRefs":[516]}
+{"number":521,"title":"[トラッキング] issue-pipeline にオーナー判断のフィードバックループを導入する","state":"open","bodylen":1719,"refs":[376,368,371,445,513,512,310,330],"prRefs":[]}
+{"number":522,"title":"feedback_ledger: TOML スキーマ3種と機械 lint（canonical/immutability）を実装する","state":"closed","bodylen":7059,"refs":[513,512,310,330],"prRefs":[]}
+{"number":523,"title":"オーナー判断の捕捉を issue-pipeline に組み込み、karte の verdict に override_ref を要求する","state":"closed","bodylen":6492,"refs":[531,800,797,537,375,522,468,513,512,310,330,368,371,445,691,785,781,786],"prRefs":[]}
+{"number":524,"title":"/feedback-triage（週次棚卸し）と SessionStart 催促フックを作る","state":"open","bodylen":4320,"refs":[376,368,371,691,786,782],"prRefs":[]}
+{"number":525,"title":"/feedback-apply（承認済み改訂案を起票へ流す）を作る","state":"open","bodylen":2908,"refs":[368,371,445],"prRefs":[]}
+{"number":527,"title":"PR #526（Issue #512）のkarte_notify systemMessage直送をmerge後の新規セッションで実機確認する","state":"closed","bodylen":2667,"refs":[512,526,270,513],"prRefs":[526]}
+{"number":530,"title":"pr-reviewer が PR 差分の全文を取得できず、大規模 PR のレビュー網羅性が構造的に担保されない","state":"closed","bodylen":4304,"refs":[354,529,522,502,375,445,129],"prRefs":[529]}
+{"number":531,"title":"`scope` の覆し権限が主文脈（AI）にも与えられている — 覆しの源泉をオーナーのみへ一本化する","state":"closed","bodylen":4216,"refs":[523,495,522,375,468,521,337],"prRefs":[]}
+{"number":533,"title":"`pr_merge_gate` の classifier が merge でない read-only な `gh` コマンドを deny し、実行済みコマンドに整合性エラーを出す","state":"closed","bodylen":5590,"refs":[553,523,531,542,428,412,415,129],"prRefs":[553]}
+{"number":534,"title":"auto mode の「Bash でファイル編集せよ」注入指示が gated ロールの agent-command-gate と正面衝突する（観測記録）","state":"open","bodylen":2505,"refs":[531,532,533,129],"prRefs":[532]}
+{"number":535,"title":"issue-pipeline のファンアウトロールが Grep/Glob を宣言しているのに実行時に使えず、Bash の grep もゲートで塞がれるため全文検索の手段が無い","state":"closed","bodylen":3012,"refs":[531,532,227,386,534,530],"prRefs":[532]}
+{"number":537,"title":"feedback_ledger を方針決定の記録に使えるよう拡張し、決定台帳の捕捉 skill を新設する","state":"closed","bodylen":9868,"refs":[577,582,540,522,371,445,661,523,524,525,521],"prRefs":[661]}
+{"number":538,"title":"Codex supervisor スタックを撤去し codex exec の薄いラッパーへ置き換える","state":"closed","bodylen":13937,"refs":[452,448,449,451,565,603,453,459,462,463,475,477,506,518,520,233,576,604,589,638,625,533],"prRefs":[448,233,604,638,625]}
+{"number":539,"title":"基本原則（ISO 25010）を徹底する仕組みを構築する","state":"closed","bodylen":4948,"refs":[371,540,530,535,533,129,220,538],"prRefs":[]}
+{"number":540,"title":"harness 向け ADR 機構を道具ごとに構築する（feedback_ledger の造りを踏襲）","state":"closed","bodylen":9982,"refs":[452,371,537,539,522],"prRefs":[]}
+{"number":541,"title":"リポジトリの目的をREADME.md/CLAUDE.mdの冒頭に明記する","state":"closed","bodylen":1437,"refs":[540],"prRefs":[]}
+{"number":542,"title":"マージ権限をAIロールから剥がし settings.json のネイティブ機構へ移す","state":"closed","bodylen":6005,"refs":[584,569,581,570,533,538,468],"prRefs":[584]}
+{"number":543,"title":"review_system側test-strategyに検査レベル（単体/結合/システム）のプレフィックスを導入する","state":"open","bodylen":3358,"refs":[371,540],"prRefs":[]}
+{"number":547,"title":"blocker_gate に非ブロッキング診断チャネルを追加し、機械可読レポートとして publish する","state":"open","bodylen":2853,"refs":[461,479,466,539,530,535,533,371,521,523,524,525],"prRefs":[479]}
+{"number":551,"title":"[トラッキング] ISO 25010 コード構築原則 優先順位3〜7位の機構化を実施する（Issue #539の後続）","state":"open","bodylen":3372,"refs":[539,550,699,703,700,701,702,530,535,533,371,521],"prRefs":[550]}
+{"number":559,"title":"worktree残留がgitgate/issue-start-gateで解消されず主文脈の手作業が必要になる（Issue #502同一症状の再発・3経路）","state":"open","bodylen":6916,"refs":[502,535,555,558,409,615,605,733,699,679,745,757,761],"prRefs":[555,558,615,733]}
+{"number":562,"title":"全スキル・全カスタムエージェントの契約から経緯・フック説明を rationale へ移し、是正skillを整備する","state":"open","bodylen":3962,"refs":[557,354,530,372,388,373,507,540],"prRefs":[557]}
+{"number":565,"title":"素の Codex 起動で、AGENTS.md の「実装は subagent に委譲する」が実装担当への指示と相反し、再委譲の失敗で作業が止まる","state":"open","bodylen":8444,"refs":[530,583,538,564],"prRefs":[564]}
+{"number":567,"title":"CI: Node.js 20 非推奨警告の解消（setup-python@v5 ほか Node 24 対応版へ更新）","state":"closed","bodylen":2632,"refs":[],"prRefs":[]}
+{"number":569,"title":"Codex レートリミット自動復帰機構を撤去する（#508 を統合してクローズ）","state":"closed","bodylen":4698,"refs":[538,508,302,530,542,195,182,240,456],"prRefs":[]}
+{"number":570,"title":"/tmp 配下の worktree で sandbox テストが bwrap: Can't chdir で失敗する原因の切り分け","state":"open","bodylen":2291,"refs":[542,538,452],"prRefs":[]}
+{"number":572,"title":"JevによるClaude Codeフック判定器を実装する（R1〜R4・結線なし）","state":"closed","bodylen":10456,"refs":[571,577,578,579,580],"prRefs":[571,577]}
+{"number":573,"title":"ctx 優先の規律の明文化と、カスタムエージェントの Bash/Read を ctx 系へ一本化できるかの調査","state":"open","bodylen":2680,"refs":[274,303,304,305,336,329,275,530,535,533,542,452],"prRefs":[]}
+{"number":575,"title":"agy-delegate／silent-failure-diagnosis を .ai 正本構成で作り直し、agy 直接実行へ移行して agy-mcp-bridge を撤去する（PR #259・#260 の再実装）","state":"open","bodylen":5996,"refs":[605,606,607,259,260,290,291,408,448,539,484,271,284,273,268,513],"prRefs":[259,260]}
+{"number":576,"title":"PR #233 の公開前 remote 検証要件を #538／gitgate の複数ロール push 設計へ引き渡す","state":"open","bodylen":2242,"refs":[233,538,452],"prRefs":[233]}
+{"number":578,"title":"harness と dsv2 の既存テストコードを tests/道具名/ へ移設する","state":"open","bodylen":4415,"refs":[571,577,542,538,540],"prRefs":[571]}
+{"number":579,"title":"Jev: WSL Claude Codeへのshadow結線と運用準備","state":"open","bodylen":3810,"refs":[572,571,577,578,580],"prRefs":[571,577]}
+{"number":580,"title":"Jev: shadow評価に基づくルール別enforce移行","state":"open","bodylen":2908,"refs":[579,572,571,577],"prRefs":[571,577]}
+{"number":581,"title":"asset_parity の staleness flags（27 件）と mirror orphans（3 件）の扱いを調査する","state":"closed","bodylen":5853,"refs":[542,729,730,468,41472663048,418,617,637],"prRefs":[]}
+{"number":582,"title":"feedback_ledger の第1段（source 複数化・id 規則・min_items・render）を決定投入前に固定する","state":"closed","bodylen":7049,"refs":[537,371,540,523,521,587,522],"prRefs":[587]}
+{"number":583,"title":"write 権限のないロール 3 件（reconciliation-validator・dsv2-lookup・asset-auditor）の agent.md に、規範が求める artifact_policy 無効化の優先規定が無い","state":"closed","bodylen":3970,"refs":[565,573,275],"prRefs":[]}
+{"number":585,"title":"主文脈専用の規定を .claude/rules から分離し、主文脈だけに毎ターン注入する","state":"closed","bodylen":3254,"refs":[379,484,387],"prRefs":[]}
+{"number":588,"title":"非対話ロール3件の定義が、持っていない AskUserQuestion の使用を指示している","state":"closed","bodylen":1729,"refs":[586,585],"prRefs":[586]}
+{"number":589,"title":"「注入ブロックへの優先規定（15エージェント全てに付与済み）」という記述と、エージェント定義の実際の節名が一致しない","state":"closed","bodylen":1957,"refs":[586,583,585],"prRefs":[586]}
+{"number":590,"title":"root 権限で実行すると test_issue_start_gate の所有者・書込権限チェックのテストが必ず失敗する","state":"closed","bodylen":1826,"refs":[586,585],"prRefs":[586]}
+{"number":594,"title":"PR ブランチが base と衝突したとき、AI ロールが base を取り込んで解消できる手段がない","state":"closed","bodylen":1970,"refs":[586,585,584,542,533],"prRefs":[586,584]}
+{"number":597,"title":"主文脈の作業ディレクトリがサブディレクトリに移ると、agent-command-gate.sh が import に失敗して全 Bash を拒否し、自力で戻れなくなる","state":"closed","bodylen":2153,"refs":[586,585,340],"prRefs":[586]}
+{"number":598,"title":"PR #596 マージ後の Codex hooks 再信頼確認","state":"closed","bodylen":1320,"refs":[596,569,530,538],"prRefs":[596]}
+{"number":599,"title":"Codex hook まわりの文書・コメントの不整合（Stop hook 言及・hook 一覧の漏れ）","state":"closed","bodylen":1264,"refs":[596,569],"prRefs":[596]}
+{"number":603,"title":"Codex 主文脈前提の issue-pipeline 資産を整理する","state":"closed","bodylen":3046,"refs":[538,604,452,468,565],"prRefs":[604]}
+{"number":605,"title":"silent-failure-diagnosis を .ai 正本構成で再実装する（#575 の子 S2・PR #260 の再実装）","state":"closed","bodylen":2222,"refs":[575,260,291,408,448,539,484,606,607,273],"prRefs":[260]}
+{"number":606,"title":"agy-delegate を agy 直接実行ラッパーへ移行し、許可ルール検査と規範を整備する（#575 の子 S1）","state":"open","bodylen":10170,"refs":[680,627,628,726,676,679,575,607,513,484,605,271,284,290,273,615],"prRefs":[680,615]}
+{"number":607,"title":"agy-mcp-bridge を撤去する（MCP 登録と実体の削除・オーナー実行）（#575 の子 S3）","state":"open","bodylen":1818,"refs":[606,628,575,680,627,284,290,271],"prRefs":[680]}
+{"number":608,"title":"gated ロールに maintainability_lint check を許可し、ファイルの削除・移動は STOP とする運用を明文化する","state":"closed","bodylen":2194,"refs":[604,538,603,578,356],"prRefs":[604]}
+{"number":609,"title":"worktree_ledger の明示 lease API を整理する（外部利用者が無くなった）","state":"closed","bodylen":1071,"refs":[604,538],"prRefs":[604]}
+{"number":614,"title":"karte check が是正担当に渡らない finding（申し送り済みの harm: none、主文脈が処置する fix-here）で必ず NG になる","state":"closed","bodylen":4641,"refs":[604,503,538,609,603,850,495,330,691,785,683,733],"prRefs":[604,850,733]}
+{"number":617,"title":"asset_parity の Copilot 列が、インライン展開されない user-invocable:false の skill を一律「inlined」と exempt 表示する","state":"closed","bodylen":1759,"refs":[615,605,581],"prRefs":[615]}
+{"number":620,"title":"defect_metrics の既存挙動を維持して責務を分割し、maintainability baseline 負債を解消する","state":"closed","bodylen":3355,"refs":[370,368,488,489,493,539,608],"prRefs":[]}
+{"number":621,"title":"feedback_ledger の paths/store を契約維持で責務分割し、I/O・保存の baseline 負債を解消する","state":"closed","bodylen":2979,"refs":[537,523,524,525,540,522,582,539,608],"prRefs":[]}
+{"number":622,"title":"ci_anomaly_report の collector を配送契約維持で責務分割し、baseline 負債を解消する","state":"closed","bodylen":2594,"refs":[547,461,539,608],"prRefs":[]}
+{"number":623,"title":"guidance_sync の生成結果を維持して責務を分割し、baseline 負債を解消する","state":"closed","bodylen":2649,"refs":[565,492,539,608],"prRefs":[]}
+{"number":626,"title":"モデルの指定を「系統＋層」で書き、マイナーバージョン更新でSkill・agent・テストの更新を要さないようにする","state":"closed","bodylen":3262,"refs":[625,538,321],"prRefs":[625]}
+{"number":628,"title":"agy 実効設定と WSL 起動の実測根拠を取得し、agy-delegate ラッパーの fail-close 停止を解除する（#606 finding (1) 申し送り・#575 の子）","state":"closed","bodylen":2602,"refs":[680,627,607,679,606,575,271,284,290,513],"prRefs":[680,627]}
+{"number":629,"title":"gitgate integrate-baseをGithub copilotでも使用可能にする","state":"closed","bodylen":1717,"refs":[594,619],"prRefs":[]}
+{"number":630,"title":"ラッパーを通さない Codex 起動の既定権限を、認証情報の読取りを拒否する強化 profile にする","state":"closed","bodylen":3400,"refs":[625,538,626,732],"prRefs":[625,732]}
+{"number":631,"title":"issue-fixer / pr-reviewer / issue-implementer のロール共通本文に「横展開確認」の義務を追加する","state":"closed","bodylen":1727,"refs":[619,617,495,368],"prRefs":[619]}
+{"number":632,"title":"gh-create-issueのサブエージェント専用化","state":"closed","bodylen":172,"refs":[],"prRefs":[]}
+{"number":634,"title":"[pages] PRとPagesのテスト探索起点を揃え、全suiteのcoverageを合算する","state":"closed","bodylen":3460,"refs":[587,213,600,214,602,215,624,578],"prRefs":[587,600,602,624]}
+{"number":635,"title":"[defect-metrics] 現行指標を維持し、警告に判定理由・件数・対象Issueを明示する","state":"closed","bodylen":3679,"refs":[579,580,594,571,584,488,634],"prRefs":[571,584]}
+{"number":637,"title":"asset_parity の型診断を解消して型検査ゲートへ登録し、誤配置された skill ファイルを report.py で可視化する","state":"closed","bodylen":3254,"refs":[619,617,510],"prRefs":[619]}
+{"number":639,"title":"reconciliation に context-mode 注入ブロックへの優先規定を追加し、対応表を実態に合わせる","state":"closed","bodylen":1151,"refs":[638,589,583],"prRefs":[638]}
+{"number":648,"title":"#540担当文脈でLEDGER_SPECの完全性を確認し、#537へ結果を渡す","state":"closed","bodylen":555,"refs":[540,644,537,582],"prRefs":[644]}
+{"number":652,"title":"#371 導入後の工程分離・新ロール権限・adviserを初回実dispatchで検証する","state":"open","bodylen":6304,"refs":[371,649,650,651,608,375,310,409,606,628,368,370,538,542,513,517,565,691,784,786,733,825,800,697,803,802],"prRefs":[733,697]}
+{"number":655,"title":"issue_start の工程入力検査が、通常の開発で出る git 無視対象ファイル（スケジューラ lock・孤児 .pyc・別 runtime の .pyc）を未追跡 source として拒否し、全 dispatch が止まる","state":"closed","bodylen":11207,"refs":[662,663,652,1,3,4,5,6,7,8,371,538],"prRefs":[]}
+{"number":662,"title":"issue-pipeline の 1a（ac-designer）に、独立レビュー後の是正を同一 branch で継続する契約が無く、是正ラウンドごとに新 branch が作られ旧 branch が残る","state":"open","bodylen":4435,"refs":[655,409,371,652,537],"prRefs":[]}
+{"number":663,"title":"作成工程の契約に、ST/IT の TC を tests/<tool>/ へ実コード化する担当ロールが無い（test-writer は UT のみ、issue-implementer は新規テスト著作禁止）","state":"open","bodylen":4034,"refs":[655,371,543,578,537,652],"prRefs":[]}
+{"number":672,"title":"#371 / PR #650由来の既存ledger entryの出典roundを確認する","state":"closed","bodylen":1993,"refs":[537,371,650],"prRefs":[650]}
+{"number":674,"title":"CI: pages ワークフローの Node.js 20 非推奨警告（astral-sh/setup-uv@v6）の出どころ特定","state":"closed","bodylen":1761,"refs":[567],"prRefs":[]}
+{"number":676,"title":"agy_delegate の artifacts.py と launch_origin テストの Pyright 診断を解消する（#606 の F-606-29・F-606-30 申し送り）","state":"closed","bodylen":2960,"refs":[627,606,628,510,575,637,203],"prRefs":[627]}
+{"number":679,"title":"agy-delegate: 会話記録・結果ファイルの確定と CLI 返却の一致（二重故障の窓）","state":"open","bodylen":3902,"refs":[627,606,628,676,575,733,699,559,409],"prRefs":[627,733]}
+{"number":683,"title":"karte: 申し送りの転記と検証を一気通貫で行う verb を追加し、検証済みの申し送り finding を無進捗（escalate）から除外する","state":"closed","bodylen":12160,"refs":[513,123,627,606,676,679,503,516,510,129,614,523,375,371,330,564,509,495,691,786],"prRefs":[627,516,564,509]}
+{"number":685,"title":"issue_start の後続工程 dispatch が dispatch 元 cwd の対象 branch 上 checkout を要求し、adopt-branch は branch の未 checkout を要求するため、1b 以降（change-planner・test-writer・issue-implementer）の dispatch が成立しない","state":"closed","bodylen":9590,"refs":[655,650,371,426,502,662,663,652,538,559,691],"prRefs":[650]}
+{"number":686,"title":"Github projectsのハーネスフィールド設定規律を本文記載のみ実施に変更する","state":"closed","bodylen":17,"refs":[],"prRefs":[]}
+{"number":690,"title":"[トラッキング] レビュー指摘の自動仕分けとAdvisory中央台帳を導入する","state":"closed","bodylen":7109,"refs":[375,523,683,614,513,310,409,376,524,370,652,685],"prRefs":[]}
+{"number":691,"title":"[トラッキング] レビュー指摘の自動仕分けとAdvisory中央台帳を導入する","state":"open","bodylen":9874,"refs":[375,523,683,614,513,376,524,310,409,370,652,685,330,368,445,690,781,786,723,782,696,697,783,784,832,785,745,531,830,816,856],"prRefs":[696,816]}
+{"number":693,"title":"project_status_sync の計画生成・レポート表示を責務分割し、maintainability baseline 負債を解消する","state":"closed","bodylen":2527,"refs":[608,547,685,375,460,470,539,620,623],"prRefs":[]}
+{"number":694,"title":"工程 dispatch の作業面の契約と失敗後の回復、および hook の信頼境界の残り（#685 の範囲外の観測）","state":"open","bodylen":21055,"refs":[685,662,426,655,559,603,270,354,597,502,409,652,663],"prRefs":[]}
+{"number":699,"title":"[ISO 25010 / 優先3] 信頼性パターンを共通化し、failure・idempotency契約テストを導入する","state":"open","bodylen":1279,"refs":[551,539,733,559,679,409],"prRefs":[733]}
+{"number":700,"title":"[ISO 25010 / 優先4] セキュリティchecklistとsecret・supply-chain検査を導入する","state":"open","bodylen":555,"refs":[551,539],"prRefs":[]}
+{"number":701,"title":"[ISO 25010 / 優先5] Pyright・schema検査をclean-scope ratchetで段階的に強化する","state":"open","bodylen":1333,"refs":[551,539,676,733],"prRefs":[733]}
+{"number":702,"title":"[ISO 25010 / 優先6] Observabilityの共通event・log契約を定義して検証する","state":"open","bodylen":553,"refs":[551,539],"prRefs":[]}
+{"number":703,"title":"[ISO 25010 / 優先7] 成果物間のTrace link・orphan検査を導入する","state":"open","bodylen":1279,"refs":[551,539,365,733,409],"prRefs":[733]}
+{"number":704,"title":"PR #682 の origin/main 取り込み（生成ガイダンス3ファイルの衝突解消）","state":"closed","bodylen":3158,"refs":[682,594,629,600,640],"prRefs":[682]}
+{"number":705,"title":"chore(repo): 通常マージ済みリモートブランチ96本の安全な削除（棚卸し・再検証・実行）","state":"closed","bodylen":7618,"refs":[258,45,408,697,696,680,627,677,668,595,653,650,564,561,557,558,555,553,526,516,514,509,515,506,504,499,500,501,496,479,483,487,490,478,474,455,441,413,403,396,384,359,353,316,300,301,282,276,267,257,247,248,249,241,239,216,219,200,180,208,205,204,207,214,171,175,156,166,167,168,178,145,149,153,151,150,147,148,132,135,126,125,123,122,92,91,90,100,102,104,101,96,85,84,81,79,69,66,61,65,55,57,38,35],"prRefs":[258,45,408,697,680,627,677,668,595]}
+{"number":706,"title":"gitgate integrate-base を PR base 取り込みの責務に絞り、過剰なロール・保護ファイル・テスト制約を撤廃する","state":"closed","bodylen":4895,"refs":[594,600,629,640,704,682],"prRefs":[600,640,682]}
+{"number":710,"title":"refactor(governance): 外部投稿・共有操作の事前確認を限定し、通常の push／PR／Issue 操作は再確認不要にする","state":"closed","bodylen":5228,"refs":[718,542,723,727,711,585,683],"prRefs":[718]}
+{"number":711,"title":"[CI] 単独PRの決定論的コンフリクトを自動修復し、stacked PRは検出・報告のみ","state":"closed","bodylen":11647,"refs":[704,682,629,640,696,697,706,565,743,744,42127158502,451,740,741,42041368155,727,716,717,42023465203,733,594,600],"prRefs":[682,640,696,697,744,451,727,717,600]}
+{"number":713,"title":"feat(issue-pipeline): フェーズ承認を一時タグで固定し、PR本文へSHAを残して通常マージ後に後始末する","state":"open","bodylen":4316,"refs":[710,409,705,371,662,310,375],"prRefs":[]}
+{"number":714,"title":"issue_start／karte 周りの記述がコードと食い違っている箇所を是正する（入れ子委譲・bind・GATED_ROLES・karte check）","state":"open","bodylen":7713,"refs":[706,712,517,519,516,338,423,425,6,614],"prRefs":[712,516,425]}
+{"number":715,"title":"Codex のネットワーク権限と GitGate 実行時の診断手順をガイダンスに反映する","state":"closed","bodylen":1361,"refs":[682,704,706,712],"prRefs":[682,712]}
+{"number":716,"title":"GitGate の base 取り込みで PR base.sha と現在のブランチ先端の不一致を扱う","state":"closed","bodylen":1084,"refs":[682,600,706,712,704],"prRefs":[682,712]}
+{"number":719,"title":"isdigit() と int() の併用で非 ASCII 数字・巨大桁が ValueError の Traceback になる（karte 以外: codex_worktree_exec・branch_source）","state":"closed","bodylen":4400,"refs":[696],"prRefs":[696]}
+{"number":720,"title":"回帰を検出できない（恒真・欠落）テスト: TestStatus.test_clean と trigger の batch コマンド型検査","state":"closed","bodylen":2238,"refs":[696,719],"prRefs":[696]}
+{"number":721,"title":"karte: argparse の usage error も終了コード 2 になり EXIT_NOT_FOUND と衝突する。README の終了コード契約が usage error を含まず事実と異なる","state":"open","bodylen":2820,"refs":[696,719,720],"prRefs":[696]}
+{"number":722,"title":"issue_start: 進行ポインタの深いネスト JSON で RecursionError が漏れ、SubagentStop ゲートが fail-open になる","state":"closed","bodylen":3237,"refs":[696,719,720,721],"prRefs":[696]}
+{"number":723,"title":"refactor(harness): 実害判定基準をSSoT化しレビューア・finding-triagerへ同一基準を供給する","state":"closed","bodylen":3682,"refs":[691,369,511,375,523,513,614,562],"prRefs":[]}
+{"number":724,"title":"feedback_ledger: オーナー判断の登録漏れを防ぐため、捕捉契機・実行経路・完了確認を主文脈へ接続する","state":"open","bodylen":4265,"refs":[537,523,524,525,521,522,691],"prRefs":[]}
+{"number":725,"title":"Codex agy-delegate が必読資料を安全な実行経路から読めない","state":"closed","bodylen":1455,"refs":[606,676,679],"prRefs":[]}
+{"number":728,"title":"回帰を検出できないテスト（続）: karte_notify の入力ガード未検証と、karte テストの緩い終了コード断定","state":"closed","bodylen":3784,"refs":[696,720,719,721,722],"prRefs":[696]}
+{"number":729,"title":"fix(asset_parity): CIのGit履歴不足とstaleness診断の再現性・表示を改善する","state":"closed","bodylen":3206,"refs":[581,468,617,637],"prRefs":[]}
+{"number":730,"title":"fix(asset_parity): 意図的mirror-only資産を未分類orphanと区別して表示する","state":"closed","bodylen":3693,"refs":[581,140,729,418,617,637],"prRefs":[]}
+{"number":743,"title":"[bug][CI][#711 blocker] conflict_repair が古い PR base.sha を最新 main OID と比較して単独PRを誤除外する","state":"closed","bodylen":3860,"refs":[711,727,42023465203,733,451,41563573379,696,697,716,717],"prRefs":[727,733,451,717]}
+{"number":745,"title":"[Tracking / Refactor] maintainability_lint 既存負債75件を全解消する（33ファイル・領域別stack）","state":"open","bodylen":8615,"refs":[539,696,697,375,740,741,719,720,728,721,683,614,513,691,714,722,409,559,662,694,524,655,576,565,415,547,699,701,702,724,523,525,5,291,285,229,835,836,838,839,840,841,842,746,747,748,749,750,751,752,753,754,755,756,757,758,759,760,761,762,763,764,765,766,767,768,769,770,771,785],"prRefs":[696,697,740,741]}
+{"number":746,"title":"[Maintainability K-01] karte/model.pyの解析・検証責務を分離","state":"closed","bodylen":1013,"refs":[745,696,697,683,614,691],"prRefs":[696]}
+{"number":747,"title":"[Maintainability K-02] karte/model.pyのreview・正規化・表示責務を分離して負債ゼロ","state":"closed","bodylen":1037,"refs":[745,746,683,614,513],"prRefs":[]}
+{"number":748,"title":"[Maintainability K-03] karte CLIのrender/status・状態集計責務を分離","state":"closed","bodylen":1013,"refs":[745,696,720,747,728,714],"prRefs":[]}
+{"number":749,"title":"[Maintainability K-04] karte CLIの更新verb・引数解析を分離して負債ゼロ","state":"closed","bodylen":1049,"refs":[745,721,728,748,683,614,375],"prRefs":[]}
+{"number":750,"title":"[Maintainability K-05] karte similarity/touchedを責務分離して負債ゼロ","state":"open","bodylen":918,"refs":[745,749,513,683],"prRefs":[]}
+{"number":751,"title":"[Maintainability K-06] karte通知フックの入力検証・通知判断を分離して負債ゼロ","state":"open","bodylen":1041,"refs":[745,728,720,750,375,714],"prRefs":[]}
+{"number":752,"title":"[Maintainability I-01] SubagentStop判定・進行ポインタを分離","state":"open","bodylen":950,"refs":[745,696,722,714,694,513],"prRefs":[696]}
+{"number":753,"title":"[Maintainability I-02] subagent bind・成果物回収・解放を分離","state":"open","bodylen":988,"refs":[745,696,752,409,662,694,559],"prRefs":[696]}
+{"number":754,"title":"[Maintainability I-03] worktree ledgerの保存・排他制御を分離","state":"open","bodylen":898,"refs":[745,696,753,409,559,694],"prRefs":[696]}
+{"number":755,"title":"[Maintainability I-04] worktree ledger状態遷移・残留検出を分離","state":"open","bodylen":976,"refs":[745,696,559,754,409,662,694],"prRefs":[696]}
+{"number":756,"title":"[Maintainability I-05] durable_lockとSessionStartの小規模負債を解消","state":"open","bodylen":912,"refs":[745,696,755,524,655,694],"prRefs":[696]}
+{"number":757,"title":"[Maintainability G-01] gitgate/worktreeの引数解析・安全パス検証を分離","state":"closed","bodylen":1992,"refs":[745,740,741,559,694,787],"prRefs":[740,787]}
+{"number":758,"title":"[Maintainability G-02] worktree collect/release・handoffを分離","state":"closed","bodylen":2049,"refs":[745,757,559,409,694,788,787],"prRefs":[788,787]}
+{"number":759,"title":"[Maintainability G-03] worktree sweep・残留判定を分離して負債ゼロ","state":"closed","bodylen":1686,"refs":[745,788,758,559,409,694,789],"prRefs":[789,788]}
+{"number":760,"title":"[Maintainability G-04] gitgate adoptとCLIを責務別に分離","state":"closed","bodylen":1936,"refs":[745,759,559,662,576,694,791,789],"prRefs":[791]}
+{"number":761,"title":"[Maintainability G-05] branch_source/policy.pyを責務分離して負債ゼロ","state":"closed","bodylen":1848,"refs":[745,740,741,719,760,565,794,791],"prRefs":[794]}
+{"number":762,"title":"[Maintainability B-01] GitHub API取得・branch protection証跡生成を分離","state":"open","bodylen":934,"refs":[745,415,547],"prRefs":[]}
+{"number":763,"title":"[Maintainability B-02] GitHubCollectorの取得責務を分割完了し負債ゼロ","state":"open","bodylen":909,"refs":[745,762,415,547,699],"prRefs":[]}
+{"number":764,"title":"[Maintainability B-03] blocker_gate resolverの検証・waiver・評価処理を分離","state":"open","bodylen":891,"refs":[745,763,547,699],"prRefs":[]}
+{"number":765,"title":"[Maintainability B-04] blocker_gate model・contract・evaluatorを責務分離","state":"open","bodylen":983,"refs":[745,764,547,699,701],"prRefs":[]}
+{"number":766,"title":"[Maintainability B-05] waiver/closing referenceの解析・検証を責務分離","state":"open","bodylen":865,"refs":[745,765,699,547],"prRefs":[]}
+{"number":767,"title":"[Maintainability B-06] blocker_gate snapshot/CLIを分離して領域負債ゼロ","state":"open","bodylen":956,"refs":[745,547,766,699,702],"prRefs":[]}
+{"number":768,"title":"[Maintainability L-01] feedback_ledgerの検証と状態集計を分離","state":"open","bodylen":1059,"refs":[745,724,523,524,525],"prRefs":[]}
+{"number":769,"title":"[Maintainability L-02] project_status_syncのCLI・GitHub・modelを分離","state":"open","bodylen":921,"refs":[745,768,699,702],"prRefs":[]}
+{"number":770,"title":"[Maintainability L-03] review_system CLI・frontmatter・criteria処理の小規模負債を解消","state":"open","bodylen":1039,"refs":[745,769,5,701],"prRefs":[]}
+{"number":771,"title":"[Maintainability L-04] Claude review MCP serverを責務分離して全件返済を完了","state":"open","bodylen":1026,"refs":[745,770,291,285,229],"prRefs":[]}
+{"number":777,"title":"[bug][CI][#711 blocker] 修復後OIDに検証Checksが紐付かない","state":"closed","bodylen":1582,"refs":[711,772,743],"prRefs":[772]}
+{"number":781,"title":"feat(triage): 版付き自動仕分けポリシーとオーナー権限委譲契約を定義する","state":"closed","bodylen":2916,"refs":[691,723,683,786,785,531,523,690,798,745],"prRefs":[]}
+{"number":782,"title":"feat(advisory): Advisory中央台帳・検証CLI・一覧導出を実装する","state":"closed","bodylen":1142,"refs":[691,696,697,614,683,376,524,523,724],"prRefs":[]}
+{"number":783,"title":"feat(triage): reviewerから独立したfinding-triagerと評価artifactを実装する","state":"open","bodylen":1118,"refs":[691,723,781,375,310,409],"prRefs":[]}
+{"number":784,"title":"feat(issue-pipeline): finding-triagerをレビュー工程へ提案モードで結線する","state":"open","bodylen":2688,"refs":[691,782,375,696,697,409,310,832,783,523,652,856,816],"prRefs":[696,816]}
+{"number":785,"title":"feat(karte): trusted自動仕分け確定とadvisory判定・STOP整合を実装する","state":"open","bodylen":2618,"refs":[691,683,614,513,523,696,697,781,786,782,784,832,856,310,409,375,745,746,751],"prRefs":[696]}
+{"number":786,"title":"feat(triage): #683の検証済みhandoffによる自動deferredと実運用検証を完成する","state":"open","bodylen":1354,"refs":[691,683,376,524,370,785,513,652,409],"prRefs":[]}
+{"number":792,"title":"[重複実装の統合] karte ingest の owner scope 適用・karte_notify の shell 解析・review envelope 語彙を1箇所へ（#375 / PR #697 レビュー由来）","state":"open","bodylen":7153,"refs":[697,375,512,751,531,523,785,696,745],"prRefs":[697]}
+{"number":793,"title":"[書式の食い違い] binding の run_id / target_key は任意の1行を許す一方 karte review envelope は header-safe のみ受理し、該当 binding で Codex pr-reviewer が必ず失敗する（#375 / PR #697 レビュー由来）","state":"open","bodylen":6286,"refs":[697,375,792,696],"prRefs":[697]}
+{"number":797,"title":"[申告 scope 原本] 待機の取消後に旧 ingest-review で round 1 を書くと、主文脈の scope がレビューア原本より先に台帳へ入る（#375 / PR #697 レビュー由来）","state":"closed","bodylen":8481,"refs":[697,375,523,792,793,531,129,800,803,696],"prRefs":[697]}
+{"number":800,"title":"[#375 子1] pr-reviewer finding の信頼済みファイルハンドオフ取り込みを実装する（reviewer 専用 ingest-reviewer・PR #697）","state":"closed","bodylen":6517,"refs":[375,523,371,697,792,696,341,797,406,407,793,369,310,409,531,337,368],"prRefs":[697,696]}
+{"number":801,"title":"[#375 子2] finding 0件（clean）レビューの取り込み形式を定め、レビューで元 Issue の AC 充足を判定して AC チェックを更新する","state":"open","bodylen":4972,"refs":[792,793,797,848,375,800,697,846,310,371,409,803],"prRefs":[697,846]}
+{"number":802,"title":"[#375 子3] Claude pr-reviewer 実機で finding が欠落なく karte へ取り込まれることを実測する","state":"open","bodylen":4320,"refs":[375,800,652,697,371,527,409,368],"prRefs":[697]}
+{"number":803,"title":"[#375 子4] pr-reviewer の権限分離を機械で強制する（PR コメント投稿経路・worktree 隔離・Write パス制限の hook 依存）","state":"open","bodylen":8261,"refs":[375,697,800,792,694,270,129,479,466,340,452,542,696,337,517,409,386,722],"prRefs":[697,479]}
+{"number":804,"title":"karte: 診断（diagnosis）／メモ（note）の [x, y] が dumps→parse の往復で変質し、往復のたびに引用符が増える（K-02 分割前から存在・F-799-06）","state":"closed","bodylen":4622,"refs":[799,747,745],"prRefs":[799]}
+{"number":805,"title":"docs(karte): model.py 入口の docstring 要約化後、同「改ざん防止の機械的裏付けと既知の限界」節を名指す4文書の参照先を rationale へ更新する（F-799-07）","state":"open","bodylen":5260,"refs":[799,747,363,522,745,804,746,748,683],"prRefs":[799]}
+{"number":810,"title":"[reviewer 取り込み経路の実害指摘3件] Write 検査の相対パス解決・karte 拒否文の誤誘導・申告原本の再試行時の食い違い（#375 / PR #697 再レビュー由来）","state":"open","bodylen":8684,"refs":[697,375,792,801,802,803,797,129,696,800],"prRefs":[697]}
+{"number":811,"title":"coverage-html スキルの共通本文が計測対象を「review_system のみ」と書いており、.coveragerc の実際の source と食い違う","state":"closed","bodylen":6239,"refs":[697,375,800,172,655,634,847,829,846,801,816],"prRefs":[697,847,846,816]}
+{"number":812,"title":"gh-create-issue エージェントの文書が許可すると読める gh の使い方を command gate が拒否している（許可・拒否の一覧が文書にない）","state":"closed","bodylen":8686,"refs":[810,697,375,800,342,227,269,694,849,632],"prRefs":[697,849]}
+{"number":814,"title":"[CI] 単独PRのmaintainability baseline競合を3-way意味的マージで自動修復する","state":"closed","bodylen":5196,"refs":[711,727,608,539,745],"prRefs":[727]}
+{"number":822,"title":"[検証専用] Issue #655：ダミー成果物で工程dispatch入力検査・回復手順を実行検証","state":"closed","bodylen":6205,"refs":[655,818],"prRefs":[818]}
+{"number":823,"title":"feat(issue-pipeline): 変更影響面と同型根本原因探索をIR/CPへ結線する（S1+S2）","state":"open","bodylen":1902,"refs":[733,371,370],"prRefs":[733]}
+{"number":824,"title":"test(hooks): Claude/CodexのALLOW・DENY対照契約fixtureを整備する（S3）","state":"open","bodylen":1431,"refs":[733,706],"prRefs":[733]}
+{"number":825,"title":"feat(change-plan): live検証の要否判定とケース証拠を既存CPへ接続する（S6）","state":"open","bodylen":1431,"refs":[733,652,371],"prRefs":[733]}
+{"number":826,"title":"feat(safety): 安全重要verbのactor・target・OIDをtrusted bindingへ束縛する（L3）","state":"open","bodylen":1458,"refs":[733,706,745,757,761],"prRefs":[733]}
+{"number":827,"title":"feat(defect-metrics): 残置と処置適正性を分離する欠陥コホート分析を追加する（L6）","state":"open","bodylen":1552,"refs":[733,370,488],"prRefs":[733]}
+{"number":829,"title":"Codex／agy への作業委譲を既定化し、委譲先レートリミット時の Claude 切替を規範へ定める（設計・レビューは Claude 固定）","state":"open","bodylen":4243,"refs":[606,652,569,628,321,565,325,831,368,538],"prRefs":[]}
+{"number":830,"title":"improvement(review): reviewer の finding に実運用での到達経路・前提脅威の根拠欄を設け、取り込み後も保持する","state":"closed","bodylen":3078,"refs":[832,784,785,816,511,783,691,723,781,375,801,810,370],"prRefs":[816]}
+{"number":831,"title":"工程に乗らない低難度作業を主文脈から Codex へ渡す経路の方式を決める（spike）","state":"open","bodylen":2191,"refs":[829,630,565,606,538,368],"prRefs":[]}
+{"number":832,"title":"improvement(triage): triager が reviewer の到達経路・前提脅威の根拠を独立評価し、棄却候補を理由コード付きで owner-review に集約提示する","state":"open","bodylen":3809,"refs":[830,785,691,781,816,783,784,856,723,370],"prRefs":[816]}
+{"number":833,"title":"gh-create-issue の SubagentStop フックが receipt を書かない（6 dispatch で 0 件）原因の是正と、fallback 提示契約の見直し","state":"open","bodylen":5679,"refs":[632,694,812,227,269],"prRefs":[]}
+{"number":835,"title":"[Tracking / Architecture Discovery] 既存開発基盤のADR・PFD・DFDを発掘し、改修時のドリフトを防ぐ","state":"open","bodylen":5346,"refs":[745,787,757,788,758,789,759,791,760,794,761,836,837,838,839,840,841,842],"prRefs":[787,788,789,791,794]}
+{"number":836,"title":"[Architecture Discovery / Inventory] 開発基盤の既存設計資産・モジュール境界・発掘候補を棚卸しする","state":"open","bodylen":1642,"refs":[835,745,540,372],"prRefs":[]}
+{"number":837,"title":"[Skill / Architecture Discovery] 既存実装からADR・PFD・DFDを根拠付きで発掘するSkillを実装する","state":"open","bodylen":1488,"refs":[835,836,540,562],"prRefs":[]}
+{"number":838,"title":"[Architecture Discovery / Karte] karte・karte_notifyのADRとPFD/DFDを復元し発掘Skillを試行する","state":"open","bodylen":2215,"refs":[835,745,837,750,751,691],"prRefs":[]}
+{"number":839,"title":"[Architecture Discovery / Pipeline] issue_start・issue_envelopeの工程制御とPFD/DFDを復元する","state":"open","bodylen":2705,"refs":[835,836,837,838,752,756,745,722],"prRefs":[]}
+{"number":840,"title":"[Architecture Discovery / Git Safety] gitgate・branch_sourceの安全制御とPFD/DFDを復元する","state":"open","bodylen":2968,"refs":[835,836,837,838,787,757,788,758,789,759,791,760,794,761,745],"prRefs":[787,788,789,791,794]}
+{"number":841,"title":"[Architecture Discovery / Ledger] adr・feedback_ledgerの記録境界とPFD/DFDを復元する","state":"open","bodylen":2485,"refs":[835,836,837,838,745,540,724,768],"prRefs":[]}
+{"number":842,"title":"[Architecture Discovery / Quality Gates] 品質ゲート・資産同期機構のPFD/DFDと設計判断を復元する","state":"open","bodylen":2467,"refs":[835,836,837,838,745,762],"prRefs":[]}
+{"number":848,"title":"[verification][#801] clean 0件レビュー・ACチェック更新の実PR live動作検証","state":"open","bodylen":1002,"refs":[801,375,846,803],"prRefs":[846]}
+{"number":851,"title":"issue-pipeline の層表と bloom-model-tier の閾値表・各 agent の frontmatter が食い違い、Codex 切替規範の下限を測る基準が定まらない","state":"open","bodylen":3416,"refs":[847,829,626,801,321],"prRefs":[847]}
+{"number":852,"title":"[verification][#783] 独立finding-triagerのE2E・根拠評価・権限境界を実機検証する","state":"open","bodylen":3918,"refs":[783,816,784,801,691,375],"prRefs":[816]}
+{"number":855,"title":"SendMessage による agent 再開が issue-start 系の gate／継続検査の対象外である件の、実害調査と対策","state":"open","bodylen":7074,"refs":[847,829,662,694,409,606,375,517,502,559],"prRefs":[847]}
+{"number":856,"title":"improvement(review): Issue-pipeline 1a/1bのPlanReview観点を実例監査し、根拠・工程責務・収束性を改善する","state":"open","bodylen":3228,"refs":[691,784,832,830,655,662,694,783,785,801,371,723,370],"prRefs":[]}
+{"number":857,"title":"feat(triage): 1a/1b/2aのレビュー指摘を承認済みポリシーで安全に自動確定する","state":"open","bodylen":5028,"refs":[785,784,691,832,786,683,783,781,513,523,375,409,310,856],"prRefs":[]}
+{"number":858,"title":"[Tracking / Simplification] Claude Code標準worktreeを活用し、worktree所有台帳とgitgateの重複制御を縮小・撤去する","state":"open","bodylen":6602,"refs":[559,502,859,662,745,752,753,754,755,756,694,685,855,409,839,840],"prRefs":[]}
+{"number":859,"title":"[Spike / Architecture] Claude Code worktree標準機能の実測・既存安全契約との照合・関連Issue再編を確定する","state":"open","bodylen":10348,"refs":[858,559,502,745,855,752,753,754,755,756,662,694,685,409,839,840,652,371],"prRefs":[]}
