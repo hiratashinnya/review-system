@@ -39,3 +39,47 @@
 1. #655の1a/1b全PlanReview原本（finding ID、evidence、reachability_path、threat_assumption、round、disposition）と当時のIssue本文/VD/CP/owner decision snapshotの対応。
 2. #655とは異なる1a/1b実行案件の同じセット。
 3. 改定前後の必要実害finding、未承認要求候補、同一根拠再指摘、owner未決STOPを含む正例・負例のreviewer実実行と再レビュー検証。適用後に同条件で指摘再発・owner判断・残欠陥を測る。
+
+
+## クローズ済みPRまで遡った追加監査（2026-11-18）
+
+以下は発掘済みの**実証レベルを異なるまま**載せた一覧である。原本を確認したものと、実施の証言だけがあるものを混ぜて件数を水増ししない。対象はマージ済み/クローズ済みPR #684・#708・#731・#809・#650・#695、PR #847・#846と関連Issue。事例データの正本は [cases.json](cases.json)（レビュー原本や新たな合格判定器ではない）。
+
+### 監査母集団・証拠の強度
+
+| 事例 | 分類と証拠 | 証拠として言えること／言えないこと |
+| --- | --- | --- |
+| Issue #655：工程1a | [Issue #655](https://github.com/hiratashinnya/review-system/issues/655)・[Issue #662](https://github.com/hiratashinnya/review-system/issues/662)、[PR #684](https://github.com/hiratashinnya/review-system/pull/684)、[PR #708](https://github.com/hiratashinnya/review-system/pull/708) | **実1aの部分証拠**。round2のF-655-16〜21、round3/7のScope/AC改訂、F-655-15とP11引渡しが記録にある。ただし個々のfinding原本・当時のIssue/VDの完全snapshot・最終recheckは**原本未取得**。 |
+| Issue #723／PR #731「実害判定基準を単一の正本に集約する」 | [マージ済みPR #731](https://github.com/hiratashinnya/review-system/pull/731)本文に「AC・検証設計と変更設計を独立レビューし、指摘是正後に合格」と明記 | **#655とは別の実1a/1b実施証言**。本文のfinding4件は後段の独立レビューであり、PlanReviewの4件と誤読しない。phase別finding、round、recheckの原本は未発掘。 |
+| Issue #683／PR #809「karte handoff 検証（設計のみ先行）」 | [マージ済みPR #809のカルテ全文・finding](https://github.com/hiratashinnya/review-system/pull/809#issuecomment-6888926449)、[AttemptsとResults](https://github.com/hiratashinnya/review-system/pull/809#issuecomment-6888926694) | **実カルテ原本（コメント転載）**でround1〜7の状態遷移を追える。設計レビューround1〜4のF-809-01〜12は全12件`harm: real`でround4までにresolved。正式な1a/1b`plan-reviewer`とは記録されておらず、その件数に算入しない。 |
+| PR #847「Codex委譲の既定化と上限時切替」 | [初回finding](https://github.com/hiratashinnya/review-system/pull/847#issuecomment-6896886321)、[オーナー決定](https://github.com/hiratashinnya/review-system/pull/847#issuecomment-6920614473)、[追加レビュー](https://github.com/hiratashinnya/review-system/pull/847#issuecomment-6934793848)、[実測と修正](https://github.com/hiratashinnya/review-system/pull/847#issuecomment-6938700848) | PRレビューの正負例・round継続であり1a/1bではない。new-12を「過去記録につき修正不要」と決定、new-16は実コードと規範の不整合、new-22はprobe実測の新たな欠陥。 |
+| PR #846「review round 0件記録の基盤」 | [F-801-04 recheck](https://github.com/hiratashinnya/review-system/pull/846#issuecomment-6894808995) | 旧findingの証拠を照合してresolvedとした実例。後続HEADの全レビューが済んだという意味ではない。 |
+| Issue #662／Issue #685・PR #695「非初回dispatchのdetached化」 | [Issue #662](https://github.com/hiratashinnya/review-system/issues/662)・[マージ済みPR #695](https://github.com/hiratashinnya/review-system/pull/695) | 1a同一branchの是正経路欠落と、1b dispatch/adoptの条件矛盾。**実行基盤障害2分類**であり、レビュー観点が悪いと数えない。 |
+
+### finding → 根拠 → 承認済み条件 → 是正 → 再レビュー（公開原本で追跡可能な範囲）
+
+| ID / 工程 | 原本・実害の根拠 | 承認済み条件／オーナー判断 | 是正 | 再レビュー・判定 |
+| --- | --- | --- | --- | --- |
+| **F-809-01／設計round1→2** | [原本](https://github.com/hiratashinnya/review-system/pull/809#issuecomment-6888926449)。verified申し送りと現在の`deferred_to`が一致しなければ無進捗除外が誤る（real/major）。 | #683のQ1=C・Q2=A・Q3=A、除外は無進捗に限定しverdictは不変。 | 設計書§4/§6/§7で行き先束縛と再チェック、実コード`ingest_apply`との整合を明示。 | 同じfinding IDの`rounds: [1, 2]`、`resolved_round: 2`。別URL正規化問題はF-809-08として区別。 |
+| **F-809-07／設計round2→3** | [原本](https://github.com/hiratashinnya/review-system/pull/809#issuecomment-6888926449)。外部`gh`の失敗がCLIの終了コード契約から漏れる（real/major）。 | 既存CLIの失敗コード4、`verb_boundary._REFUSALS`を基準として確認。 | `FindingHandoffError(KarteUsageError)`で失敗種別を包み既存境界を保つ設計へ。 | `rounds: [2, 3]`、`resolved_round: 3`。新根拠の発見を重複扱いしない正例。 |
+| **F-809-21／実装レビューround6→7** | [原本](https://github.com/hiratashinnya/review-system/pull/809#issuecomment-6888926449)。Codex側MCP経由の検査の限界（`harm: real`、`scope: out`）。 | オーナーは現構成の検査と限界の記録を選び、追加gateや回帰試験は採用しない。 | 設計書とREADMEに現在の実態・将来設定変更時の限界を明記。 | `rounds: [6, 7]`、`resolved_round: 7`。scope外でも実害を記録し、オーナー判断を無断変更しない例。 |
+| **F-655-16〜21／実1a round2** | [Issue #662](https://github.com/hiratashinnya/review-system/issues/662)には「round2指摘をr3 branchで是正」の記述。個別finding本文は原本未取得。 | [PR #684](https://github.com/hiratashinnya/review-system/pull/684)はST/IT TCの実コード化を2a/test-writerとする決定、#663へ契約穴を分離。個別findingとの対応は**判定不能**。 | VD r2→r3の変更と新branchは確認可能。新branch自体は#662の別障害。 | 各IDのrecheck・旧基準・必要性は**判定不能**。未証明の是正成功や不合理な指摘とは記録しない。 |
+| **F-655-15／実1a、詳細不明** | [PR #708](https://github.com/hiratashinnya/review-system/pull/708)がr22是正向けのF-655-15とP11に言及。finding原本は未取得。 | ownerがP11=B（CI専用step）を選択。`feedback-ledger`の当該entryは`source.round=0/finding_ids=[]`で、実レビューIDと直接束縛されていない。 | 1aのVDには判定条件を置き、実行方式の決定は1b CPへ入力する旨を台帳に記録。 | 元findingのrecheckは未取得。レビューが1aで方式まで強制すべきだったとは言えない。 |
+| **new-12／PR #847** | [レビューと決定](https://github.com/hiratashinnya/review-system/pull/847#issuecomment-6920614473)。古い`#606/#628`文言。 | オーナーが「過去検証記録として残し、直さない」と決定。 | 編集なし。 | 新事実なしに要求を再掲しない**負例**。formal PlanReviewではない。 |
+| **new-16／PR #847** | [原本](https://github.com/hiratashinnya/review-system/pull/847#issuecomment-6934793848)。継続検査`PREDECESSORS`が同一role再dispatchを拒否する。 | 既存の引渡し契約と実コードが基準。オーナーが是正Bを選択。 | [是正r4〜r7](https://github.com/hiratashinnya/review-system/pull/847#issuecomment-6938700848)にコード・Red→Green記録。 | 新規実害・根拠あるfindingの正例。実dispatchは当初未実測と限定。 |
+| **F-801-04／PR #846** | [再レビュー原本](https://github.com/hiratashinnya/review-system/pull/846#issuecomment-6894808995)が保存先とSHA-256を確認。 | 旧レビューで要求した原本保存・再取込不一致拒否。 | 同じKarte保持領域で原本を保存し、digest・再取込拒否を加えた。 | 旧IDをresolvedと判定。後続変更に対する全体cleanは未証明。 |
+
+### 実測できる分類と、測れない効果
+
+1. **設計段階で正当な実害経路を指摘した例**：#809設計round1〜4のF-809-01〜12はカルテ上12件`harm: real`、同じ12件がround4までに`resolved`。当時の設計と既存コードの差分・検証計画を根拠にした早期検出の実例であり、製品障害の実発生率や1a/1bの検出率を示すものではない。
+2. **不要な手戻りとして識別した要因**：#662（同一branch是正不可）、#685（dispatch/adoptの不整合）の実行基盤障害2分類。#655のreview後Scope/AC拡張は3種類の記録があるが、不当な要求増殖だった件数は**0件と確定したのではなく未測定**。#847の既決を再要求しない例は規範テスト材料であり、1aの誤指摘実測には算入しない。
+3. **改善対象**：1aでは達成条件と方式決定の区別、1bでは前工程の既決照合、再レビューでは旧ID・旧snapshot・是正・新証拠の区別、scope外でも実害の記録、未決オーナー判断のSTOP。いずれも第一弾`plan-reviewer`規範へ対応済み。
+4. **未測定**：正式PlanReviewの誤指摘率、1a/1bの平均ラウンド増分、#655の個別findingの妥当性・全再検証、#723の各round原本。**これらの未測定を「問題なし」や「完了」へ読み替えない**。
+
+### 回帰テスト・合格基準との対応
+
+- `tests/unit/test_plan_review_scope_856.py`：第一弾の規範条項検査。
+- `tests/unit/test_plan_review_real_evidence_856.py` ＋ [cases.json](cases.json)：10の出典付き**実観測**を使った工程境界・オーナー決定・指摘ID維持/再レビューround・実害抑制禁止の契約ガード。各事例の対応条項を除く変異は失敗させる。レビューアの推論の正しさを実行測定するLLM E2Eではない。
+- #856 AC1の「複数の実1a/1b finding→根拠→承認→是正→再レビューの完全な対応」は#655・#723のraw PlanReview不足によりまだ達成宣言しない。**証拠不足を明示して対応表自体は作成済み**。
+- AC2は正当な設計実害と実行基盤の手戻りを実測に基づいて切り分けた。ただしレビュー観点による不要な指摘数の評価は未測定で、これを0件と結論しない。
+- AC4/5は規範への実例束縛と条項を機械確認できるようにしたが、独立した実LLMの1a/1b試験は別途必要で、**自動レビュアーの実測合格を主張しない**。
