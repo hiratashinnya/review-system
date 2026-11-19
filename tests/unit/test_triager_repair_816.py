@@ -134,14 +134,18 @@ class TriageRepairTest(unittest.TestCase):
                  patch("issue_start.triage_existing_capture.ingested_finding_ids",
                        return_value=["F-783-01"]), \
                  patch("issue_start.triage_existing_capture.binding_from_capture",
-                       return_value={"recovered": True}), \
+                       side_effect=[ValueError("GitHub temporarily unavailable"),
+                                    {"recovered": True}]), \
                  patch("issue_start.triage_existing_capture.capture_target") as start:
                 calls = []
-                result = execute_with_capture(
+                invoke = lambda: execute_with_capture(
                     request, ["review"], root, {}, b"k" * 32,
                     816, "review", 2, "tmp/triage.json",
                     lambda *args, **kwargs: calls.append(True))
-                self.assertEqual(result, 0)
+                with self.assertRaisesRegex(ValueError, "GitHub temporarily unavailable"):
+                    invoke()
+                self.assertFalse((root / "tmp/triage.json").exists())
+                self.assertEqual(invoke(), 0)
                 self.assertEqual(calls, [])
                 start.assert_not_called()
             self.assertEqual(json.loads((root / "tmp/triage.json").read_text()),
