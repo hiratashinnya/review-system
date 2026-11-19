@@ -62,6 +62,8 @@ class TriagerDispatchTest(unittest.TestCase):
             return SimpleNamespace(stdout=stdout)
         with patch('codex_worktree_exec.triager_dispatch.verify_binding_capture'), \
              patch('codex_worktree_exec.triager_dispatch.verify_source_snapshot'), \
+             patch('finding_triager.adapter.read_committed_artifact',
+                   side_effect=lambda path, root: path.read_bytes()), \
              patch('codex_worktree_exec.triager_dispatch.subprocess.run', side_effect=git), \
              patch('codex_worktree_exec.triager_dispatch.run_codex', side_effect=run) as execute:
             result = dispatch(self.req, self.root, self.root, self.env, 'codex')
@@ -78,9 +80,11 @@ class TriagerDispatchTest(unittest.TestCase):
     def test_host_captures_and_authenticates_output(self):
         result, execute = self.launch(); self.assertEqual(result, 0); execute.assert_called_once()
         out = json.loads((self.root / self.req.output_file).read_text())
-        self.assertEqual(validate_proposal(out['artifact'], self.raw, self.binding['review_signature'],
-                         self.review_key, self.expected, self.context, self.digest,
-                         out['capture'].encode(), out['signature'], self.capture_key), out['artifact'])
+        with patch('finding_triager.adapter.read_committed_artifact',
+                   side_effect=lambda path, root: path.read_bytes()):
+            self.assertEqual(validate_proposal(out['artifact'], self.raw, self.binding['review_signature'],
+                             self.review_key, self.expected, self.context, self.digest,
+                             out['capture'].encode(), out['signature'], self.capture_key), out['artifact'])
         self.assertEqual(list((self.root / 'tmp').glob('.triager-*')), [])
 
     def test_rejects_same_context_and_bad_digest_before_launch(self):
