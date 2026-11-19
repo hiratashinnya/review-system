@@ -9,6 +9,7 @@ from pathlib import Path
 
 from finding_triager.approved_materials import approved_materials
 from karte.finding_id import parse_finding_id
+from karte.format_error import KarteFormatError
 from karte.review_report import parse_review
 from .invocation import build_codex_argv, compose_prompt
 from .launcher import run_codex
@@ -77,7 +78,13 @@ def capture_existing(body, worktree, approval, review_oid, key, phase, round_no,
             or len(set(assigned_ids)) != len(assigned_ids)):
         raise ValueError("ingested finding ID list mismatch")
     for item, assigned in zip(review, assigned_ids):
-        if not isinstance(assigned, str) or parse_finding_id(assigned)[0] != approval["issue"]:
+        if not isinstance(assigned, str):
+            raise ValueError("invalid ingested finding ID")
+        try:
+            assigned_issue, _seq = parse_finding_id(assigned)
+        except KarteFormatError as exc:
+            raise ValueError("invalid ingested finding ID") from exc
+        if assigned_issue != approval["issue"]:
             raise ValueError("invalid ingested finding ID")
         if item.finding_id is not None and item.finding_id != assigned:
             raise ValueError("reviewer finding ID was replaced")
