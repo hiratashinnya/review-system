@@ -8,6 +8,8 @@ import tempfile
 from pathlib import Path
 
 from finding_triager.approved_materials import approved_materials
+from karte.finding_id import parse_finding_id
+from karte.review_report import parse_review
 from .invocation import build_codex_argv, compose_prompt
 from .launcher import run_codex
 from .nesting_guard import refuse_nested_launch
@@ -60,7 +62,7 @@ def capture_reviewer(request, cwd, marker, environ, codex, key):
     return body, raw, hmac.new(key, DOMAIN + raw, hashlib.sha256).hexdigest()
 
 
-def capture_existing(body, worktree, approval, review_oid, key, phase, round_no):
+def capture_existing(body, worktree, approval, review_oid, key, phase, round_no, *, assigned_ids=None):
     """Attest bytes observed immediately after the trusted normal reviewer run."""
     if not isinstance(body, bytes) or not body.strip() or not isinstance(key, bytes) or len(key) < 32:
         raise ValueError("reviewer output and trusted key required")
@@ -68,9 +70,21 @@ def capture_existing(body, worktree, approval, review_oid, key, phase, round_no)
     if (phase not in ("review", "remediation_review") or approval.get("triage_phase") != phase
             or type(round_no) is not int or round_no < 1):
         raise ValueError("review capture phase or round mismatch")
+    review = parse_review(body.decode("utf-8"), approval["issue"])
+    if assigned_ids is None:
+        assigned_ids = [finding.finding_id for finding in review]
+    if (not isinstance(assigned_ids, list) or len(assigned_ids) != len(review)
+            or len(set(assigned_ids)) != len(assigned_ids)):
+        raise ValueError("ingested finding ID list mismatch")
+    for item, assigned in zip(review, assigned_ids):
+        if not isinstance(assigned, str) or parse_finding_id(assigned)[0] != approval["issue"]:
+            raise ValueError("invalid ingested finding ID")
+        if item.finding_id is not None and item.finding_id != assigned:
+            raise ValueError("reviewer finding ID was replaced")
     receipt = {"schema": "finding-triage-review-capture/v1", "producer": "pr-reviewer",
                "worktree": str(worktree), "review_oid": review_oid,
                "source": "ingested-review", "phase": phase, "round": round_no,
+               "finding_ids": assigned_ids,
                "review_sha256": hashlib.sha256(body).hexdigest(), "approval": approval}
     raw = json.dumps(receipt, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
     return body, raw, hmac.new(key, DOMAIN + raw, hashlib.sha256).hexdigest()
