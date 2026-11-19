@@ -5,7 +5,7 @@
 
 import sys
 from . import (
-    ingest_accept, ingest_apply, ingest_checks, ingest_notes, ingest_receipt, ingest_report, karte_rounds, model, paths,
+    ingest_accept, ingest_apply, ingest_checks, ingest_notes, ingest_receipt, ingest_report, ingest_ac_receipt, karte_rounds, model, paths,
     review_expectation, review_summary, scope_ledger, scope_origin, override_gate,
 )
 from .active_pointer import write_active
@@ -82,7 +82,8 @@ def ingest_locked(repo_root, issue, round_no, report_text, policy=None, *, allow
     ingest_receipt.restore_scopes(karte, policy)
     karte.findings.sort(key=lambda item: item.seq)
     if summary is not None:
-        ingest_receipt.record(karte, round_no, original_report_text, repo_root, issue)
+        trusted_ac = ingest_ac_receipt.accepted(repo_root, issue, round_no, original_report_text, policy)
+        ingest_receipt.record(karte, round_no, original_report_text, repo_root, issue, ac_snapshot=trusted_ac)
     origin = scope_origin.begin(issue, repo_root, collected.accepted, "reviewer" if policy and policy.record_declarations else "main", round_no)
     if policy:
         policy.persist(round_no)  # 台帳より先に原本を残す

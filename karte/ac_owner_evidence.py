@@ -39,10 +39,15 @@ def require_trusted_round(repo_root, issue, round_no, snapshot_source):
     summary = parse_summary(report, issue)
     if summary is None:
         raise KarteUsageError("受理済みReview Summaryが存在しない")
-    if not isinstance(snapshot_source, str):
-        raise KarteUsageError("AC snapshot sourceが不正")
+    receipt = rounds[0]
+    if not isinstance(snapshot_source, str) or not receipt.ac_source:
+        raise KarteUsageError("受理済みroundにAC原本の束縛が無い")
+    if snapshot_source != receipt.ac_source:
+        raise KarteUsageError("指定AC原本が受理済みroundの原本と不一致")
     snapshot = path_for_record(repo_root, issue, round_no, {"source": snapshot_source})
     identity = ac_repository.frozen(repo_root, snapshot, required=True)
+    if identity != {"host": receipt.ac_host, "repository": receipt.ac_repository}:
+        raise KarteUsageError("受理済みroundとAC原本のhost/repositoryが不一致")
     body = paths.read_text(snapshot)
     items = from_issue_body(body)
     if summary.ac_count != len(items) or summary.ac_snapshot_digest != digest(items):

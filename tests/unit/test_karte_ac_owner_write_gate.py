@@ -50,7 +50,7 @@ class OwnerWriteGateTest(unittest.TestCase):
                   "### AC 2\nresult: satisfied\nevidence: tested\nfinding_refs: []\n"
                   "<!-- review-complete -->\n")
         ledger = model.new_karte(801)
-        ingest_receipt.record(ledger, 1, report, self.root, 801)
+        ingest_receipt.record(ledger, 1, report, self.root, 801, ac_snapshot=frozen)
         paths.write_text_atomic(paths.karte_path(801, self.root), model.dumps(ledger))
         write_active(self.root, 801, 1)
 
@@ -113,6 +113,29 @@ class OwnerWriteGateTest(unittest.TestCase):
                     self.run_update(remote)
                 self.assertEqual((0, 0), (remote.reads, remote.writes))
                 sidecar.write_text(original, encoding="utf-8")
+
+    def test_cancelled_source_with_same_ac_is_rejected_before_api(self):
+        other_body = BODY.replace("leave this alone", "different notes outside AC")
+        other_input = self.root / "tmp" / "cancelled.md"
+        other_input.write_text(other_body, encoding="utf-8")
+        cancelled = ac_snapshot_binding.stage(self.root, 801, 1, other_input)
+        self.assertNotEqual(self.snapshot, cancelled["source"])
+        self.assertEqual(cancelled["digest"], digest(from_issue_body(BODY)))
+        remote = Remote()
+        with self.assertRaisesRegex(KarteUsageError, "受理済みround"):
+            ac_owner_update.perform(self.root, 801, 1, cancelled["source"],
+                                    "hiratashinnya/review-system", remote=remote)
+        self.assertEqual((0, 0), (remote.reads, remote.writes))
+
+    def test_legacy_receipt_without_binding_cannot_write_ac(self):
+        ledger = model.parse(paths.read_text(paths.karte_path(801, self.root)))
+        rec = ledger.review_rounds[0]
+        ledger.review_rounds = [type(rec)(rec.number, rec.digest, rec.source)]
+        paths.write_text_atomic(paths.karte_path(801, self.root), model.dumps(ledger))
+        remote = Remote()
+        with self.assertRaises(KarteUsageError):
+            self.run_update(remote)
+        self.assertEqual((0, 0), (remote.reads, remote.writes))
 
     def test_wrong_round_or_tampered_snapshot_or_receipt_fails_closed(self):
         remote = Remote()

@@ -20,6 +20,24 @@ class ReviewRoundReceiptTest(unittest.TestCase):
         self.assertEqual(karte_rounds.last_round(loaded), 1)
         self.assertEqual(loaded.findings, [])
 
+    def test_accepted_ac_origin_roundtrip_and_malformed_ref_fails_closed(self):
+        report_source = "tmp/_karte/issue-801-review-round-1.md"
+        ac_source = "tmp/_karte/issue-801-ac-round-1-" + "b" * 64 + ".md"
+        rec = ReviewRound(1, DIGEST, report_source, ac_source, "github.com", "owner/repo")
+        karte = model.new_karte(801)
+        karte.review_rounds.append(rec)
+        rendered = model.dumps(karte)
+        self.assertEqual(model.parse(rendered).review_rounds, [rec])
+        for corrupt in (
+            rendered.replace("ac_host: github.com\n", ""),
+            rendered.replace("ac_host: github.com", "ac_host: bad..host"),
+            rendered.replace("ac_source: " + ac_source, "ac_source: tmp/other.md"),
+        ):
+            with self.subTest(corrupt=corrupt), self.assertRaises(model.KarteFormatError):
+                model.parse(corrupt)
+        karte.review_rounds = [ReviewRound(1, DIGEST, report_source, ac_source)]
+        self.assertEqual(model.parse(model.dumps(karte)).review_rounds, karte.review_rounds)
+
     def test_main_614_fields_and_801_roundtrip_without_loss(self):
         from karte.check_diagnosis import exemption_reason
         from karte.status_verdict import status_verdict
