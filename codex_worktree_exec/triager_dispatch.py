@@ -17,6 +17,16 @@ from .source_snapshot import verify_source_snapshot
 from .triage_binding_verify import EXTRA, verify_binding_capture
 
 
+
+def require_clean_tracked(worktree):
+    """Triager alone rejects unstaged and staged edits to tracked files."""
+    try:
+        subprocess.run(["git", "-C", str(worktree), "diff", "--quiet", "HEAD", "--"],
+                       check=True, capture_output=True)
+    except subprocess.CalledProcessError as error:
+        raise ValueError("triager worktree has uncommitted tracked changes or git diff failed") from error
+
+
 def validate_binding(request, cwd, worktree, environ):
     if request.binding_file is None:
         raise ValueError("trusted triager binding required")
@@ -44,6 +54,7 @@ def validate_binding(request, cwd, worktree, environ):
     receipt = verify_binding_capture(binding, keys[0])
     verify_source_snapshot(worktree, expected["snapshot_oid"], expected["issue"],
                            receipt["approval"]["source_changes"])
+    require_clean_tracked(worktree)
     raw, context = binding["review"].encode(), binding["context"].encode()
     prompt, review = prepare(raw, binding["review_signature"], keys[0], expected,
                              context, binding["context_digest"])
