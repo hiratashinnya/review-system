@@ -40,6 +40,7 @@ recheck: run test
                  patch('issue_start.triage_existing_capture.review_expectation.require', return_value={'phase': 'implementation'}), \
                  patch('issue_start.triage_existing_capture.approved_materials', return_value=approval), \
                  patch('issue_start.triage_existing_capture._head', return_value='c' * 40), \
+                 patch('issue_start.triage_existing_capture.ingested_finding_ids', return_value=['F-783-42']), \
                  patch('codex_worktree_exec.triage_binding_capture.github_evidence',
                        return_value={'issue_body': 'AC', 'change': 'diff'}) as github:
                 result = execute_with_capture(req, ['review'], root, {}, b'k' * 32, 3,
