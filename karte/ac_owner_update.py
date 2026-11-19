@@ -3,7 +3,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import ac_owner_evidence, ac_owner_github, paths
+from . import ac_owner_evidence, ac_owner_github, ac_repository, paths
 from .ac_check_update import plan, verify_written
 from .errors import KarteUsageError
 from .format_error import KarteFormatError
@@ -15,9 +15,11 @@ def perform(repo_root, issue, round_no, snapshot_source, repository, *,
     """Only this path may issue the automatic AC-check PATCH."""
     issue = paths.validate_issue(issue)
     remote = ac_owner_github.issue if remote is None else remote
-    snapshot, decisions = ac_owner_evidence.require_trusted_round(
+    snapshot, decisions, frozen_repository = ac_owner_evidence.require_trusted_round(
         repo_root, issue, round_no, snapshot_source,
     )
+    if ac_repository.normalize(repository) != frozen_repository:
+        raise KarteUsageError("AC更新先repositoryが受理済みレビューの凍結元と異なる")
     original = remote(repository, issue)
     updated, changed = plan(snapshot, original, decisions)
     if not changed or dry_run:

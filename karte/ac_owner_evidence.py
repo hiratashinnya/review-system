@@ -2,7 +2,7 @@
 from hashlib import sha256
 from pathlib import Path
 
-from . import ingest_receipt, karte_rounds, paths
+from . import ac_repository, ingest_receipt, karte_rounds, paths
 from .ac_snapshot import digest, from_issue_body
 from .ac_snapshot_archive import path_for_record
 from .active_pointer import read_active
@@ -42,8 +42,9 @@ def require_trusted_round(repo_root, issue, round_no, snapshot_source):
     if not isinstance(snapshot_source, str):
         raise KarteUsageError("AC snapshot sourceが不正")
     snapshot = path_for_record(repo_root, issue, round_no, {"source": snapshot_source})
+    repository = ac_repository.frozen(repo_root, snapshot, required=True)
     body = paths.read_text(snapshot)
     items = from_issue_body(body)
     if summary.ac_count != len(items) or summary.ac_snapshot_digest != digest(items):
         raise KarteUsageError("review判定とtrusted AC snapshotの件数・digestが不一致")
-    return body, summary.judgments
+    return body, summary.judgments, repository

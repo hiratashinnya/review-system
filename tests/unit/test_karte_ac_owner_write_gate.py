@@ -2,6 +2,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from karte import ac_owner_update, ac_snapshot_binding, ingest_receipt, model, paths
 from karte.ac_snapshot import digest, from_issue_body
@@ -35,6 +36,9 @@ class OwnerWriteGateTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        origin = patch("karte.ac_repository.checkout_repo", return_value="hiratashinnya/review-system")
+        origin.start()
+        self.addCleanup(origin.stop)
         (self.root / "tmp").mkdir()
         source = self.root / "tmp" / "frozen.md"
         source.write_text(BODY, encoding="utf-8")
@@ -83,6 +87,30 @@ class OwnerWriteGateTest(unittest.TestCase):
         with self.assertRaises(KarteUsageError):
             self.run_update(remote)
         self.assertEqual(1, remote.writes)
+
+    def test_wrong_repository_is_rejected_before_any_github_api_call(self):
+        for wrong in ("wrong-owner/unrelated", "other/review-system", "invalid repo"):
+            with self.subTest(repository=wrong):
+                remote = Remote()
+                with self.assertRaisesRegex(KarteUsageError, "repository"):
+                    ac_owner_update.perform(self.root, 801, 1, self.snapshot,
+                                            wrong, remote=remote)
+                self.assertEqual((0, 0), (remote.reads, remote.writes))
+
+    def test_repository_binding_tamper_or_missing_is_rejected_without_api(self):
+        sidecar = self.root / (self.snapshot + ".repository.json")
+        original = sidecar.read_text(encoding="utf-8")
+        for replacement in ('{"repository":"wrong-owner/unrelated"}\n', 'invalid json', None):
+            with self.subTest(replacement=replacement):
+                if replacement is None:
+                    sidecar.unlink()
+                else:
+                    sidecar.write_text(replacement, encoding="utf-8")
+                remote = Remote()
+                with self.assertRaises(KarteUsageError):
+                    self.run_update(remote)
+                self.assertEqual((0, 0), (remote.reads, remote.writes))
+                sidecar.write_text(original, encoding="utf-8")
 
     def test_wrong_round_or_tampered_snapshot_or_receipt_fails_closed(self):
         remote = Remote()
