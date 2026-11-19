@@ -14,17 +14,9 @@ from .invocation import build_codex_argv
 from .launcher import run_codex
 from .prompt_files import resolve_output_target
 from .source_snapshot import verify_source_snapshot
+from .triager_worktree import require_clean_tracked
 from .triage_binding_verify import EXTRA, verify_binding_capture
 
-
-
-def require_clean_tracked(worktree):
-    """Triager alone rejects unstaged and staged edits to tracked files."""
-    try:
-        subprocess.run(["git", "-C", str(worktree), "diff", "--quiet", "HEAD", "--"],
-                       check=True, capture_output=True)
-    except subprocess.CalledProcessError as error:
-        raise ValueError("triager worktree has uncommitted tracked changes or git diff failed") from error
 
 
 def validate_binding(request, cwd, worktree, environ):
