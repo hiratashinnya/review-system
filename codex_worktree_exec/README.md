@@ -52,7 +52,7 @@ profile の生成・digest 検査・bwrap・台帳連携は持たない。区分
 envelopeのinput digestを分け、expected値をartifactからコピーして補完しない。
 著作ロールはworkspace編集、調査・レビュー・adviserはread-only profileを使う。
 全ロールでnetworkと認証情報を拒否し、commit/pushは呼び出し側Claudeの許可ロールだけが行う。
-origin/mainとのprofile pinは維持するため、未merge profileの実起動は拒否される。
+origin/mainとのprofile pinは維持するため、未merge profileの実起動は拒否される。`finding-triager` は既存 `adviser` profile を共有し、内容の read-only/network deny 検査を追加する。
 新工程のnative dispatchはmanifestでavailableとし、入力・独立review・owner承認を必須にする。
 worktree継承は `FBK-20261017-工程別worktreeへ同一branchを継承する` に従って各作者専用worktreeへ
 同branch/remote exact OIDをadoptする。前roleのreceipt回収・終了・collect/releaseを確認する。

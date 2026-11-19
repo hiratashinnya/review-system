@@ -183,6 +183,21 @@ class PhaseDispatchBindingTests(unittest.TestCase):
                 validate_phase_dispatch(dict(binding_file="tmp/binding.json", approval_file="tmp/approval.json"),
                                         role, self.root)
 
+    def test_triage_phase_is_bound_only_to_pr_implementation_approval(self):
+        self.binding['recipient'] = self.approval['recipient'] = 'pr-reviewer'
+        (self.root / 'tmp').mkdir(exist_ok=True)
+        marker = {'binding_file': 'tmp/binding.json', 'approval_file': 'tmp/approval.json'}
+        for phase in ('review', 'remediation_review', 'planning'):
+            self.approval['triage_phase'] = phase
+            (self.root / marker['binding_file']).write_text(json.dumps(self.binding))
+            (self.root / marker['approval_file']).write_text(json.dumps(self.approval))
+            if phase == 'planning':
+                with self.assertRaisesRegex(IssueStartError, 'triage phase requires implementation review'):
+                    validate_phase_dispatch(marker, 'pr-reviewer', self.root)
+            else:
+                result = validate_phase_dispatch(marker, 'pr-reviewer', self.root)
+                self.assertEqual(result['triage_phase'], phase)
+
     def test_empty_collector_cannot_hide_native_expected_input(self):
         with patch("codex_worktree_exec.repository_artifacts.index", return_value={"nodes": []}):
             with self.assertRaisesRegex(IssueStartError, "outside verified repository collection"):

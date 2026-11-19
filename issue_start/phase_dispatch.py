@@ -37,7 +37,8 @@ def validate_phase_dispatch(raw, role, cwd):
                     "context_id", "owner_approved", "reviews"}
         if role in {"test-writer", "issue-implementer", "pr-reviewer"}:
             expected.add("work_unit")
-        if set(approval) - {"dispatch_target"} != expected or approval["recipient"] != role:
+        optional = {"dispatch_target"} | ({"triage_phase"} if role == "pr-reviewer" else set())
+        if set(approval) - optional != expected or approval["recipient"] != role:
             raise ValueError("approval fields/recipient mismatch")
         source = binding.get("expected", binding.get("consultation", binding))
         if any(approval[key] != source[key] for key in ("run_id", "issue", "target_key", "snapshot_oid")):
@@ -62,6 +63,9 @@ def validate_phase_dispatch(raw, role, cwd):
             if any(seen["test_design"][key] != source["test_design"][key]
                    for key in ("artifact", "artifact_digest")):
                 raise ValueError("reviewed and consumed TestDesign mismatch")
+        if "triage_phase" in approval and (approval["triage_phase"] not in ("review", "remediation_review")
+                or source.get("artifact_type") != "ChangePlan"):
+            raise ValueError("triage phase requires implementation review")
         phase = source.get("phase")
         if phase in seen and seen[phase]["artifact_digest"] != binding["artifact_digest"]:
             raise ValueError("review artifact digest mismatch")
