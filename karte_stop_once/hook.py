@@ -39,7 +39,7 @@ def run(kind, payload, *, root=None, status_reader=None):
         base = _root(root)
         event = state.attempt(base, session, payload.get("tool_name", ""))
         if event:
-            return {"hoookSpecificOutput": {"hookEventName": "PreToolUse",
+            return {"hookSpecificOutput": {"hookEventName": "PreToolUse",
                     "permissionDecision": "deny",
                     "permissionDecisionReason": decision.instruction(event)}}
     return None

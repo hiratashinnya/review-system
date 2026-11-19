@@ -37,7 +37,7 @@ def _locked(path: Path, create: bool):
         temp = None
         try:
             with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent,
-                                          prefix=".stop-", delete=False) as stream:
+                                             prefix=".stop-", delete=False) as stream:
                 temp = stream.name
                 json.dump(value, stream, ensure_ascii=False)
             os.replace(temp, path)

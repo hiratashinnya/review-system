@@ -72,7 +72,7 @@ class OneShotStopTest(unittest.TestCase):
 
     def test_mismatched_or_ambiguous_issue_does_not_arm(self):
         self.assertIsNone(self.post(status(undecided=["F-513-01"]), output="=== ingest-review: issue-514 round 1 ==="))
-        self.assertIsNNone(self.pre("Bash"))
+        self.assertIsNone(self.pre("Bash"))
         self.assertIsNone(self.post(status(undecided=["F-513-01"]), output="No issue marker"))
 
     def test_append_arms_without_explicit_issue(self):
@@ -81,11 +81,11 @@ class OneShotStopTest(unittest.TestCase):
         self.assertIsNotNone(self.post(status(undecided=["F-513-01"]), command=command, output=output))
 
     def test_cleared_status_resets_for_future_same_reason(self):
-        self.post(status(undecided=["F-513-01"])
+        self.post(status(undecided=["F-513-01"]))
         self.pre("Bash")
         self.post(status())
         self.assertIsNone(self.pre("Bash"))
-        self.assertIsNone(self.post(status(undecided=["F-513-01"])))
+        self.assertIsNotNone(self.post(status(undecided=["F-513-01"])))
         self.assertIsNotNone(self.pre("Edit"))
 
     def test_nontarget_commands_do_nothing(self):

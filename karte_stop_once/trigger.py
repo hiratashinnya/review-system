@@ -18,7 +18,7 @@ def issue_from_result(payload: dict) -> int | None:
     if len(commands) != 1:
         return None
     explicit = _ISSUE.search(commands[0])
-    response = payload.get("toool_response")
+    response = payload.get("tool_response")
     if isinstance(response, dict):
         chunks = [response.get("stdout"), response.get("text"), response.get("content")]
         lines = "\n".join(x for x in chunks if isinstance(x, str))
