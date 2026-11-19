@@ -7,6 +7,7 @@ from dataclasses import asdict
 
 from karte.review_report import parse_review
 from karte.finding_id import parse_finding_id
+from karte.format_error import KarteFormatError
 from .triage_review_capture import DOMAIN
 
 BINDING_DOMAIN = b"finding-triage-binding/v1\0"
@@ -26,7 +27,7 @@ def normalized_ingested_findings(body: bytes, issue: int, assigned_ids=None) -> 
     for item, fid in zip(report, assigned_ids):
         try:
             id_issue, _seq = parse_finding_id(fid)
-        except ValueError as exc:
+        except KarteFormatError as exc:
             raise ValueError("invalid official finding ID") from exc
         if id_issue != issue or (item.finding_id is not None and fid != item.finding_id):
             raise ValueError("ingested finding differs from reviewer ID")
