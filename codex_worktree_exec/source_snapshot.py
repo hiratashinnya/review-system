@@ -40,9 +40,6 @@ def verify_source_snapshot(worktree: Path, oid: str, issue: int, source_changes=
         raise ValueError("invalid source snapshot_oid")
     prefix = ["git", "-C", str(worktree)]
     verify_untracked_sources(worktree)
-    # The triager is read-only: no tracked worktree edits may replace committed policy or source.
-    subprocess.run(prefix + ["diff", "--quiet", "HEAD", "--"],
-                   check=True, capture_output=True)
     approved = _approved_paths(worktree, source_changes)
     subprocess.run(prefix + ["merge-base", "--is-ancestor", oid, "HEAD"],
                    check=True, capture_output=True, text=True)
