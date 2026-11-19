@@ -16,6 +16,7 @@ from codex_worktree_exec.triage_review_capture import capture_existing
 from codex_worktree_exec.triage_binding_capture import binding_from_capture
 from codex_worktree_exec.triage_binding_verify import verify_binding_capture, sign_binding
 from codex_worktree_exec.source_snapshot import verify_source_snapshot
+from codex_worktree_exec.triager_dispatch import require_clean_tracked
 from issue_start.triage_existing_capture import execute_with_capture
 
 
@@ -162,9 +163,12 @@ class TriageRepairTest(unittest.TestCase):
             oid = git(root, "rev-parse", "HEAD")
             with patch("codex_worktree_exec.source_snapshot.verify_untracked_sources"):
                 verify_source_snapshot(root, oid, 783)
+                require_clean_tracked(root)
                 (root / "policy.md").write_text("changed")
-                with self.assertRaises(subprocess.CalledProcessError):
-                    verify_source_snapshot(root, oid, 783)
+                # Shared snapshot semantics stay unchanged for other roles.
+                verify_source_snapshot(root, oid, 783)
+                with self.assertRaisesRegex(ValueError, "triager worktree"):
+                    require_clean_tracked(root)
 
     def test_committed_harm_and_policy_reject_dirty_bytes(self):
         from finding_triager import adapter
