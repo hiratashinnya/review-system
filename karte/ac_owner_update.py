@@ -15,21 +15,22 @@ def perform(repo_root, issue, round_no, snapshot_source, repository, *,
     """Only this path may issue the automatic AC-check PATCH."""
     issue = paths.validate_issue(issue)
     remote = ac_owner_github.issue if remote is None else remote
-    snapshot, decisions, frozen_repository = ac_owner_evidence.require_trusted_round(
+    snapshot, decisions, identity = ac_owner_evidence.require_trusted_round(
         repo_root, issue, round_no, snapshot_source,
     )
-    if ac_repository.normalize(repository) != frozen_repository:
+    if ac_repository.normalize(repository) != identity["repository"]:
         raise KarteUsageError("AC更新先repositoryが受理済みレビューの凍結元と異なる")
-    original = remote(repository, issue)
+    host = identity["host"]
+    original = remote(host, repository, issue)
     updated, changed = plan(snapshot, original, decisions)
     if not changed or dry_run:
         return changed
     # Read again immediately before writing; API has no atomic CAS guarantee.
-    if remote(repository, issue) != original:
+    if remote(host, repository, issue) != original:
         raise KarteUsageError("Issue本文が書込直前に変化したためAC更新を中止")
-    remote(repository, issue, new_body=updated)
+    remote(host, repository, issue, new_body=updated)
     # A failed read-back may mean a write occurred: report failure, do not retry.
-    verify_written(updated, remote(repository, issue))
+    verify_written(updated, remote(host, repository, issue))
     return changed
 
 

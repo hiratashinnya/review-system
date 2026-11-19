@@ -3,17 +3,19 @@ import json
 import re
 import subprocess
 
+from .ac_repository import normalize_host
 from .errors import KarteUsageError
 
 REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
 
 
-def issue(repository, issue_number, *, new_body=None):
+def issue(host, repository, issue_number, *, new_body=None):
     """Read Issue or PATCH only its body; never operate on a pull request."""
+    host = normalize_host(host)
     if not isinstance(repository, str) or not REPOSITORY.fullmatch(repository):
         raise KarteUsageError("GitHub repositoryはowner/name形式で指定する")
     endpoint = f"repos/{repository}/issues/{issue_number}"
-    argv = ["gh", "api", endpoint]
+    argv = ["gh", "api", "--hostname", host, endpoint]
     payload = None
     if new_body is not None:
         argv.extend(["--method", "PATCH", "--input", "-"])

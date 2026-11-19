@@ -70,7 +70,7 @@ finding_refs: [new@1]
   `ingest-reviewer` はこのtrusted snapshotの `ac_count` / `ac_snapshot_digest` とSummaryを照合し、食い違いを拒否する。
   保存先は `tmp/_karte/issue-N-ac-round-R-<Issue本文SHA256>.md`（旧保存名も読み取り可）、
   Codexには同じ凍結済み本文とAC digestをtrusted callerがpromptへ含める。
-  GitHub checkout `origin` のrepositoryも `.md.repository.json` に凍結し、レビューdispatch/取り込みとAC自動更新時に検証する。凍結のない旧snapshotではAC自動更新を拒否し、更新先repositoryの不一致はAPI呼出し前に拒否する。認識可能なoriginがない場合はレビューはできるがAC自動更新不可。
+  GitHub checkout `origin` のホストとrepositoryの組を `.md.repository.json` に凍結し、レビューdispatch/取り込みとAC自動更新時に照合する。AC更新APIは `gh api --hostname <凍結host>` を毎回明示し、`GH_HOST` の設定に依存しない。未束縛の旧snapshotや更新先repository不一致はAPI呼出し前に拒否する。認識可能なoriginがない場合はレビューはできるがAC自動更新不可。
   待機取消後の再activateでは、未取り込みの旧snapshotを消さず、更新後のIssue本文を別名の
   不変snapshotとして保存する。再開後は新しいenvelopeのみ受理し、旧handoffを拒否する。
   main以外のロールはIssueチェック編集禁止。owner報告時の更新案生成には `karte.ac_check_update.plan`、更新後には `verify_written` を用いる。

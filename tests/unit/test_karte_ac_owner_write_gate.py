@@ -17,8 +17,8 @@ class Remote:
         self.body, self.drift, self.readback_error = body, drift, readback_error
         self.reads = self.writes = 0
 
-    def __call__(self, repository, issue, *, new_body=None):
-        assert (repository, issue) == ("hiratashinnya/review-system", 801)
+    def __call__(self, host, repository, issue, *, new_body=None):
+        assert (host, repository, issue) == ("github.com", "hiratashinnya/review-system", 801)
         if new_body is not None:
             self.writes += 1
             self.body = new_body
@@ -36,7 +36,7 @@ class OwnerWriteGateTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        origin = patch("karte.ac_repository.checkout_repo", return_value="hiratashinnya/review-system")
+        origin = patch("karte.ac_repository.checkout_origin", return_value={"host": "github.com", "repository": "hiratashinnya/review-system"})
         origin.start()
         self.addCleanup(origin.stop)
         (self.root / "tmp").mkdir()
@@ -100,7 +100,9 @@ class OwnerWriteGateTest(unittest.TestCase):
     def test_repository_binding_tamper_or_missing_is_rejected_without_api(self):
         sidecar = self.root / (self.snapshot + ".repository.json")
         original = sidecar.read_text(encoding="utf-8")
-        for replacement in ('{"repository":"wrong-owner/unrelated"}\n', 'invalid json', None):
+        for replacement in ('{"host":"evil.example","repository":"hiratashinnya/review-system"}\n',
+                            '{"host":"github.com","repository":"wrong-owner/unrelated"}\n',
+                            '{"repository":"hiratashinnya/review-system"}\n', 'invalid json', None):
             with self.subTest(replacement=replacement):
                 if replacement is None:
                     sidecar.unlink()

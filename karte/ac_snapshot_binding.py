@@ -19,13 +19,13 @@ def stage(repo_root, issue, round_no, source):
             raise KarteUsageError("同一roundのAC snapshotの差し替えを拒否")
     else:
         paths.write_text_atomic(archived, body)
-    repository = ac_repository.checkout_repo(repo_root)
-    if repository is not None:
-        ac_repository.bind(repo_root, archived, repository)
+    identity = ac_repository.checkout_origin(repo_root)
+    if identity is not None:
+        ac_repository.bind(repo_root, archived, identity)
     record = {"digest": digest(items), "count": len(items),
               "source": str(archived.relative_to(Path(repo_root).resolve()))}
-    if repository is not None:
-        record["repository"] = repository
+    if identity is not None:
+        record.update(identity)
     return record
 
 
@@ -44,11 +44,13 @@ def read_for_dispatch(repo_root, issue, round_no):
             return None  # 明示した既存findingのみの互換経路。AC判定を保証しない。
         raise KarteUsageError("AC snapshot無しのreview envelopeは受理しない")
     if not isinstance(record, dict) or set(record) not in (
-            {"digest", "count", "source"}, {"digest", "count", "source", "repository"}):
+            {"digest", "count", "source"}, {"digest", "count", "source", "host", "repository"}):
         raise KarteUsageError("AC snapshotの期待値が不正")
     path = path_for_record(repo_root, issue, round_no, record)
-    if ac_repository.frozen(repo_root, path) != record.get("repository"):
-        raise KarteUsageError("review dispatchのrepository束縛が不一致")
+    frozen = ac_repository.frozen(repo_root, path)
+    if frozen != ({key: record[key] for key in ("host", "repository")}
+                  if "host" in record else None):
+        raise KarteUsageError("review dispatchのorigin束縛が不一致")
     criteria = from_issue_body(paths.read_text(path))
     if (type(record["count"]) is not int or record["count"] != len(criteria)
             or record["digest"] != digest(criteria)):
@@ -63,11 +65,13 @@ def validate(repo_root, issue, round_no, report):
 
     record = read_active(repo_root, required=True).get("ac_snapshot")
     if not isinstance(record, dict) or set(record) not in (
-            {"digest", "count", "source"}, {"digest", "count", "source", "repository"}):
+            {"digest", "count", "source"}, {"digest", "count", "source", "host", "repository"}):
         raise KarteUsageError("mainによるAC snapshotの期待値が無い")
     file = path_for_record(repo_root, issue, round_no, record)
-    if ac_repository.frozen(repo_root, file) != record.get("repository"):
-        raise KarteUsageError("review取り込みのrepository束縛が不一致")
+    frozen = ac_repository.frozen(repo_root, file)
+    if frozen != ({key: record[key] for key in ("host", "repository")}
+                  if "host" in record else None):
+        raise KarteUsageError("review取り込みのorigin束縛が不一致")
     items = from_issue_body(paths.read_text(file))
     if record["digest"] != digest(items) or type(record["count"]) is not int or record["count"] != len(items):
         raise KarteUsageError("AC snapshotの原本と期待値が不一致")
