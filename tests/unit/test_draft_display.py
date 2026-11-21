@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 
 from draft_display import handoff, receipt_gate, stop
+from tests.unit.hook_launcher_support import hook_matcher_matches
 
 ROOT = Path(__file__).resolve().parents[2]
 HOOK_DIR = ROOT / ".claude" / "hooks"
@@ -285,7 +286,7 @@ class RegistrationTests(unittest.TestCase):
             with self.subTest(tool=tool):
                 commands = [
                     hook["command"] for entry in self.hooks["PreToolUse"]
-                    if re.fullmatch(entry["matcher"], tool)
+                    if hook_matcher_matches(entry["matcher"], tool)
                     for hook in entry["hooks"]
                 ]
                 receipts = [c for c in commands if "gh-create-issue-receipt-gate.sh" in c]
