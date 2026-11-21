@@ -12,6 +12,9 @@ worktree／handoff の回復手順は [issue-pipeline の troubleshooting](../..
 ## Claude Code 固有の dispatch 契約
 
 - **Issue #523 捕捉**：dispatch 前後のオーナー判断で AI 推奨を覆したら、主文脈がその場で逐語・推奨・差分・根拠を `feedback_ledger new-entry` へ保存する。`waived` / reviewer scope の覆しは実在する FBK ID を `karte decide --override-ref` に渡す。レビュー/実装ロールへ台帳の著作を委譲しない。処置順・STOP・merge 等の機械非可視判断は主文脈の記録契約（fail-open）とする。詳細・復旧は共有 SKILL ②-c と `karte/README.md` を参照。
+- **#801 AC契約**：主文脈は2bのreviewer起動前に元IssueのAC全文をsnapshotとして凍結し `karte activate ... --ac-snapshot-file` に与える。Claude reviewerはAC全件のSummaryとfindingをhandoffへ記入し、Codex reviewerはネットワークに頼らずwrapperが注入した同一snapshotを審査する。clean後のACcheckbox更新は**主文脈のみ**が本文再取得・snapshot照合・更新後read-backを行う。文言変更やチェック取り外しは自動実施しない。
+
+
 - 主文脈だけが `AskUserQuestion` を持ち、これを使ってオーナーの判断を仰ぐ。処置順の確定・先送り可否・スコープ拡張の起票要否・`scope` の覆し・`disposition` の決定はいずれもオーナーが決めるのであって主文脈が決めるのではない（`.ai/skills/issue-pipeline/SKILL.md`「役割分担」）。主文脈が担うのは原案の作成、`AskUserQuestion` での伺い、得られた決定の記録と実行である。`issue-implementer`、`issue-fixer`、`pr-reviewer` は `AskUserQuestion` を持たず、非対話で STOP 報告する。
 - `.claude/hooks/issue-start-gate.sh`、`agent-command-gate.sh`、worktree／karte の hook が有効な managed path を使い、契約エラーは迂回せず fail-close する。
 - 実装は `issue-implementer`、レビューは `pr-reviewer`、レビュー是正は `issue-fixer` に分ける。review が clean の場合も AI は fresh blocker report を作ってオーナーへ渡し、merge はオーナーが手動で行う。native deny は直接形の merge command prefix を拒否し、global option／wrapper／API／検査可能な間接実行は両 PF の共有 command hook が判定する。reviewer は push もできない。
@@ -88,8 +91,6 @@ hookが検査する作業面はhookプロセスのcwd、つまり主文脈のセ
    primaryの `tmp/` に置いたファイルは読まれない。
 4. その作業面から次作者を起動する。
 
-2026-10-30の実測では、作業面を作り `python3 -m gitgate adopt-branch` でbranchを取ってから
-`git switch --detach` で外した状態のcwdがhookに検査された。
 hookはdetachedだけを受理し、対象branch上と別名branch上は入口で `ISSUE_START_PHASE_TARGET_INVALID` として拒否する。
 作業面がdetachedでも、primary checkoutを含む他のworktreeが対象branchを掴んでいれば、掴んでいるpathを示して同じreasonで拒否する
 （`git worktree list` が失敗して判定できないときも拒否する）。
@@ -99,7 +100,6 @@ read-onlyのCodex経路（`issue_start.readonly_workspace`）はprimaryから起
 作業面を残したままprimaryへ戻ってから実行し、後続作者を起動するときに作業面へ入り直してdetachを確かめる。
 この作業面には `agent-<id>` 以外の名前を付ける。台帳entryを持たないのでgitgateのrelease系verbで消さない
 （`worktree-release` は `.claude/worktrees/agent-<id>` 形しか受理せず、他の形は `WORKTREE_PATH_SHAPE_INVALID` で拒否する）。
-この手順による実dispatchの完走は未実測で、#652等の実dispatchで確かめる。
 次作者を別の `isolation: "worktree"` で起動し、本人が6field bindingの値を使って
 `gitgate adopt-branch BRANCH --repository OWNER/REPO --expected-oid OID` を実行する。
 失敗時はSTOPし、使用中branch拒否を迂回しない。独立reviewとowner承認を毎工程で維持する。

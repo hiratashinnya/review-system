@@ -1546,7 +1546,7 @@
         ]
       },
       "activate": {
-        "help_compact_sha256": "ca96468d35ee05ce06aea94480c9307d8bfe94a3a51722f6605a8275eda9b772",
+        "help_compact_sha256": "b613e67e9965fc1b1a85be700262be15fcc0dd5432734b9fd5b3216a032fac1e",
         "actions": [
           {
             "dest": "help",
@@ -1628,6 +1628,26 @@
             "choices": null,
             "nargs": null,
             "default": null
+          },
+          {
+            "dest": "ac_snapshot_file",
+            "options": [
+              "--ac-snapshot-file"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": null,
+            "default": null
+          },
+          {
+            "dest": "legacy_finding_only",
+            "options": [
+              "--legacy-finding-only"
+            ],
+            "required": false,
+            "choices": null,
+            "nargs": 0,
+            "default": false
           }
         ]
       },

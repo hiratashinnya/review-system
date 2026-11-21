@@ -4,10 +4,9 @@
 """
 
 import sys
-
 from . import (
-    ingest_accept, ingest_apply, ingest_checks, ingest_notes, ingest_report, karte_rounds, model, paths,
-    review_expectation, scope_ledger, scope_origin, override_gate,
+    ingest_accept, ingest_apply, ingest_checks, ingest_notes, ingest_receipt, ingest_report, ingest_ac_receipt, karte_rounds, model, paths,
+    review_expectation, review_summary, scope_ledger, scope_origin, override_gate,
 )
 from .active_pointer import write_active
 from .errors import KarteUsageError
@@ -42,10 +41,12 @@ def ingest_locked(repo_root, issue, round_no, report_text, policy=None, *, allow
             "回復は再取り込みではなく karte/README.md「進行ポインタの書込みが台帳より後に失敗した窓」を参照"
         )
 
+    original_report_text = report_text
     warnings = []
     if policy:
         report_text, warnings = ignore_owner_keys(report_text)
     review = model.parse_review(report_text, issue)
+    summary = review_summary.parse_summary(report_text, issue)
     previously_open = karte.open_ids()
     collected = ingest_accept.collect_accepted(karte, review, issue)
     errors = list(collected.errors) + override_gate.invalid_refs(repo_root, collected.accepted)
@@ -78,23 +79,21 @@ def ingest_locked(repo_root, issue, round_no, report_text, policy=None, *, allow
         return EXIT_ERROR
 
     outcome = ingest_apply.apply_accepted(karte, collected.accepted, round_no, policy)
-    if policy:
-        for finding in karte.findings:
-            if finding.id in policy.owner_scopes:
-                finding.scope = policy.owner_scopes[finding.id]
+    ingest_receipt.restore_scopes(karte, policy)
     karte.findings.sort(key=lambda item: item.seq)
+    if summary is not None:
+        trusted_ac = ingest_ac_receipt.accepted(repo_root, issue, round_no, original_report_text, policy)
+        ingest_receipt.record(karte, round_no, original_report_text, repo_root, issue, ac_snapshot=trusted_ac)
     origin = scope_origin.begin(issue, repo_root, collected.accepted, "reviewer" if policy and policy.record_declarations else "main", round_no)
     if policy:
         policy.persist(round_no)  # 台帳より先に原本を残す
     paths.write_text_atomic(path, model.dumps(karte))
     scope_origin.commit(issue, repo_root, origin)
     write_active(repo_root, issue, round_no)
-    for warning in warnings:
-        print(f"警告: {warning}", file=sys.stderr)
+    ingest_notes.print_warnings(warnings, stderr=True)
     ingest_report.print_report(
         IngestResult(karte, path, issue, round_no, collected.accepted, outcome)
     )
-    for warning in warnings:
-        print(f"  警告: {warning}")
+    ingest_notes.print_warnings(warnings, stderr=False)
     ingest_notes.print_policy_notes(policy)
     return ingest_notes.exit_code_for(policy, karte, absent)

@@ -47,7 +47,7 @@ class TestOwnerReviewerEntry(RootedCase):
         self.assertTrue(all(observed), observed)
 
     def prepare_finding(self):
-        self.assertEqual(0, self.run_registered(["activate", "--issue", "7", *ENVELOPE_FLAGS])[0])
+        self.assertEqual(0, self.run_registered(["activate", "--issue", "7", *ENVELOPE_FLAGS, "--legacy-finding-only"])[0])
         handoff = self.root / "tmp" / "_handoff" / "pr-reviewer--test.md"
         handoff.parent.mkdir(parents=True)
         handoff.write_text(

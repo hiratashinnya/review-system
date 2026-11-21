@@ -139,6 +139,9 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 
 ### ②-b 初回レビュー
 
+- **AC snapshotとReview Summary（#801）**：主文脈は対象Issue本文（ACが子Issueに移っているtracking Issueでは対象の子Issue本文）をレビューdispatch時にGitHubから取得し、UTF-8ファイルとして凍結する。レビューアへそのAC全件（文言・既存チェック状態・順序）と `karte/ac_snapshot.digest` 相当のdigestを渡す。レビューはPR差分だけでなく元IssueのAC全件を審査し、findingが0件でも1件以上でも `## Review Summary` に全AC判定・根拠・関連finding IDと `<!-- review-complete -->` を必ず書く。未充足・未検証のACは `harm: real` findingに関連付ける。非checkboxのACも判定するがチェック付与はしない。オーナー判断前にdeferred/waivedを決定しない。本文仕様は `karte/README.md`「Review Summary」を参照する。
+
+
 - 初回レビューのモデル層／推論予算はリスク信号で選ぶ。共有資産、広域変更、前例のない判断、権限境界、曖昧な仕様があれば判断ボトルネックとして高い側を選び、根拠を1行残す。具体的な設定キーと写像は各 PF wrapper に置く。
 - レビュー担当は各 finding の実害、根拠、期待値、再確認方法を構造化して返す（Claude Code は handoff へ書いて本人が取り込み、Codex は外側 wrapper が自動取り込みする。全文はチャットに返さない。手順は②-c）。構造化 finding は `harm`/`harm_detail`/`severity`/`scope`/`locus`/`summary`/`evidence`/`expected`/`recheck`/`status` をキーとして返す。レビューコメントには AI 対応であることと具体的な変更・根拠を残す。
 - **スコープ外の指摘も同じ finding の列に入れる**。別のセクション・チャットでの列挙へ逃がさない。スコープ内外は `scope: in | out` の申告として記録するだけで、`harm` の判定・記録台帳・clean 判定のいずれの免除にもならない。レビュー担当の `scope` は申告であって確定ではなく、これを覆せるのはオーナーだけである。
@@ -151,6 +154,7 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 - **レビュー結果を記録するとき、実装担当・是正担当のハンドオフに載った `out_of_scope_findings` も同じ finding の列へ写して記録する**。記録の実行は主文脈が行う（当事者ロールには行わせない）。
 - **将来の finding-triager（#691）の分離・実装契約**：実装時には `.ai/skills/review-harm/SKILL.md` の全文をコンテキストへ供給して同一の実害基準を適用する。レビュー原本と triage 判断成果物を別に保持し、処置方針と scope のオーナー権限は変更しない。現時点で triager は未実装である。
 - **オーナーが決めた `disposition` と、オーナーが覆した `scope` は、主文脈が台帳へ記録する。主文脈はこれらを決めない。** 手順は次のとおり。
+  1a. **#801 のAC凍結（承認④⑤）**：主文脈がレビュー開始前に `gh issue view <元Issue> --json body` 等の信頼済みGitHub APIから本文を取得し、レビュー対象として確定したIssueのUTF-8本文をリポジトリ内の一意なファイルに保存する。工程レビューの `karte activate` には上記の5引数に加えて `--ac-snapshot-file <ファイル>` を指定する。これにより `activate` 出力の `AC snapshot: <source> count=... sha256=...` が示すハッシュ付き原本（`tmp/_karte/issue-N-ac-round-R-<Issue本文SHA256>.md`）へ本文が凍結され、AC件数・digestがレビュー期待値へ保存される。主文脈はこの `source`・count・digest・roundをdispatch時に記録し、取り込み後にactive pointerから消えても保持する。待機を取り消して再dispatchするときは旧envelopeを再利用せず、新しい `run_id` を発行する。レビューアは同一snapshotだけを参照し、`ingest-reviewer` はAC件数・digestとSummaryの一致を確認し不一致なら拒否する。Codexはnetwork無効なので、trusted callerは凍結ファイルからAC全文とdigestを読み込み、レビューpromptに組み込んで `--prompt-file` へ渡す。Codex自身にGitHubへのアクセスやIssue変更権限を付けない。元Issueが非checkbox形式、ACなし、tracking型ならそれぞれ非checkboxの判定のみ／0件／対象子Issueでの処理とする。snapshotの作成元をレビューアの自己申告から補わない。
   1. 各レビューの前（初回ラウンドを含む）に主文脈が `python3 -m karte activate --issue <N> --run-id <run_id> --target-key <target_key> --snapshot-oid <レビュー対象の40桁OID> --input-digest <レビュー入力のsha256> --phase <test_design|implementation>` で進行ポインタを向け、review handoff の共通 envelope（#371）の期待値を記録する。5 つの envelope 引数は同時に指定する。期待値は取り込み成功で消える1回限りで、残っている間は主文脈の `ingest-review` が拒否される（レビューアの申告原本を迂回させない）。`activate` 自体は申告 scope の原本を作らない（原本はレビューア本人の `ingest-reviewer` が検証を通ったときに作り、以後その Issue は保護モードになる。待ちの間は上記の拒否が round 1 でも迂回を防ぐ）。`run_id` と `target_key` はヘッダへ往復できる値（英数字で始まる 128 文字以内の英数字と `. _ : / @ + # -`）に限り、空白や `-->` を含む値は `activate` が拒否する。出力されるヘッダ行（`<!-- handoff issue=… round=… -->`）を dispatch prompt へそのまま渡す。レビューアを使わず主文脈が取り込む場合は、envelope 引数なしの `activate` で待ちを解除する。レビューア取り込み前の待ち取消なら原本が無く、主文脈の `ingest-review` は従来動作に戻る。レビューアが既に取り込んで原本がある Issue では、待ちを取り消しても原本は消えず保護モード（追記専用）が残る。失敗・未完了時は次の窓を区別する。
       - **台帳の書込み失敗（F-375-22）**：台帳に当該 round が無く（原本だけ残りうる）、ポインタは進まず期待値も残る。
         **同じ handoff で `ingest-reviewer` を再実行する**。台帳の最新 round は進んでいないので同じ round として受理される。
@@ -180,6 +184,9 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 - **clean の条件は「未解消 finding が0件」ではなく「clean を妨げる未解消 finding が0件」**である（次節）。clean ならマージ経路へ進む。残る finding が実害なしだけでも握りつぶさず、起票案＋理由付き推奨を添えてオーナー判断を仰ぐ。
 
 ### ②-d オーナーによるマージ → クローズ
+
+- **AC checkboxの事後更新（#801）**：reviewが clean となり、主文脈がカルテの最新roundのレビュー原本 `source` をdigest照合して読み取り、`Review Summary` のAC全件判定を確認する。dispatch時に記録したハッシュ付きAC原本 `source`（`tmp/_karte/issue-N-ac-round-R-<Issue本文SHA256>.md`）を保存時のdigest・roundと照合して読み、レビュー開始時のcheckout `origin` に由来する凍結した **GitHubホストとrepositoryの組**（`.md.repository.json`）を検証し、CLIの `--repository` を照合する。不一致・未束縛の場合はGitHub API呼出し前に停止する。`gh api --hostname <凍結host>` を読取・書込・read-backの全操作で明示し、`GH_HOST` 等の実行環境には更新先ホストを決めさせない。その後GitHubの最新Issue本文と比較し、AC文言・順序・チェック状態にdriftがある場合は書込みせずオーナーへ報告する。driftが無い場合に限り、主文脈は `python3 -m karte.ac_owner_update --issue <N> --round <R> --repository <owner/repo> --snapshot-source <activate出力のsource>` を実行する。この専用入口は受理済み最新roundの原本SHA-256・clean verdict・**受理roundに保存されたAC原本sourceとorigin(host/repository)**・AC digest/件数・凍結原本・live本文を機械照合し、取消済み原本指定は拒否し、`satisfied` の未チェックcheckboxだけをGitHub IssueへPATCHし、read-backで本文全体を照合する。事前確認は `--dry-run` で書込なしに実行できる。**ACチェックの自動更新に直接の `gh issue edit` / `gh api PATCH` を使用しない。**変更対象AC・根拠・read-back結果を事後報告する。レビューア／是正担当はIssue本文を編集しない。未充足・未検証ACは `deferred` / `waived` によりfinding側がcleanでもチェックしない。既存チェック済みACの後退時は自動で取り外さずオーナー判断へ停止する（未決③）。GitHub APIのread/write間の競合を完全には閉じられないことは既知の限界とする。
+
 
 - 合流前に主文脈が `python3 -m karte handoff-recheck` を実行し、`invalid` や不一致があれば出力で指摘する。
 - review が clean になったら、主文脈は `rtk python3 -m pr_merge_gate report <PR番号> --repository <OWNER/REPO> --merge-method <merge|rebase|squash>` を実行し、fresh blocker report を確認する。report は同一snapshotを再読して安定性を確認するが、merge permit を発行せず、merge API を呼ばない。
