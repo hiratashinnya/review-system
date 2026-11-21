@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from issue_start import subagent_hooks, worktree_ledger
+from tests.unit.hook_launcher_support import hook_matcher_matches
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -1490,7 +1491,7 @@ class SettingsRegistrationTests(unittest.TestCase):
     def matching_commands(self, event, role):
         return [
             hook["command"] for entry in self.settings[event]
-            if re.fullmatch(entry["matcher"], role)
+            if hook_matcher_matches(entry["matcher"], role)
             for hook in entry["hooks"]
         ]
 
@@ -1552,6 +1553,7 @@ class SettingsRegistrationTests(unittest.TestCase):
         self.assertEqual(
             self.commands("PostToolUse"),
             [
+                'bash "$CLAUDE_PROJECT_DIR"/.claude/hooks/karte-stop-once.sh post',
                 "${CLAUDE_PROJECT_DIR}/.claude/hooks/check-governance-drift.sh",
                 "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/karte-notify.sh",
                 "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/adr-notify.sh",

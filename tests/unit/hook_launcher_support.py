@@ -8,10 +8,15 @@ ROOT = Path(__file__).resolve().parents[2]
 SETTINGS = ROOT / ".claude" / "settings.json"
 
 
+def hook_matcher_matches(matcher, tool):
+    """Claude hook matcher の全ツール指定 '*' と正規表現による選択を評価する。"""
+    return matcher == "*" or re.fullmatch(matcher, tool) is not None
+
+
 def registered_commands(tool, script_name):
     """`tool` に一致する PreToolUse matcher に登録された、`script_name` を起動するコマンド。"""
     hooks = json.loads(SETTINGS.read_text("utf-8"))["hooks"]["PreToolUse"]
-    return [hook["command"] for entry in hooks if re.fullmatch(entry["matcher"], tool)
+    return [hook["command"] for entry in hooks if hook_matcher_matches(entry["matcher"], tool)
             for hook in entry["hooks"] if script_name in hook["command"]]
 
 
