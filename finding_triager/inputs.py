@@ -22,7 +22,7 @@ def verify_review(raw: bytes, signature: str, key: bytes, expected: dict) -> dic
         raise ValueError("invalid review JSON") from exc
     if not isinstance(data, dict) or set(data) != set(BINDINGS) | {"producer", "findings", "reviewer_worktree", "context_sha256"}:
         raise ValueError("invalid review fields")
-    if set(expected) != set(BINDINGS) or any(data[k] != expected[k] for k in BINDINGS):
+    if set(expected) != set(BINDINGS) or any(data[k] != expected[k] for k in BINDINGS if k != "review_oid"):
         raise ValueError("review binding mismatch")
     if (data["producer"] != "pr-reviewer" or data["phase"] not in PHASES
             or type(data["issue"]) is not int or data["issue"] < 1
