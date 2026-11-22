@@ -1,4 +1,4 @@
-# Finding disposition policy v1.0 — Issue #781
+# Finding disposition policy v1.1 — Issue #781
 
 ## Boundary and ownership
 
@@ -9,13 +9,19 @@
 
 ## Decision table and precedence
 
-1. Owner review takes precedence on missing/invalid evidence, unknown policy/version, policy-ref mismatch, reviewer conflict, request to override scope, high-risk or spec decisions, scope expansion, or contradiction (`harm:none` with required violation/regression).
-2. `fix-here`: any confirmed AC, approved design, mandatory contract violation, or change-caused regression; only if no owner-judgment condition above. No scope deferral for these cases.
+1. Owner review takes precedence on missing/invalid evidence, unknown policy/version, policy-ref mismatch, reviewer conflict, request to override scope, spec decisions, scope expansion, or contradiction (`harm:none` with required violation/regression).
+2. `fix-here`: any confirmed AC, approved design, mandatory contract violation, or change-caused regression; only if no owner-judgment condition above. `high_risk` does not block this outcome. No scope deferral for these cases.
 3. `deferred` candidate: pre-existing, unchanged, minor severity, no AC/design/contract/regression obstacle, no high-risk. Actual disposition additionally requires verified recipient Issue and the authorized #683 handoff. Until #786 this feature stays disabled.
-4. `advisory` candidate: `harm:none`, optional improvement, no AC/design/contract/regression obstacle. Actual disposition additionally requires verified committed advisory SoT; #782 supplies it. An unverified registry reference never releases a gate.
+4. `advisory` candidate: `harm:none`, optional improvement, no AC/design/contract/regression obstacle, no high-risk. Actual disposition additionally requires verified committed advisory SoT; #782 supplies it. An unverified registry reference never releases a gate.
 5. Otherwise `owner-review`. A classification does not change `status:open` or make the PR clean.
 
 `rules` is an ordered, human-reviewable machine table. Safety constraints enforced in the evaluator are conservative and cannot be relaxed by editing rule operands; edits still require policy versioning and explicit owner approval. `fix-here` does **not** grant edit permission, and `deferred` does **not** initiate issue creation or handoff.
+
+## Version 1.1: `high_risk` scope (Issue #783, F-783-02)
+
+Policy 1.0 checked `high_risk` in the owner-judgment pre-gate, before rule evaluation. A required AC, design or contract violation, or a regression, therefore became `owner-review` whenever the triager also judged it high risk. That contradicted #781 AC1, which sends these violations to `fix-here` and does not list risk as an `owner-review` condition. It also contradicted the 1.0 policy data, where only the `deferred` rule had `high_risk` as a condition. In the #852 measurement, the AC5 regression F-783-01 became `owner-review` this way. The owner judged the pre-gate a design error.
+
+Version 1.1 removes `high_risk` from the pre-gate. It now only blocks the `deferred` and `advisory` candidates. The evaluator enforces this in its safety checks, and the advisory rule lists it in `all_false` as well. A high-risk finding with no required violation therefore still ends in `owner-review` (`no-safe-rule`). The criterion for setting `high_risk` is defined in `.ai/agents/finding-triager.md`.
 
 ## Approval, rollback, and trust boundary
 

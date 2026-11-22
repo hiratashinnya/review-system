@@ -165,8 +165,9 @@ class TriageRepairTest(unittest.TestCase):
                 verify_source_snapshot(root, oid, 783)
                 require_clean_tracked(root)
                 (root / "policy.md").write_text("changed")
-                # Shared snapshot semantics stay unchanged for other roles.
-                verify_source_snapshot(root, oid, 783)
+                # The shared gate rejects any unapproved non-canonical change.
+                with self.assertRaisesRegex(ValueError, "outside canonical artifacts"):
+                    verify_source_snapshot(root, oid, 783)
                 with self.assertRaisesRegex(ValueError, "triager worktree"):
                     require_clean_tracked(root)
 
