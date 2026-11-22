@@ -1,4 +1,5 @@
 """Bind a successful Karte command to the issue named in its tool result."""
+import json
 import re
 
 from karte_notify.trigger import extract_commands
@@ -27,9 +28,21 @@ def issue_from_result(payload: dict) -> int | None:
     else:
         lines = ""
     observed = _RESULT.search(lines)
-    if not observed:
-        return None  # Failed/missing result: no reliable issue binding.
-    result_issue = int(observed.group(1))
+    if observed:
+        result_issue = int(observed.group(1))
+    else:
+        # "karte status --json" prints a bare status payload, not a text header.
+        if _VERB.search(commands[0]).group(1) != "status":
+            return None
+        try:
+            result = json.loads(lines)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(result, dict) or not isinstance(result.get("verdict"), str):
+            return None
+        result_issue = result.get("issue")
+        if type(result_issue) is not int or result_issue < 1:
+            return None
     if explicit and int(explicit.group(1)) != result_issue:
         return None
     return result_issue

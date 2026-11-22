@@ -32,7 +32,9 @@ def run(kind, payload, *, root=None, status_reader=None):
         base = _root(root)
         value = (status_reader or _status)(base, issue)
         event = decision.evaluate(value)
-        if state.arm(base, session, event) and event:
+        if value["issue"] != issue:
+            raise ValueError("status Issue does not match tool result")
+        if state.arm(base, session, issue, event) and event:
             return {"hookSpecificOutput": {"hookEventName": "PostToolUse",
                     "additionalContext": decision.instruction(event)}}
     elif kind == "pre":

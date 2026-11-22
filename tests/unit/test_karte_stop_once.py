@@ -1,4 +1,5 @@
 """One-shot STOP: scope, replay, owner-question exemption and regression cases."""
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -87,6 +88,43 @@ class OneShotStopTest(unittest.TestCase):
         self.assertIsNone(self.pre("Bash"))
         self.assertIsNotNone(self.post(status(undecided=["F-513-01"])))
         self.assertIsNotNone(self.pre("Edit"))
+
+    def test_json_status_arms_and_denies(self):
+        command = "python3 -m karte status --issue 513 --json"
+        value = status(undecided=["F-513-01"])
+        self.assertIsNotNone(self.post(value, command=command, output=json.dumps(value)))
+        self.assertIsNotNone(self.pre("Edit"))
+
+    def test_json_status_rejects_wrong_issue_or_invalid_result(self):
+        command = "python3 -m karte status --issue 514 --json"
+        value = status(issue=513, undecided=["F-513-01"])
+        self.assertIsNone(self.post(value, command=command, output=json.dumps(value)))
+        self.assertIsNone(self.pre("Edit"))
+        self.assertIsNone(self.post(value, command=command, output='{"issue": 514}'))
+        self.assertIsNone(self.pre("Bash"))
+
+    def test_other_issue_clean_preserves_stop_history(self):
+        finding = status(undecided=["F-513-01"])
+        self.post(finding)
+        self.assertIsNotNone(self.pre("Bash"))
+        other_command = "python3 -m karte status --issue 514"
+        other_output = "=== status: issue-514 ==="
+        self.assertIsNone(self.post(status(issue=514), command=other_command,
+                                    output=other_output))
+        self.assertIsNone(self.post(finding))  # Identical STOP does not rearm.
+        self.assertIsNone(self.pre("Edit"))
+
+    def test_other_issue_stop_preserves_original_history(self):
+        finding = status(undecided=["F-513-01"])
+        self.post(finding)
+        self.assertIsNotNone(self.pre("Bash"))
+        other_command = "python3 -m karte status --issue 514"
+        other_output = "=== status: issue-514 ==="
+        self.assertIsNotNone(self.post(status(issue=514, stalled=["F-514-01"]),
+                                       command=other_command, output=other_output))
+        self.assertIsNotNone(self.pre("Edit"))
+        self.assertIsNone(self.post(finding))
+        self.assertIsNone(self.pre("Bash"))
 
     def test_nontarget_commands_do_nothing(self):
         self.assertIsNone(hook.run("post", done("echo hello", self.output), root=self.root))

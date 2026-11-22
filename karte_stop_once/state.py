@@ -48,22 +48,34 @@ def _locked(path: Path, create: bool):
         os.close(fd)
 
 
-def arm(root: Path, session: str, event: dict | None) -> bool:
+def _events(data: dict) -> dict:
+    """Keep one independent STOP history per Issue within a session."""
+    if "digest" in data:  # Migrate existing one-Issue trial state.
+        previous = data.copy()
+        data.clear()
+        data.update(events={str(previous["issue"]): previous}, active_issue=str(previous["issue"]))
+    return data.setdefault("events", {})
+
+
+def arm(root: Path, session: str, issue: int, event: dict | None) -> bool:
     path = _file(root, session)
     if path is None:
         return False
     with _locked(path, create=event is not None) as data:
         if data is None:
             return False
+        events = _events(data)
+        key = str(issue)
         if event is None:
-            data.clear()
+            events.pop(key, None)
+            if data.get("active_issue") == key:
+                data["active_issue"] = next(reversed(events), None)
             return False
-        if data.get("digest") == event["digest"]:
+        previous = events.get(key)
+        data["active_issue"] = key
+        if previous and previous.get("digest") == event["digest"]:
             return False
-        data.clear()
-        data.update(event)
-        data["denied"] = 0
-        data["followup_tools"] = []
+        events[key] = {**event, "denied": 0, "followup_tools": []}
         return True
 
 
@@ -72,14 +84,17 @@ def attempt(root: Path, session: str, tool: str) -> dict | None:
     if path is None or not path.is_file():
         return None
     with _locked(path, create=False) as data:
-        if data is None or "digest" not in data:
+        if data is None:
+            return None
+        event = _events(data).get(data.get("active_issue"))
+        if not event or "digest" not in event:
             return None
         if tool in _SAFE_TOOLS:
-            data["denied"] = DENIALS_PER_EVENT  # Correct next step; no denial.
+            event["denied"] = DENIALS_PER_EVENT  # Correct next step; no denial.
             return None
-        if data["denied"] < DENIALS_PER_EVENT:
-            data["denied"] += 1
-            return data.copy()
-        if len(data["followup_tools"]) < 8:
-            data["followup_tools"].append(tool)
+        if event["denied"] < DENIALS_PER_EVENT:
+            event["denied"] += 1
+            return event.copy()
+        if len(event["followup_tools"]) < 8:
+            event["followup_tools"].append(tool)
     return None
