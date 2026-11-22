@@ -3,12 +3,10 @@
 import hashlib
 import hmac
 import json
-from dataclasses import asdict
 
 from finding_triager.github_evidence import github_evidence
-from karte.review_report import parse_review
 from .triage_review_capture import DOMAIN
-from .triage_binding_verify import sign_binding
+from .triage_binding_verify import sign_binding, normalized_ingested_findings
 
 
 def binding_from_capture(body, receipt_raw, signature, cwd, key, *, pr, phase, round_no):
@@ -37,11 +35,7 @@ def binding_from_capture(body, receipt_raw, signature, cwd, key, *, pr, phase, r
                "input_digest": expected["input_digest"], "approval_ref": approval["approval_context"],
                "documents": documents}
     context_raw = json.dumps(context, ensure_ascii=False, sort_keys=True).encode()
-    findings = []
-    for index, finding in enumerate(parse_review(body.decode("utf-8"), expected["issue"]), 1):
-        data = asdict(finding)
-        data["finding_id"] = finding.finding_id or f"new-{index}"
-        findings.append(data)
+    findings = normalized_ingested_findings(body, expected["issue"], receipt.get("finding_ids"))
     review = {**expected, "producer": "pr-reviewer", "findings": findings,
               "reviewer_worktree": receipt["worktree"],
               "context_sha256": hashlib.sha256(context_raw).hexdigest()}

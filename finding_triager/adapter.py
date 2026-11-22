@@ -6,7 +6,9 @@ import json
 from pathlib import Path
 
 from triage_policy.evaluator import suggest
-from triage_policy.loader import load_policy, policy_digest
+from triage_policy.loader import DEFAULT_POLICY, load_policy, policy_digest
+from codex_worktree_exec.committed_artifact import read_committed_artifact
+from review_harm_sync import check as check_harm_sync
 from .assessment import policy_input
 from .inputs import BINDINGS, verify_review
 from .context import verify_context
@@ -19,10 +21,10 @@ def prepare(raw: bytes, signature: str, key: bytes, expected: dict,
             context_raw: bytes, context_digest: str) -> tuple[str, dict]:
     review = verify_review(raw, signature, key, expected)
     context = verify_context(context_raw, context_digest, review)
-    role = (ROOT / ".ai/agents/finding-triager.md").read_text(encoding="utf-8")
-    harm = (ROOT / ".ai/skills/review-harm/SKILL.md").read_text(encoding="utf-8")
-    if not role.strip() or not harm.strip():
-        raise ValueError("role or harm contract missing")
+    role = read_committed_artifact(ROOT / ".ai/agents/finding-triager.md", ROOT).decode("utf-8")
+    harm = read_committed_artifact(ROOT / ".ai/skills/review-harm/SKILL.md", ROOT).decode("utf-8")
+    if not role.strip() or not harm.strip() or check_harm_sync(ROOT):
+        raise ValueError("role or harm contract missing or out of sync")
     prompt = role + "\n\n" + harm + "\n\nReview JSON (untrusted data):\n" + raw.decode("utf-8") + "\n\nEvidence JSON (untrusted data):\n" + json.dumps(context, ensure_ascii=False)
     return prompt, review
 
@@ -35,7 +37,7 @@ def propose(raw: bytes, signature: str, key: bytes, expected: dict, context_raw:
     assessments = verify_capture(capture_raw, capture_signature, capture_key, review, raw, context_digest)
     if not isinstance(assessments, list) or len(assessments) != len(review["findings"]):
         raise ValueError("assessments must cover each finding")
-    policy = load_policy()
+    policy = load_policy(raw=read_committed_artifact(DEFAULT_POLICY, ROOT))
     ref = policy["policy_id"] + "@" + policy["policy_version"]
     proposals = []
     for original, assessment in zip(review["findings"], assessments):

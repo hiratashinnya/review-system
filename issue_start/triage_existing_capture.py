@@ -2,6 +2,7 @@
 import json
 import os
 import subprocess
+import uuid
 from pathlib import Path
 
 from karte import paths, review_expectation
@@ -10,6 +11,7 @@ from codex_worktree_exec.review_target import capture_target, progress_target
 from codex_worktree_exec.prompt_files import resolve_output_target
 from codex_worktree_exec.triage_binding_capture import binding_from_capture
 from codex_worktree_exec.triage_review_capture import capture_existing
+from codex_worktree_exec.triage_round_ids import ingested_finding_ids
 from finding_triager.approved_materials import approved_materials
 
 
@@ -23,34 +25,50 @@ def execute_with_capture(request, args, root, marker, key, pr, phase, round_no, 
         raise ValueError("trusted reviewer and capture key required")
     target = resolve_output_target(Path(output), root, root)
     review_output = resolve_output_target(request.output_file, root, root)
-    if target.exists() or review_output.exists() or target == review_output:
-        raise ValueError("capture and review outputs must be new and distinct")
+    if target.exists() or target == review_output or review_output.is_symlink():
+        raise ValueError("capture target must be new and reviewer output must not be a symlink")
+    resume = review_output.exists()
+    if resume and not review_output.is_file():
+        raise ValueError("existing reviewer output is not a file")
     before = approved_materials(root, marker)
     main_root = paths.main_worktree_root(root)
-    target_issue, _, target_round = capture_target(main_root, before["issue"])
     envelope = review_envelope_of(root, request.binding_file)
     if (phase != before.get("triage_phase") or phase not in ("review", "remediation_review")
-            or type(round_no) is not int or round_no != target_round or envelope["phase"] != "implementation"
-            or review_expectation.require(main_root, target_issue) != envelope):
+            or type(round_no) is not int or round_no < 1 or envelope["phase"] != "implementation"):
         raise ValueError("triage phase or review round mismatch")
     oid = _head(root)
-    status = execute(args, cwd=root)
-    if status:
-        return status
+    if resume:
+        # Retry only after a completed ingest. Never execute the reviewer twice for one round.
+        if progress_target(main_root) != (before["issue"], round_no + 1):
+            raise ValueError("cannot resume: review not ingested at the exact round")
+    else:
+        target_issue, _, target_round = capture_target(main_root, before["issue"])
+        if (round_no != target_round
+                or review_expectation.require(main_root, target_issue) != envelope):
+            raise ValueError("triage phase or review round mismatch")
+        status = execute(args, cwd=root)
+        if status:
+            return status
     if review_output.is_symlink() or not review_output.is_file():
         raise ValueError("normal reviewer output missing")
     body = review_output.read_bytes()
     after = approved_materials(root, marker)
-    if progress_target(main_root) != (target_issue, target_round + 1):
+    if progress_target(main_root) != (before["issue"], round_no + 1):
         raise ValueError("review was not ingested at expected round")
     if before != after or oid != _head(root):
         raise ValueError("review approval or HEAD changed during execution")
-    captured = capture_existing(body, root, before, oid, key, phase, target_round)
+    assigned = ingested_finding_ids(body, main_root, before["issue"], round_no)
+    captured = capture_existing(body, root, before, oid, key, phase, round_no, assigned_ids=assigned)
     binding = binding_from_capture(*captured, root, key, pr=pr, phase=phase, round_no=round_no)
-    with target.open("x", encoding="utf-8") as stream:
-        json.dump(binding, stream, ensure_ascii=False)
+    # Publish atomically without overwriting an existing binding, including on retries.
+    temporary = target.with_name("." + target.name + "." + uuid.uuid4().hex + ".tmp")
+    try:
+        with temporary.open("x", encoding="utf-8") as stream:
+            json.dump(binding, stream, ensure_ascii=False)
+        os.link(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
     return 0
-
 
 def execute_from_options(triage, request, args, root, marker, execute):
     if any(value is None for value in triage) or triage[0] < 1 or triage[2] < 1:

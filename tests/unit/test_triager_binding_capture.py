@@ -99,6 +99,8 @@ recheck: run test
                 Path(argv[argv.index('--output-last-message') + 1]).write_text(json.dumps(assessments))
                 return 0
             with patch('codex_worktree_exec.triager_dispatch.verify_source_snapshot'), \
+                 patch('finding_triager.adapter.read_committed_artifact',
+                       side_effect=lambda path, root: path.read_bytes()), \
                  patch('codex_worktree_exec.triager_dispatch.subprocess.run', side_effect=git), \
                  patch('codex_worktree_exec.triager_dispatch.run_codex', side_effect=run) as launch:
                 self.assertEqual(dispatch(req, root, root, env, 'codex'), 0)

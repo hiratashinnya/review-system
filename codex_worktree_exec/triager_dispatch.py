@@ -14,7 +14,9 @@ from .invocation import build_codex_argv
 from .launcher import run_codex
 from .prompt_files import resolve_output_target
 from .source_snapshot import verify_source_snapshot
+from .triager_worktree import require_clean_tracked
 from .triage_binding_verify import EXTRA, verify_binding_capture
+
 
 
 def validate_binding(request, cwd, worktree, environ):
@@ -44,6 +46,7 @@ def validate_binding(request, cwd, worktree, environ):
     receipt = verify_binding_capture(binding, keys[0])
     verify_source_snapshot(worktree, expected["snapshot_oid"], expected["issue"],
                            receipt["approval"]["source_changes"])
+    require_clean_tracked(worktree)
     raw, context = binding["review"].encode(), binding["context"].encode()
     prompt, review = prepare(raw, binding["review_signature"], keys[0], expected,
                              context, binding["context_digest"])
