@@ -1,0 +1,38 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20261122-852のstの記録はissueコメントのみとする"
+topic = "852のSTの記録はIssueコメントのみとする"
+theme = "検証・追跡"
+occurred_at = 2026-11-22
+decision_point = "policy"
+overridden_role = "plan-reviewer"
+divergence = "narrowing"
+confidence_of_inference = "medium"
+recorded_by = "Claude Code (AI)"
+affected_assets = ["finding_triager/change_plan/CP-783.toml"]
+supersedes = ""
+
+[[source]]
+issue = 852
+pr = 854
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+Issue #852 の E2E 検証用の変更計画（CP-783）の独立レビューで、実 CLI の拒否確認（ST）の設計・コード・結果を、共通契約どおり finding_triager/verify に永続化するか、Issue #852 のコメントだけに残すかが論点になった。主文脈が材料を示して AskUserQuestion で尋ねた。
+'''
+recommendation = '''
+検証用の資料として割り切り、記録は Issue #852 のコメントのみにする。CP にオーナー判断として記録する。
+'''
+recommendation_reason = '''
+Issue #852 が検証仕様の唯一の正本で、コメントでの記録を指定しているため。
+'''
+uncertainty = '''
+この判断は、検証用に切り出された Issue #852 の E2E 検証に限る。他の Issue の ST の永続化方針は決めていない。既存の台帳決定 FBK-20260924（検証エビは全レベルで TD/TC/TR を揃える）との関係は、この検証に限った例外で、旧決定を覆すものではない。
+'''
+owner_verbatim = '''
+#852のコメントのみ(推奨)
+'''
+inferred_reason = '''
+推測：以前の「検証は検証として割り切ればよい」という発言と同じ方向で、検証のための一度限りの実行に永続化の手間をかけない意図と読める。
+'''

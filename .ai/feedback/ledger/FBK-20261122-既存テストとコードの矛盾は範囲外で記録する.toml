@@ -1,0 +1,38 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20261122-既存テストとコードの矛盾は範囲外で記録する"
+topic = "既存テストとコードの矛盾は範囲外で記録する"
+theme = "検証・追跡"
+occurred_at = 2026-11-22
+decision_point = "policy"
+overridden_role = "plan-reviewer"
+divergence = "approval"
+confidence_of_inference = "medium"
+recorded_by = "Claude Code (AI)"
+affected_assets = ["finding_triager/change_plan/CP-783.toml"]
+supersedes = ""
+
+[[source]]
+issue = 852
+pr = 854
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+PR #816 の最新 head で、既存テスト test_readonly_source_gate_rejects_tracked_worktree_edits が、共有 snapshot の挙動（codex_worktree_exec/source_snapshot.py）と逆の期待で ERROR になっていた。VD の ST-12 と CP の不変条件はコード側の挙動を前提にする。主文脈が、範囲外・未解決で記録する案、コードを正とする案、テストを正とする案を示して AskUserQuestion で尋ねた。
+'''
+recommendation = '''
+PR #816 側の不具合として Issue #852 に記録し、どちらを正とするかは #783 の担当に委ねる。本検証の 2b の Green 判定は WU-1 と VD の UT に限る。
+'''
+recommendation_reason = '''
+どちらを正とするかは本検証（AC5 前半の WU-1）の範囲を超える設計判断のため。
+'''
+uncertainty = '''
+どちらを正とするかは決まっていない。この判断は、本検証での扱い（範囲外・未解決として記録する）だけを決めている。
+'''
+owner_verbatim = '''
+範囲外・未解決で記録(推奨)
+'''
+inferred_reason = '''
+推測：本検証の目的である入力整合の検証に集中し、別件の設計判断を持ち込まない意図と読める。
+'''
