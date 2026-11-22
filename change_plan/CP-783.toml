@@ -9,9 +9,9 @@ run_id = "e2e852-run-1"
 target_key = "e2e852-target-1"
 input_refs = []
 input_digest = "ed5fab401008ef073cb6c870f6a83a3a6f58f0c6a9a40cd3237aa0fc1c0c68d2"
-snapshot_oid = "b60b309a6995e382b7d27d3c6e0d1b1c11663f67"
+snapshot_oid = "7650f093c953bd1c3d591cd23dd72574f6b91d20"
 status = "ready"
-verification = ["検証の対応表（UT-1〜UT-15 と ST-1〜ST-11 の期待値・前提・対象外）の正本は VD-783 の verification であり、本 CP には写さない。"]
+verification = ["検証の対応表（UT-1〜UT-15 と ST-1〜ST-12 の期待値・前提・対象外）の正本は VD-783 の verification であり、本 CP には写さない。"]
 unresolved_findings = []
 owner_decisions = []
 unresolved_owner_decisions = []
@@ -22,22 +22,22 @@ parent = ""
 children = ["CP-783-tool"]
 depends_on = []
 selected_solution = '''
-AC-5（Issue #783 AC5 前半: 入力整合を欠く成果は採用しない）。変更は WU-1 の 1 件だけで、finding_triager/inputs.py の verify_review が、呼び出し側の期待値 expected と署名済み review を照合する束縛項目の比較から review_oid を除外している現行の挙動（比較に k != "review_oid" がある）を改め、8 項目（issue/phase/round/run_id/target_key/input_digest/snapshot_oid/review_oid）の全てを比較に含める。1 項目でも不一致なら review を採用しない。これは VD-783 の UT-3 の review_oid のケースが基準コードで Red になる、実装未了の振る舞いである。それ以外の検証ケース（VD-783 の UT-1・UT-2・UT-4〜UT-15 と ST-1〜ST-11）は基準コードで既に成立しており、本計画では変更せず、回帰を固定する対象として VD-783 を参照する。
+AC-5（Issue #783 AC5 前半: 入力整合を欠く成果は採用しない）。変更は WU-1 の 1 件だけで、finding_triager/inputs.py の verify_review が、呼び出し側の期待値 expected と署名済み review を照合する束縛項目の比較から review_oid を除外している現行の挙動（比較に k != "review_oid" がある）を改め、8 項目（issue/phase/round/run_id/target_key/input_digest/snapshot_oid/review_oid）の全てを比較に含める。1 項目でも不一致なら review を採用しない。これは VD-783 の UT-3 の review_oid のケースが基準コードで Red になる、実装未了の振る舞いである。それ以外の検証ケース（VD-783 の UT-1・UT-2・UT-4〜UT-15 と ST-1〜ST-12）は基準コードで既に成立しており、本計画では変更せず、回帰を固定する対象として VD-783 を参照する。
 '''
 interfaces = '''
-関数として直接呼ぶ範囲: verify_review(raw: bytes, signature: str, key: bytes, expected: dict) -> dict、verify_context(context: bytes, digest: str, review: dict) -> dict、verify_capture(raw: bytes, signature: str, key: bytes, review: dict ...) -> dict、validate_proposal(artifact, ...) -> dict は、不一致・欠落・形式不正を ValueError で拒否する（正確な引数は基準コードの定義に従う）。CLI 経由の範囲: codex_worktree_exec の dispatch は、validate_binding を含む処理で送出される ValueError・KeyError・TypeError・OSError・subprocess のエラーを CodexExecError(CODEX_EXEC_TRIAGER_INVALID) に変換する（ST-1〜ST-11 の対象。validate_binding の git 呼び出し前の検査は UT-15 でも直接呼んで確かめる）。
+関数として直接呼ぶ範囲: verify_review(raw: bytes, signature: str, key: bytes, expected: dict) -> dict、verify_context(context: bytes, digest: str, review: dict) -> dict、verify_capture(raw: bytes, signature: str, key: bytes, review: dict ...) -> dict、validate_proposal(artifact, ...) -> dict は、不一致・欠落・形式不正を ValueError で拒否する（正確な引数は基準コードの定義に従う）。CLI 経由の範囲: codex_worktree_exec の dispatch は、validate_binding を含む処理で送出される ValueError・KeyError・TypeError・OSError・subprocess のエラーを CodexExecError(CODEX_EXEC_TRIAGER_INVALID) に変換する（ST-1〜ST-12 の対象。validate_binding の git 呼び出し前の検査は UT-15 でも直接呼んで確かめる）。
 '''
 invariants = '''
-次の不変条件を維持し、各条件を VD-783 のケースで固定する。(1) 署名: review の署名（UT-2）、capture の署名（UT-7）、binding の署名（ST-1）、receipt の署名（ST-2）が正しいものだけを採用する。(2) 束縛: verify_review は expected と署名済み review の 8 項目（issue/phase/round/run_id/target_key/input_digest/snapshot_oid/review_oid）の全てを照合し、除外される項目はない（UT-3、WU-1 で review_oid を含める）。verify_capture は capture と review の 8 項目を照合し（UT-7）、review_sha256 と context_sha256 も照合する（UT-10）。verify_context は context と review の issue/snapshot_oid/review_oid/input_digest の 4 項目を照合し（UT-9）、context digest を検査する（UT-6）。(3) 形式・欠落・構造・鍵の拒否（UT-4・UT-5・UT-11・UT-12・UT-13）。receipt の束縛と binding ファイルの検査（UT-14・UT-15）。(4) triager worktree の HEAD は review_oid と一致する（ST-3）。(5) reviewer worktree は triager 自身と別の登録済み worktree で（ST-4・ST-6）、署名済み review の reviewer_worktree と一致する（ST-8）。(6) review 鍵と capture 鍵は別で、capture 鍵は 32 byte 以上（ST-5・ST-7）。(7) 承認済み source の digest が一致する（ST-9）。
+次の不変条件を維持し、各条件を VD-783 のケースで固定する。(1) 署名: review の署名（UT-2）、capture の署名（UT-7）、binding の署名（ST-1）、receipt の署名（ST-2）が正しいものだけを採用する。(2) 束縛: verify_review は expected と署名済み review の 8 項目（issue/phase/round/run_id/target_key/input_digest/snapshot_oid/review_oid）の全てを照合し、除外される項目はない（UT-3、WU-1 で review_oid を含める）。verify_capture は capture と review の 8 項目を照合し（UT-7）、review_sha256 と context_sha256 も照合する（UT-10）。verify_context は context と review の issue/snapshot_oid/review_oid/input_digest の 4 項目を照合し（UT-9）、context digest を検査する（UT-6）。(3) 形式・欠落・構造・鍵の拒否（UT-4・UT-5・UT-11・UT-12・UT-13）。receipt の束縛と binding ファイルの検査（UT-14・UT-15）。(4) triager worktree の HEAD は review_oid と一致する（ST-3）。(5) reviewer worktree は triager 自身と別の登録済み worktree で（ST-4・ST-6）、署名済み review の reviewer_worktree と一致する（ST-8）。(6) review 鍵と capture 鍵は別で、capture 鍵は 32 byte 以上（ST-5・ST-7）。(7) 承認済み source の digest が一致する（ST-9）。(8) triager worktree の tracked ファイルに未 commit の変更が無い（ST-12）。
 '''
 failure_behavior = '''
 関数として直接呼ぶ範囲では、不一致・署名不正・欠落・形式不正は ValueError で拒否する。CLI 経由では、拒否は CodexExecError(CODEX_EXEC_TRIAGER_INVALID) となり、終了コード 2、標準エラーに codex_worktree_exec: CODEX_EXEC_TRIAGER_INVALID: <メッセージ> を出し、指定された出力ファイルを作らず、codex 子プロセスの起動前に拒否される（fail-close）。拒否の場合に triage 成果物は生成されない。
 '''
 oos = '''
-triage の自動処置・台帳更新・merge は対象外。AC5 後半（元成果の不変）は Issue #852 の E01・E07、出力先の扱いと子プロセス失敗は E09、評価の完全性は #783 の AC3 で扱う。VD-783 が委譲した経路（E07）も対象外。ST-1〜ST-11 が実測する codex_worktree_exec の既存の拒否経路は、本計画では変更しない（変更対象は finding_triager のみで、scope と WU-1 はその変更対象を指す）。
+triage の自動処置・台帳更新・merge は対象外。AC5 後半（元成果の不変）は Issue #852 の E01・E07、出力先の扱いと子プロセス失敗は E09、評価の完全性は #783 の AC3 で扱う。VD-783 が委譲した経路（E07）も対象外。ST-1〜ST-12 が実測する codex_worktree_exec の既存の拒否経路は、本計画では変更しない（変更対象は finding_triager のみで、scope と WU-1 はその変更対象を指す）。
 '''
 operational_verification = '''
-2a で VD-783 の UT-1〜UT-15 を UT-TD/UT-TC として著作し、UT-3 の review_oid のケースは基準コードで Red 証拠を取る。2b で WU-1 を実装して全 UT を Green にする。ST-1〜ST-11 は 2b の PR を対象に、Issue #852 の E07 の範囲として実 CLI で実施し、実行ログと結果は Issue #852 のコメントに残す。ST は PR #854 が open でその head が review_oid と一致することに依存する一度限りの live 確認で、現行の #852 の範囲内として扱い、別の検証 Issue は起こさない。
+2a で VD-783 の UT-1〜UT-15 を UT-TD/UT-TC として著作し、UT-3 の review_oid のケースは基準コードで Red 証拠を取る。2b で WU-1 を実装して全 UT を Green にする。ST-1〜ST-12 は 2b の PR を対象に、Issue #852 の E07 の範囲として実 CLI で実施し、実行ログと結果は Issue #852 のコメントに残す。ST は PR #854 が open でその head が review_oid と一致することに依存する一度限りの live 確認で、現行の #852 の範囲内として扱い、別の検証 Issue は起こさない。
 '''
 adr_refs = []
 
