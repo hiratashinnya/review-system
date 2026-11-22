@@ -3,7 +3,7 @@
 from collections.abc import Mapping
 
 SCHEMA = "triage-policy/v1"
-VERSION = "1.0"
+VERSION = "1.1"
 OUTCOMES = ("fix-here", "deferred", "advisory")
 PHASES = ("review", "remediation_review")
 BOOLEANS = (

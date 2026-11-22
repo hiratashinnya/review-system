@@ -44,7 +44,7 @@
       "pattern": "^[0-9a-f]{40}$"
     },
     "policy_version": {
-      "const": "1.0"
+      "const": "1.1"
     },
     "provenance": {
       "type": "object",

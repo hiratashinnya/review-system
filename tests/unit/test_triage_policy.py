@@ -11,7 +11,7 @@ from triage_policy.contract import BOOLEANS, validate_policy
 
 def evidence(**changes):
     result = dict.fromkeys(BOOLEANS, False)
-    result.update(finding_id="F-781-01", policy_ref="review-finding-disposition@1.0",
+    result.update(finding_id="F-781-01", policy_ref="review-finding-disposition@1.1",
                   phase="review", harm="real", severity="minor", scope="in",
                   reviewer_verified=True, evidence_complete=True,
                   ac_relation_verified=True)
@@ -21,7 +21,7 @@ def evidence(**changes):
 
 def approval(policy, **changes):
     result = dict(verified_by_trusted_cli=True, owner="actual-owner",
-                  feedback_ref="FBK-20261110-approved-triage", policy_ref="review-finding-disposition@1.0",
+                  feedback_ref="FBK-20261110-approved-triage", policy_ref="review-finding-disposition@1.1",
                   policy_digest=policy_digest(policy),
                   allowed_dispositions=["fix-here", "deferred", "advisory"],
                   allowed_phases=["review", "remediation_review"])
@@ -84,12 +84,37 @@ class TestTriagePolicy(unittest.TestCase):
             with self.subTest(key=key):
                 self.assertEqual(suggest(self.policy, finding)["candidate"], "owner-review")
 
-    def test_conflict_risk_owner_authority(self):
-        for key in ("reviewer_conflict", "scope_override_requested", "high_risk",
+    def test_conflict_and_spec_decisions_need_owner_authority(self):
+        for key in ("reviewer_conflict", "scope_override_requested",
                     "spec_decision_required", "scope_expansion_required"):
             with self.subTest(key=key):
                 self.assertEqual(suggest(self.policy, evidence(ac_violation=True, **{key: True}))
                                  ["candidate"], "owner-review")
+
+    def test_high_risk_mandatory_violation_stays_fix_here(self):
+        for key in ("ac_violation", "design_violation", "contract_violation", "regression"):
+            with self.subTest(key=key):
+                result = suggest(self.policy, evidence(high_risk=True, severity="major",
+                                                       **{key: True}))
+                self.assertEqual(result, {"candidate": "fix-here",
+                                          "reason_codes": ["rule:fix-here"]})
+
+    def test_high_risk_blocks_deferred_and_advisory(self):
+        for finding in (evidence(preexisting=True, high_risk=True),
+                        evidence(harm="none", optional_improvement=True, high_risk=True)):
+            with self.subTest(finding=finding):
+                result = suggest(self.policy, finding)
+                self.assertEqual(result, {"candidate": "owner-review",
+                                          "reason_codes": ["no-safe-rule"]})
+
+    def test_evaluator_blocks_high_risk_even_if_rule_omits_it(self):
+        policy = copy.deepcopy(self.policy)
+        for rule in policy["rules"]:
+            rule["all_false"] = [key for key in rule["all_false"] if key != "high_risk"]
+        for finding in (evidence(preexisting=True, high_risk=True),
+                        evidence(harm="none", optional_improvement=True, high_risk=True)):
+            with self.subTest(finding=finding):
+                self.assertEqual(suggest(policy, finding)["candidate"], "owner-review")
 
     def test_worsening_without_regression_evidence_is_owner_review(self):
         for finding in (evidence(harm="none", optional_improvement=True, worsened=True),
