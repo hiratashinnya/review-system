@@ -1,4 +1,25 @@
-"""Ignore HTML comments, preserving visible Markdown and physical line numbers."""
+"""Hide HTML comments without hiding literal fenced or indented code."""
+from .ac_snapshot_fence import advance as advance_fence
+
+
+class CommentFilter:
+    def __init__(self):
+        self.in_comment = False
+
+    def filter(self, raw_line, fence, in_ac, list_context, content_indent):
+        leading = raw_line[:len(raw_line) - len(raw_line.lstrip(" \t"))]
+        indent = len(leading)
+        content_code = (indent >= 4 or "\t" in leading) and not (
+            in_ac and list_context and content_indent is not None
+            and content_indent <= indent <= content_indent + 3)
+        opening_fence = (fence is None and not self.in_comment and advance_fence(
+            None, raw_line, list_indent=(content_indent if in_ac and list_context else None),
+        ) is not None)
+        if fence is not None or opening_fence or (content_code and not self.in_comment):
+            return raw_line, False
+        line, self.in_comment, hidden = visible_line(raw_line, self.in_comment)
+        return line, hidden
+
 
 
 def visible_line(line: str, in_comment: bool) -> tuple[str, bool, bool]:

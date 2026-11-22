@@ -4,25 +4,16 @@ snapshot はレビュー開始時の主文脈が作成し、Codex へも同一�
 チェックと本文は明示的に凍結し、レビューアの自己申告で置換しない。
 """
 
-from dataclasses import dataclass
-from hashlib import sha256
-import json
 import re
 
 from .format_error import KarteFormatError
 from .ac_snapshot_fence import advance as advance_fence
-from .ac_snapshot_comment import visible_line
+from .ac_snapshot_comment import CommentFilter
+from .ac_snapshot_model import AC, digest
 from .ac_snapshot_heading import heading_level, remove_setext_title, section_level
 
 CHECKBOX = re.compile(r"^(\s*(?:[-*+]|[0-9]{1,9}[.)])\s+)\[([ xX])\](\s+\S.*)$")
 ITEM = re.compile(r"^\s*(?:[-*+]|[0-9]{1,9}[.)])\s+(\S.*)$")
-
-
-@dataclass(frozen=True)
-class AC:
-    text: str
-    checked: bool | None
-    line_number: int
 
 
 def from_issue_body(body: str) -> tuple[AC, ...]:
@@ -34,22 +25,11 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
     base_indent = content_indent = None
     list_context = False
     fence = None  # 全Issue本文のフェンス状態をAC節の外でも追跡
-    in_comment = False
+    comments = CommentFilter()
     lines = body.splitlines()
     visible_lines = [""] * len(lines)  # physical line indices remain unchanged
     for number, raw_line in enumerate(lines, start=1):
-        leading_raw = raw_line[:len(raw_line) - len(raw_line.lstrip(" \t"))]
-        indent_raw = len(leading_raw)
-        content_code = (indent_raw >= 4 or "\t" in leading_raw) and not (
-            in_ac and list_context and content_indent is not None
-            and content_indent <= indent_raw <= content_indent + 3)
-        opening_fence = (fence is None and not in_comment and advance_fence(
-            None, raw_line, list_indent=(content_indent if in_ac and list_context else None),
-        ) is not None)
-        if fence is not None or opening_fence or (content_code and not in_comment):
-            line, hidden = raw_line, False
-        else:
-            line, in_comment, hidden = visible_line(raw_line, in_comment)
+        line, hidden = comments.filter(raw_line, fence, in_ac, list_context, content_indent)
         visible_lines[number - 1] = line
         if hidden and not line.strip():
             continue  # A comment-only line must not create an AC or heading.
@@ -113,8 +93,3 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
         raise KarteFormatError("同一文言のACが重複しており照合できない")
     return result
 
-
-def digest(items: tuple[AC, ...]) -> str:
-    """AC本文・順序・checkbox状態に束縛した決定論的digest。"""
-    data = [{"text": item.text, "checked": item.checked} for item in items]
-    return sha256(json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest()
