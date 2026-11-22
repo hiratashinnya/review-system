@@ -30,11 +30,11 @@ dispatch の戻りが `HANDOFF: <絶対パス>` でも、isolated worktree の�
 
 - 自分の handoff がある → 回収し、**回収後に作業ツリーが clean なときだけ**解放（`released`。git のロック等で削除だけが遅れる場合は `release-pending`）。**handoff の存在は clean 検査を免除しない。**
 - handoff が無く、作業ツリーが clean かつ HEAD が `origin/<branch>` に含まれる → 失われる作業が無いので解放（`released`）。
-- それ以外（回収後も残る未コミット/未追跡の変更、未 push のコミット、handoff が一意に決まらない、git が `locked` と報告） → **解放せず** `stale` へ落とすか `running` のまま残す。handoff を回収できていても dirty ならこちら（`kept-unsafe`）に落ちる。
+- それ以外 → **解放しない**。git が `locked` と報告した worktree は `running` のまま残す（`kept-locked`）。handoff が一意に決まらないときは `stale`（`kept-unresolved`）、未コミット/未追跡の変更・未 push のコミット・`git fetch` の失敗（判定不能）・台帳に `branch_name` が無いときは `stale`（`kept-unsafe`）、回収・解放の失敗は `stale`（`kept-error`）へ落とす。handoff を回収できていても dirty なら `kept-unsafe` に落ちる。
 
 **`--no-live-dispatch` の観測範囲は watcher に渡された単一 tmux ペインに限られる。** ペイン状態の判定は引数で渡された1ペインしか見ないのに対し、台帳（`tmp/_worktree/ledger.json`）はリポジトリ全体で共有される。したがってこの申告は「**そのペインからは**サブエージェントが実行中でない」以上のことを主張せず、別ペイン・別セッションで live な dispatch が動いていても真になりうる。**別ペイン・別セッションの live な dispatch を守るのは git の `locked` 判定だけ**であり、`git worktree list --porcelain` が `locked` と報告する worktree を掃引対象から外すことで担保する。ハーネスが live な agent worktree をロックしない構成ではこの保護が成立しないため、その環境では `CLAUDE_RL_SWEEP_WORKTREES=0` で掃引そのものを止める。
 
-掃引が handoff の無い entry を解放しても、`collected_to` は空のままである。後続作者（`change-planner`／`test-writer`／`issue-implementer`）の entry だった場合、同じブランチでの同じ role の再 dispatch は継続検査に拒否されるので、オーナーへ打ち上げる（`.ai/skills/issue-pipeline/SKILL.md`「Claude の role 自身が上限で止まったときの再投入」）。
+掃引が handoff の無い entry を解放しても、`collected_to` は空のままである。後続作者（`change-planner`／`test-writer`／`issue-implementer`）の entry だった場合、同じブランチでの同じ role の再 dispatch は継続検査に拒否されるので、オーナーへ打ち上げる（`.ai/skills/issue-pipeline/SKILL.md`「Claude の role 自身が上限で止まったときの再投入」）。掃引が解放せずに `stale` で残した場合は、同節の `stopped`／`stale` の手順へ進む。
 
 自動解放されなかったものは、従来どおり次の dispatch が `ISSUE_START_WORKTREE_RESIDUE` で deny し、その文言のコマンドで処置する。掃引の実行ログは `~/.claude/rate-limit-recovery/watcher.log`、判断の理由は ledger entry の `notes`（`worktree-sweep-abandoned:` 行）に残る。
 
