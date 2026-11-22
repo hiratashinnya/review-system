@@ -29,7 +29,8 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
     lines = body.splitlines()
     visible_lines = [""] * len(lines)  # physical line indices remain unchanged
     for number, raw_line in enumerate(lines, start=1):
-        line, hidden = comments.filter(raw_line, fence, in_ac, list_context, content_indent)
+        was_inline_code = comments.code_ticks != 0
+        line, hidden = comments.filter(raw_line, fence, in_ac, list_context, content_indent, lines[number:])
         visible_lines[number - 1] = line
         if hidden and not line.strip():
             continue  # A comment-only line must not create an AC or heading.
@@ -39,7 +40,7 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
         was_fenced = fence is not None
         child = (in_ac and list_context and base_indent is not None
                  and indent >= base_indent + 2)
-        is_heading = not was_fenced and not child and indent <= 3 and "\t" not in leading
+        is_heading = not was_fenced and not was_inline_code and not child and indent <= 3 and "\t" not in leading
         heading = section_level(visible_lines, number, is_heading)
         if heading:
             if found:
@@ -50,17 +51,18 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
             remove_setext_title(visible_lines, number, items)
             in_ac = False
             list_context = False
-        fence = advance_fence(
-            fence, line,
-            list_indent=(content_indent if in_ac and list_context else None),
-        )
+        if not was_inline_code:
+            fence = advance_fence(
+                fence, line,
+                list_indent=(content_indent if in_ac and list_context else None),
+            )
         if heading or not in_ac:
             continue
-        checkbox = CHECKBOX.fullmatch(line) if not was_fenced and fence is None else None
+        checkbox = CHECKBOX.fullmatch(line) if not was_fenced and not was_inline_code and fence is None else None
         # A stripped prefix cannot create a new writable checkbox position.
         if checkbox is not None and CHECKBOX.fullmatch(raw_line) is None:
             checkbox = None
-        plain = ITEM.match(line) if not was_fenced and fence is None else None
+        plain = ITEM.match(line) if not was_fenced and not was_inline_code and fence is None else None
         # 4-space/tab-indented code is never an independent AC checkbox.
         is_top_item = (checkbox is not None or plain is not None) and (
             indent <= 3 and "\t" not in leading
