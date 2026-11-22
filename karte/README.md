@@ -67,7 +67,7 @@ finding_refs: [new@1]
   台帳の `source` と `digest`（SHA-256）を記録する。保存先はカルテと同じ `tmp/_karte` で、
   **tmp の消去・別環境への転送後までの永続性は保証しない**。原本を保管する前に台帳を更新しない。
 - 主文脈はレビューdispatch時にGitHub元Issueの本文を凍結し、`karte activate ... --ac-snapshot-file <保存したUTF-8本文>` を実行する。
-  `ingest-reviewer` はこのtrusted snapshotの `ac_count` / `ac_snapshot_digest` とSummaryを照合し、食い違いを拒否する。
+  `ingest-reviewer` はこのtrusted snapshotの `ac_count` / `ac_snapshot_digest` とSummaryを照合し、食い違いを拒否する。AC解析ではHTMLコメント内の見出し・checkboxを無視する（フェンス内の文字列は維持）。
   保存先は `tmp/_karte/issue-N-ac-round-R-<Issue本文SHA256>.md`（旧保存名も読み取り可）、
   Codexには同じ凍結済み本文とAC digestをtrusted callerがpromptへ含める。
   GitHub checkout `origin` のホストとrepositoryの組を `.md.repository.json` に凍結し、レビューdispatch/取り込みとAC自動更新時に照合する。AC更新APIは `gh api --hostname <凍結host>` を毎回明示し、`GH_HOST` の設定に依存しない。未束縛の旧snapshotや更新先repository不一致はAPI呼出し前に拒否する。認識可能なoriginがない場合はレビューはできるがAC自動更新不可。

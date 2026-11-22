@@ -11,6 +11,7 @@ import re
 
 from .format_error import KarteFormatError
 from .ac_snapshot_fence import advance as advance_fence
+from .ac_snapshot_comment import visible_line
 from .ac_snapshot_heading import heading_level, remove_setext_title, section_level
 
 CHECKBOX = re.compile(r"^(\s*(?:[-*+]|[0-9]{1,9}[.)])\s+)\[([ xX])\](\s+\S.*)$")
@@ -33,8 +34,25 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
     base_indent = content_indent = None
     list_context = False
     fence = None  # 全Issue本文のフェンス状態をAC節の外でも追跡
+    in_comment = False
     lines = body.splitlines()
-    for number, line in enumerate(lines, start=1):
+    visible_lines = [""] * len(lines)  # physical line indices remain unchanged
+    for number, raw_line in enumerate(lines, start=1):
+        leading_raw = raw_line[:len(raw_line) - len(raw_line.lstrip(" \t"))]
+        indent_raw = len(leading_raw)
+        content_code = (indent_raw >= 4 or "\t" in leading_raw) and not (
+            in_ac and list_context and content_indent is not None
+            and content_indent <= indent_raw <= content_indent + 3)
+        opening_fence = (fence is None and not in_comment and advance_fence(
+            None, raw_line, list_indent=(content_indent if in_ac and list_context else None),
+        ) is not None)
+        if fence is not None or opening_fence or (content_code and not in_comment):
+            line, hidden = raw_line, False
+        else:
+            line, in_comment, hidden = visible_line(raw_line, in_comment)
+        visible_lines[number - 1] = line
+        if hidden and not line.strip():
+            continue  # A comment-only line must not create an AC or heading.
         stripped = line.strip()
         leading = line[:len(line) - len(line.lstrip(" \t"))]
         indent = len(leading)
@@ -42,14 +60,14 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
         child = (in_ac and list_context and base_indent is not None
                  and indent >= base_indent + 2)
         is_heading = not was_fenced and not child and indent <= 3 and "\t" not in leading
-        heading = section_level(lines, number, is_heading)
+        heading = section_level(visible_lines, number, is_heading)
         if heading:
             if found:
                 raise KarteFormatError("Issue本文のAcceptance criteriaセクションが重複")
             in_ac, level, found = True, heading, True
-        next_level = heading_level(lines, number, is_heading)
+        next_level = heading_level(visible_lines, number, is_heading)
         if in_ac and not heading and next_level is not None and next_level <= level:
-            remove_setext_title(lines, number, items)
+            remove_setext_title(visible_lines, number, items)
             in_ac = False
             list_context = False
         fence = advance_fence(
@@ -59,6 +77,9 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
         if heading or not in_ac:
             continue
         checkbox = CHECKBOX.fullmatch(line) if not was_fenced and fence is None else None
+        # A stripped prefix cannot create a new writable checkbox position.
+        if checkbox is not None and CHECKBOX.fullmatch(raw_line) is None:
+            checkbox = None
         plain = ITEM.match(line) if not was_fenced and fence is None else None
         # 4-space/tab-indented code is never an independent AC checkbox.
         is_top_item = (checkbox is not None or plain is not None) and (
