@@ -35,8 +35,8 @@ def review_raw(expected, context_digest, producer):
 
 
 def assessment_for(evidence):
-    facts = dict.fromkeys(FIELDS, False)
-    facts.update(evidence_complete=True, ac_relation_verified=True, ac_violation=True)
+    facts = {**dict.fromkeys(FIELDS, False), "evidence_complete": True,
+             "ac_relation_verified": True, "ac_violation": True}
     return {"finding_id": "F-1", "harm": "real", "scope": "in", "evidence": evidence, "facts": facts}
 
 

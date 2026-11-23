@@ -5,6 +5,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 from finding_triager.approved_materials import approved_materials
@@ -112,7 +113,8 @@ class PhaseMaterialsTest(unittest.TestCase):
 
     def test_unknown_phase_is_rejected_before_any_approval_is_read(self):
         marker, approval = self.build("review")
-        for phase in ("planning", "", 3, ["review"]):
+        unknown: list[Any] = ["planning", "", 3, ["review"]]
+        for phase in unknown:
             with self.subTest(phase=phase), patch(MODULE + "validate_phase_dispatch") as validate:
                 with self.assertRaises(ValueError):
                     approved_materials(self.root, marker, phase)
