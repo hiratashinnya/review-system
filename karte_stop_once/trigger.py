@@ -8,7 +8,7 @@ _VERB = re.compile(r"\bpython3?\s+-m\s+karte\s+(ingest-reviewer|ingest-review|ap
 _ISSUE = re.compile(r"(?<![\w-])--issue(?:=|\s+)([1-9][0-9]*)\b")
 _RESULT = re.compile(r"(?m)^=== (ingest-review|append|close-attempt|status): issue-([1-9][0-9]*)\b")
 _DECIDE = re.compile(r"(?m)^=== decide: (F-([1-9][0-9]*)-[0-9]+) ===")
-_FINDING = re.compile(r"(?<![\w-])--finding(?:=|\s+)(F-[1-9][0-9]*-[0-9]+)\b")
+_FINDING = re.compile(r"(?<![\w-])--finding(?:=|\s+)(['\"]?)(F-[1-9][0-9]*-[0-9]+)\1(?=\s|$|[;&|])")
 
 
 def _result_texts(response) -> list[str]:
@@ -57,7 +57,7 @@ def issue_from_result(payload: dict) -> int | None:
                 matches.append(int(marker.group(2)))
         if verb == "decide":
             for marker in _DECIDE.finditer(text):
-                if marker.group(1) != finding.group(1):
+                if marker.group(1) != finding.group(2):
                     return None
                 matches.append(int(marker.group(2)))
         if verb == "status":

@@ -169,6 +169,38 @@ class OneShotStopTest(unittest.TestCase):
         self.assertIsNotNone(self.observe("Bash", {"command": command}, response))
         self.assertIsNotNone(self.pre("Bash"))
 
+    def test_decide_accepts_quoted_finding_forms(self):
+        # The CLI strips shell quoting; PostToolUse must recognize the original command.
+        variants = (
+            "--finding F-513-01", "--finding=F-513-01",
+            "--finding 'F-513-01'", '--finding "F-513-01"',
+            "--finding='F-513-01'", '--finding="F-513-01"',
+        )
+        for index, argument in enumerate(variants):
+            session = f"decide-quoting-{index}"
+            command = f"python3 -m karte decide --issue 513 {argument} --disposition fix-here"
+            with self.subTest(argument=argument):
+                self.assertIsNotNone(self.post(
+                    status(undecided=["F-513-02"]), session=session, command=command,
+                    output="=== decide: F-513-01 ==="))
+                self.assertIsNotNone(self.pre("Edit", session))
+                self.assertIsNone(self.pre("Edit", session))
+
+    def test_decide_rejects_malformed_or_mismatched_quotes(self):
+        variants = (
+            "--finding 'F-513-01",
+            "--finding 'F-513-01'-extra",
+            '--finding "F-513-02"',
+        )
+        for index, argument in enumerate(variants):
+            session = f"decide-bad-quoting-{index}"
+            command = f"python3 -m karte decide --issue 513 {argument} --disposition fix-here"
+            with self.subTest(argument=argument):
+                self.assertIsNone(self.post(
+                    status(undecided=["F-513-02"]), session=session, command=command,
+                    output="=== decide: F-513-01 ==="))
+                self.assertIsNone(self.pre("Edit", session))
+
     def test_decide_rejects_mismatched_finding_or_explicit_issue(self):
         output = {"stdout": "=== decide: F-513-01 ==="}
         for index, command in enumerate((
