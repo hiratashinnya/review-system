@@ -1,7 +1,5 @@
 """Single source for the evidence categories each triage phase must supply (#783)."""
 
-from .phases import route_of
-
 CATEGORIES = ("ac", "vd_cp", "design", "change")
 PULL_REQUEST_DIFF = "pull-request-diff"
 ARTIFACT_DIFF = "reviewed-artifact-diff"
@@ -26,5 +24,6 @@ CHANGE_SOURCE = {
 
 
 def required_categories(phase: object) -> tuple[str, ...]:
-    route_of(phase)
+    if not isinstance(phase, str) or phase not in PHASE_EVIDENCE:
+        raise ValueError("unknown triage phase")
     return PHASE_EVIDENCE[phase]

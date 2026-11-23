@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 from pathlib import Path
+from typing import Any
 import unittest
 
 from codex_worktree_exec.triage_binding_capture import binding_from_capture
@@ -30,7 +31,7 @@ def sign_receipt(receipt):
     return raw, hmac.new(KEY, DOMAIN + raw, hashlib.sha256).hexdigest()
 
 
-def binding_for(phase, *, review=None, receipt=None, body=BODY):
+def binding_for(phase, *, review: Any = None, receipt: Any = None, body: Any = BODY):
     """A fully signed binding; ``review``/``receipt`` are mutators applied before signing."""
     _, raw, _ = capture_existing(BODY, Path("/reviewer"), approval_for(phase), "c" * 40, KEY, phase, 1,
                                  assigned_ids=["F-783-01"])
