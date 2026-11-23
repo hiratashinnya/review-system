@@ -1,8 +1,8 @@
 """Validate independent judgments and derive a conservative policy input."""
 
 from triage_policy.contract import BOOLEANS
+from triage_policy.evidence import required_categories
 
-EVIDENCE = ("ac", "vd_cp", "design", "change")
 FIELDS = set(BOOLEANS) - {"reviewer_verified", "reviewer_conflict", "scope_override_requested"}
 
 
@@ -14,9 +14,10 @@ def policy_input(review: dict, assessment: dict, phase: str, policy_ref: str) ->
     if assessment["harm"] not in ("real", "none") or assessment["scope"] not in ("in", "out"):
         raise ValueError("invalid assessment judgments")
     evidence = assessment["evidence"]
-    if not isinstance(evidence, dict) or set(evidence) != set(EVIDENCE):
+    categories = required_categories(phase)
+    if not isinstance(evidence, dict) or set(evidence) != set(categories):
         raise ValueError("missing evidence categories")
-    if any(not isinstance(evidence[k], str) or not evidence[k].strip() for k in EVIDENCE):
+    if any(not isinstance(evidence[k], str) or not evidence[k].strip() for k in categories):
         raise ValueError("empty evidence")
     facts = assessment["facts"]
     if not isinstance(facts, dict) or set(facts) != FIELDS:

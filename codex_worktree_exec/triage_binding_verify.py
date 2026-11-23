@@ -8,6 +8,7 @@ from dataclasses import asdict
 from karte.review_report import parse_review
 from karte.finding_id import parse_finding_id
 from karte.format_error import KarteFormatError
+from triage_policy.phases import route_of
 from .triage_review_capture import DOMAIN
 
 BINDING_DOMAIN = b"finding-triage-binding/v1\0"
@@ -56,7 +57,10 @@ def verify_binding_capture(binding, key):
     body = binding["reviewer_output"].encode()
     review = json.loads(binding["review"])
     approval = receipt["approval"]
-    if (receipt["schema"] != "finding-triage-review-capture/v1" or receipt["producer"] != "pr-reviewer"
+    route = route_of(review["phase"])
+    if (receipt["schema"] != "finding-triage-review-capture/v1"
+            or receipt["producer"] != route["reviewer"] or review["producer"] != route["reviewer"]
+            or set(approval["materials"]) != {*route["prior"], route["reviewed"]}
             or receipt.get("source") != "ingested-review"
             or receipt.get("phase") != review["phase"] or approval.get("triage_phase") != review["phase"]
             or type(receipt.get("round")) is not int or receipt.get("round") != review["round"]

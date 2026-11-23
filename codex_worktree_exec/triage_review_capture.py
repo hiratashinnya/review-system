@@ -11,6 +11,7 @@ from finding_triager.approved_materials import approved_materials
 from karte.finding_id import parse_finding_id
 from karte.format_error import KarteFormatError
 from karte.review_report import parse_review
+from triage_policy.phases import PHASE_ROUTES, PROPOSAL_PHASES
 from .invocation import build_codex_argv, compose_prompt
 from .launcher import run_codex
 from .nesting_guard import refuse_nested_launch
@@ -68,7 +69,7 @@ def capture_existing(body, worktree, approval, review_oid, key, phase, round_no,
     if not isinstance(body, bytes) or not body.strip() or not isinstance(key, bytes) or len(key) < 32:
         raise ValueError("reviewer output and trusted key required")
     body.decode("utf-8")
-    if (phase not in ("review", "remediation_review") or approval.get("triage_phase") != phase
+    if (phase not in PROPOSAL_PHASES or approval.get("triage_phase") != phase
             or type(round_no) is not int or round_no < 1):
         raise ValueError("review capture phase or round mismatch")
     review = parse_review(body.decode("utf-8"), approval["issue"])
@@ -88,7 +89,7 @@ def capture_existing(body, worktree, approval, review_oid, key, phase, round_no,
             raise ValueError("invalid ingested finding ID")
         if item.finding_id is not None and item.finding_id != assigned:
             raise ValueError("reviewer finding ID was replaced")
-    receipt = {"schema": "finding-triage-review-capture/v1", "producer": "pr-reviewer",
+    receipt = {"schema": "finding-triage-review-capture/v1", "producer": PHASE_ROUTES[phase]["reviewer"],
                "worktree": str(worktree), "review_oid": review_oid,
                "source": "ingested-review", "phase": phase, "round": round_no,
                "finding_ids": assigned_ids,

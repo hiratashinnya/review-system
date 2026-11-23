@@ -5,12 +5,15 @@ import hmac
 import json
 
 from finding_triager.github_evidence import github_evidence
+from triage_policy.evidence import CHANGE_SOURCE, PULL_REQUEST_DIFF
+from triage_policy.phases import PHASE_ROUTES, PROPOSAL_PHASES
 from .triage_review_capture import DOMAIN
 from .triage_binding_verify import sign_binding, normalized_ingested_findings
 
 
 def binding_from_capture(body, receipt_raw, signature, cwd, key, *, pr, phase, round_no):
-    if phase not in ("review", "remediation_review") or type(round_no) is not int or round_no < 1:
+    if (phase not in PROPOSAL_PHASES or CHANGE_SOURCE[phase] != PULL_REQUEST_DIFF
+            or type(round_no) is not int or round_no < 1):
         raise ValueError("invalid triage phase or round")
     if not hmac.compare_digest(hmac.new(key, DOMAIN + receipt_raw, hashlib.sha256).hexdigest(), signature):
         raise ValueError("review capture signature mismatch")
@@ -36,7 +39,7 @@ def binding_from_capture(body, receipt_raw, signature, cwd, key, *, pr, phase, r
                "documents": documents}
     context_raw = json.dumps(context, ensure_ascii=False, sort_keys=True).encode()
     findings = normalized_ingested_findings(body, expected["issue"], receipt.get("finding_ids"))
-    review = {**expected, "producer": "pr-reviewer", "findings": findings,
+    review = {**expected, "producer": PHASE_ROUTES[phase]["reviewer"], "findings": findings,
               "reviewer_worktree": receipt["worktree"],
               "context_sha256": hashlib.sha256(context_raw).hexdigest()}
     raw = json.dumps(review, ensure_ascii=False, sort_keys=True).encode()

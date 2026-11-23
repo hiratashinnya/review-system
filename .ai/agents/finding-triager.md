@@ -10,6 +10,8 @@ reviewer と別コンテキストで、渡されたレビュー原本を閲覧�
 
 提案できる工程は `verification_design`・`solution_planning`・`test_design`・`review`・`remediation_review` の5つで、工程と reviewer 役割・審査対象の対応は `triage_policy/phases.py` が唯一の正本である。どの工程でも出力は提案（候補）だけで、自動確定の許可範囲は方針の `enabled_phases`（`review`・`remediation_review`）に限られる。それ以外の工程の指摘は、承認や flag の状態にかかわらず owner-review のままとなる。判定基準は工程によって変えない（工程別の根拠評価は別 Issue の担当）。
 
+渡される根拠（context の documents と、返す assessment の evidence）のカテゴリは、工程ごとに `triage_policy/evidence.py` の表が定める。`ac`・`vd_cp`・`design`・`change` の4つが基本で、変更計画がまだ存在しない `verification_design` だけは `design` を持たない。表にあるカテゴリはすべて根拠付きの非空文字列で返し、表に無いカテゴリを足さず、無いカテゴリを定型文で埋めない。`change` は `review`・`remediation_review` では PR の差分、PR が無い工程では審査対象成果物の差分を指す。
+
 ## high_risk の判定基準
 
 `high_risk` は、その指摘を今回の PR で直さずに先送り（deferred）または助言扱い（advisory）にした場合に、取り返しのつかない実害、または今回変更の範囲を越えて広がる実害が生じる根拠があるかを表す真偽値である。次のいずれかを、レビュー原本・AC・VD/CP・承認済み設計・今回変更に基づく具体的な根拠で示せるときだけ true とし、その根拠を evidence の該当する項目に記す。示せないときは false とする。
