@@ -8,12 +8,12 @@ from pathlib import Path
 
 from finding_triager.adapter import prepare, propose
 from finding_triager.inputs import BINDINGS
-from finding_triager.assessment import FIELDS
 from .errors import CodexExecError
 from .invocation import build_codex_argv
 from .launcher import run_codex
 from .prompt_files import resolve_output_target
 from .source_snapshot import verify_source_snapshot
+from .triager_instructions import triager_instructions
 from .triager_worktree import require_clean_tracked
 from .triage_binding_verify import EXTRA, verify_binding_capture
 
@@ -75,9 +75,7 @@ def dispatch(request, cwd, worktree, environ, codex):
         intermediate = target.with_name(".triager-" + uuid.uuid4().hex + ".json")
         if intermediate.exists():
             raise ValueError("triager output collision")
-        instructions = ("\nReturn only a JSON array. Each item has finding_id, harm, scope, "
-                        "evidence (nonempty ac, vd_cp, design, change strings), and facts "
-                        "(booleans for every key: " + ", ".join(sorted(FIELDS)) + ").\n")
+        instructions = triager_instructions(review["phase"])
         result = run_codex(build_codex_argv(request, worktree, intermediate, codex),
                            prompt + instructions, cwd=worktree, timeout_seconds=request.timeout_seconds,
                            environ=environ, quiet=True)
