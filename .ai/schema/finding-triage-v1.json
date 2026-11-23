@@ -172,7 +172,6 @@
                 "required": [
                   "ac",
                   "vd_cp",
-                  "design",
                   "change"
                 ],
                 "properties": {
@@ -311,5 +310,59 @@
     "provenance",
     "proposals",
     "review_oid"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "const": "verification_design"
+          }
+        },
+        "required": [
+          "phase"
+        ]
+      },
+      "then": {
+        "properties": {
+          "proposals": {
+            "items": {
+              "properties": {
+                "triager": {
+                  "properties": {
+                    "evidence": {
+                      "not": {
+                        "required": [
+                          "design"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "proposals": {
+            "items": {
+              "properties": {
+                "triager": {
+                  "properties": {
+                    "evidence": {
+                      "required": [
+                        "design"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
   ]
 }

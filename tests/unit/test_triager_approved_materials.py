@@ -13,7 +13,6 @@ class ApprovedMaterialsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
             expected = {"issue": 783, "run_id": "run", "target_key": "key", "snapshot_oid": "a" * 40}
-            (root / "binding.json").write_text(json.dumps({"expected": expected, "artifact_digest": "f" * 64}))
             rows = [("verification_design", "VerificationDesign", "vd.toml"),
                     ("solution_planning", "ChangePlan", "cp.toml")]
             receipts = []
@@ -22,6 +21,9 @@ class ApprovedMaterialsTest(unittest.TestCase):
                 (root / path).write_bytes(raw)
                 receipts.append({"phase": phase, "artifact": path,
                                  "artifact_digest": hashlib.sha256(raw).hexdigest()})
+            (root / "binding.json").write_text(json.dumps({
+                "expected": {**expected, "artifact_type": "ChangePlan"},
+                "artifact_digest": receipts[1]["artifact_digest"]}))
             approval = {**expected, "context_id": "owner-approved", "reviews": receipts}
             marker = {"binding_file": "binding.json", "approval_file": "approval.json"}
             def normalize(doc):

@@ -4,7 +4,7 @@ import hashlib
 import hmac
 import json
 
-CATEGORIES = ("ac", "vd_cp", "design", "change")
+from triage_policy.evidence import required_categories
 
 
 def verify_context(raw: bytes, expected_digest: str, review: dict) -> dict:
@@ -26,8 +26,9 @@ def verify_context(raw: bytes, expected_digest: str, review: dict) -> dict:
     if not isinstance(context["approval_ref"], str) or not context["approval_ref"].strip():
         raise ValueError("missing approved design reference")
     documents = context["documents"]
-    if not isinstance(documents, dict) or set(documents) != set(CATEGORIES):
+    categories = required_categories(review["phase"])
+    if not isinstance(documents, dict) or set(documents) != set(categories):
         raise ValueError("missing context categories")
-    if any(not isinstance(documents[k], str) or not documents[k].strip() for k in CATEGORIES):
+    if any(not isinstance(documents[k], str) or not documents[k].strip() for k in categories):
         raise ValueError("empty context category")
     return context
