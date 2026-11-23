@@ -2,10 +2,11 @@
 
 from collections.abc import Mapping
 
+from .phases import AUTO_PHASES, PROPOSAL_PHASES
+
 SCHEMA = "triage-policy/v1"
 VERSION = "1.1"
 OUTCOMES = ("fix-here", "advisory", "deferred")  # rule evaluation order
-PHASES = ("review", "remediation_review")
 BOOLEANS = (
     "reviewer_verified", "evidence_complete", "ac_relation_verified",
     "reviewer_conflict", "scope_override_requested", "ac_violation",
@@ -32,7 +33,7 @@ def validate_policy(policy: object) -> list[str]:
         errors.append("invalid-policy-status")
     if type(policy.get("auto_apply_enabled")) is not bool:
         errors.append("invalid-policy-enable")
-    if policy.get("enabled_phases") != list(PHASES):
+    if policy.get("enabled_phases") != list(AUTO_PHASES):
         errors.append("invalid-policy-phases")
     flags = policy.get("feature_flags")
     if not isinstance(flags, dict) or set(flags) != set(OUTCOMES) or any(
@@ -68,7 +69,7 @@ def validate_finding(finding: object) -> list[str]:
     for name in BOOLEANS:
         if type(finding.get(name)) is not bool:
             errors.append("missing-or-invalid:" + name)
-    enums = {"phase": PHASES, "harm": ("real", "none"),
+    enums = {"phase": PROPOSAL_PHASES,"harm": ("real", "none"),
              "severity": ("blocker", "major", "minor"), "scope": ("in", "out")}
     for name, allowed in enums.items():
         if finding.get(name) not in allowed:

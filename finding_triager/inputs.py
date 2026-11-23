@@ -5,7 +5,8 @@ import hmac
 import json
 import re
 
-PHASES = ("review", "remediation_review")
+from triage_policy.phases import PHASE_ROUTES, PROPOSAL_PHASES
+
 BINDINGS = ("issue", "phase", "round", "run_id", "target_key", "input_digest", "snapshot_oid", "review_oid")
 
 
@@ -24,7 +25,8 @@ def verify_review(raw: bytes, signature: str, key: bytes, expected: dict) -> dic
         raise ValueError("invalid review fields")
     if set(expected) != set(BINDINGS) or any(data[k] != expected[k] for k in BINDINGS if k != "review_oid"):
         raise ValueError("review binding mismatch")
-    if (data["producer"] != "pr-reviewer" or data["phase"] not in PHASES
+    if (data["phase"] not in PROPOSAL_PHASES
+            or data["producer"] != PHASE_ROUTES[data["phase"]]["reviewer"]
             or type(data["issue"]) is not int or data["issue"] < 1
             or type(data["round"]) is not int or data["round"] < 1):
         raise ValueError("invalid review envelope")
