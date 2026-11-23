@@ -126,6 +126,91 @@ class OneShotStopTest(unittest.TestCase):
         self.assertIsNone(self.post(finding))
         self.assertIsNone(self.pre("Bash"))
 
+    def observe(self, tool_name, tool_input, response, session=SESSION):
+        payload = {"session_id": session, "tool_name": tool_name,
+                   "tool_input": tool_input, "tool_response": response}
+        return hook.run("post", payload, root=self.root,
+                        status_reader=lambda root, issue:
+                        status(issue=issue, undecided=[f"F-{issue}-01"]))
+
+    def test_mcp_text_results_across_registered_execution_tools(self):
+        cases = [
+            ("mcp__plugin_context-mode_context-mode__ctx_execute",
+             {"code": self.command}, {"content": [{"type": "text", "text": self.output}]}),
+            ("mcp__plugin_context-mode_context-mode__ctx_batch_execute",
+             {"commands": [{"command": self.command}]},
+             {"content": [{"text": self.output}]}),
+            ("Bash", {"command": self.command}, {"content": self.output}),
+            ("Bash", {"command": self.command}, self.output),
+        ]
+        for index, (name, arguments, result) in enumerate(cases):
+            session = f"mcp-output-case-{index}"
+            with self.subTest(tool=name, form=index):
+                self.assertIsNotNone(self.observe(name, arguments, result, session))
+                self.assertIsNotNone(self.pre("Edit", session))
+                self.assertIsNone(self.pre("Edit", session))
+
+    def test_mcp_json_status_and_ingest_reviewer(self):
+        command = "python3 -m karte status --issue 513 --json"
+        result = {"content": [{"type": "text",
+                              "text": json.dumps(status(undecided=["F-513-01"]))}]}
+        self.assertIsNotNone(self.observe("Bash", {"command": command}, result))
+        self.assertIsNotNone(self.pre("Edit"))
+        reviewer = "python3 -m karte ingest-reviewer --issue 513 --round 2"
+        self.assertIsNotNone(self.observe(
+            "Bash", {"command": reviewer},
+            {"stdout": "=== ingest-review: issue-513 round 2 ==="},
+            "mcp-reviewer-session"))
+
+    def test_decide_result_binds_by_finding_id(self):
+        command = "python3 -m karte decide --finding F-513-01 --disposition fix-here"
+        response = {"content": [{"type": "text",
+                                "text": "=== decide: F-513-01 ==="}]}
+        self.assertIsNotNone(self.observe("Bash", {"command": command}, response))
+        self.assertIsNotNone(self.pre("Bash"))
+
+    def test_decide_rejects_mismatched_finding_or_explicit_issue(self):
+        output = {"stdout": "=== decide: F-513-01 ==="}
+        for index, command in enumerate((
+            "python3 -m karte decide --finding F-513-02 --disposition fix-here",
+            "python3 -m karte decide --issue 514 --finding F-513-01 --disposition fix-here",
+            "python3 -m karte decide --disposition fix-here",
+        )):
+            session = f"decide-mismatch-{index}"
+            self.assertIsNone(self.observe("Bash", {"command": command}, output, session))
+            self.assertIsNone(self.pre("Edit", session))
+
+    def test_mcp_result_error_or_nontext_does_not_arm(self):
+        invalid = [
+            {"content": [{"type": "text", "text": self.output}], "isError": True},
+            {"content": [{"type": "text", "text": self.output}], "exit_code": 4},
+            {"stdout": self.output, "returncode": 1},
+            {"stdout": self.output, "interrupted": True},
+            {"content": [{"type": "image", "text": self.output}]},
+            {"content": [{"type": "text", "text": "unrelated"}]},
+        ]
+        for index, response in enumerate(invalid):
+            session = f"result-failure-{index}"
+            with self.subTest(result=index):
+                self.assertIsNone(self.observe(
+                    "mcp__plugin_context-mode_context-mode__ctx_execute",
+                    {"code": self.command}, response, session))
+                self.assertIsNone(self.pre("Edit", session))
+
+    def test_mcp_conflicting_issues_do_not_bind(self):
+        response = {"content": [
+            {"type": "text", "text": "=== ingest-review: issue-513 round 1 ==="},
+            {"type": "text", "text": "=== ingest-review: issue-514 round 1 ==="},
+        ]}
+        self.assertIsNone(self.observe("Bash", {"command": self.command}, response))
+        self.assertIsNone(self.pre("Bash"))
+
+    def test_mcp_result_mismatching_explicit_issue_does_not_bind(self):
+        response = {"content": [{"type": "text",
+                                "text": "=== ingest-review: issue-514 round 1 ==="}]}
+        self.assertIsNone(self.observe("Bash", {"command": self.command}, response))
+        self.assertIsNone(self.pre("Edit"))
+
     def test_nontarget_commands_do_nothing(self):
         self.assertIsNone(hook.run("post", done("echo hello", self.output), root=self.root))
         self.assertFalse((self.root / "tmp" / "_karte").exists())
