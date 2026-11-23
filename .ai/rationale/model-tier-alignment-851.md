@@ -1,88 +1,111 @@
-# Issue #851：モデル層・推論予算の不整合の照合と決定案（非規範・未承認）
+# Issue #851：モデル層・推論予算の不整合解消（D案の決定記録・非規範）
 
-> **状態：オーナーによる A/B/C/D の選択待ち。** 本文の「導出候補」「提案」は現行設定の変更を意味しない。
-> 2026-11-23 に GitHub `main` の各ファイルを読んで照合した第1弾の記録である。Issue-pipeline は実行していない。
-> 対象 Issue：[#851](https://github.com/hiratashinnya/review-system/issues/851)。
-> 発端：[#829](https://github.com/hiratashinnya/review-system/issues/829)／マージ済み [PR #847](https://github.com/hiratashinnya/review-system/pull/847)。
+> **決定：2026-11-23、オーナーが D 案を選択。** `.ai/skills/bloom-model-tier/SKILL.md` の
+> Bloom Lv × 軸2 の12セルから導出し、工程ロールの表に**導出値と採用値と差異の理由**を並べる。
+> 現行の運用規範は `.ai/skills/issue-pipeline/SKILL.md`「層と推論予算」を参照する。
+> 本文は選択の経緯、実際の変更値・理由・未実測の限界を記録する**非規範の判断記録**である。
+> [Issue #851](https://github.com/hiratashinnya/review-system/issues/851)／[PR #865](https://github.com/hiratashinnya/review-system/pull/865)。
+> 発端は Issue #829／マージ済み PR #847。Issue-pipeline の工程実行と Copilot は使用していない。
 
-## 1. 定義と読取元
+## 1. 基準の比較とオーナー決定
 
-- **閾値表**：`.ai/skills/bloom-model-tier/SKILL.md`「閾値表（PF中立）」にある Bloom Lv × 軸2（網羅性／判断）の12セル。
-- **現行ロール表**：`.ai/skills/issue-pipeline/SKILL.md`「層と推論予算」の9行。既定実行者は同文書の「既定実行者」で決まる。**この表は本 PR では変更しない**。
-- **Claude 実設定**：`.claude/agents/<role>.md` の先頭 `model:`／`effort:`（9ファイルを個別に確認）。
-- **Claude 写像**：`.claude/skills/bloom-model-tier/SKILL.md`（低位→haiku、中位→sonnet、最上位→opus；最小→low、小→medium、中→high、大・最大→xhigh）。
-- **Codex 写像**：`.ai/model-policy.json`（低位→low、中位→mid、最上位→top；最小→low、小→medium、中→high、大→xhigh、最大→max）。tier の具体モデル ID は resolver が選ぶため固定しない。
-- **切替契約**：`.ai/skills/issue-pipeline/SKILL.md`「Codex 実行者が上限で止まったときの切替」。**実際に Codex 実行者へ指定した抽象層・予算より低い Claude への切替は禁止**。モデル層と予算は別々に比較し、一方の過剰を他方の不足の埋め合わせにしない。
-- **過去の根拠**：`.ai/rationale/issue-fixer.md`。古い `sonnet/high` の経緯は残し、現行閾値表との不一致は別注で明示する。
-
-以下は「資料からの事実」と「軸2についての提案」を区別する。軸2は役割の主要な認知行為による評価案であり、機械的に確定した実行時設定ではない。
-
-## 2. 選択肢（オーナー専権）
-
-| 案 | 正とする基準 | 利点 | リスク／留意点 |
+| 案 | 統一方法 | 利点 | 不採用／採用理由 |
 |---|---|---|---|
-| A | 閾値表を正本にしてロール表と frontmatter を導出 | 意味と設定の対応が簡潔で自動検査向き | リスク引上げ等の意図的例外の置き場がなく、実設定を勝手に下げるおそれ |
-| B | 現行 frontmatter を正としてロール表を合わせる | 実行時 model／effort の変更が少ない | 閾値表からの導出根拠が曖昧、`xhigh` から「大／最大」を逆算できない |
-| C | 現行ロール表を正として閾値表と frontmatter を合わせる | ロール毎の表示が一意になる | 汎用閾値表を個別ロールに合わせて改変し、他の利用者へ影響する |
-| **D（推奨・未承認）** | **閾値表を導出元とし、ロール表に採用値と、導出から逸脱する場合は理由を併記** | 導出と実運用上の引上げを区別でき、無断の実設定変更を避けられる | 逸脱の判断と根拠を維持する負担がある |
+| A | 閾値表を正本にして他を一律導出 | 導出が明瞭 | ロール固有の引上げ理由を維持できない |
+| B | 現行 Claude frontmatter を正本にして層表を合わせる | 既存実行時設定を変えずに済む | `xhigh` は「大」「最大」の両方になり、軸2・抽象値の根拠を逆算できない |
+| C | 現行の工程ロール表を正本にして閾値表・frontmatterを従わせる | ロール表で一元管理できる | 個別ロールの都合で汎用の Bloom 12セルを改変してしまう |
+| **D：採用** | **閾値表からの導出値を明示し、採用値と逸脱理由を同じロール表に記録** | 演繹的な一貫性と、品質のための例外管理を両立 | 理由を記録・点検する運用が必要 |
 
-提案 D のもとでも **「逸脱が見える」ことと「逸脱を承認済みにする」ことは別**である。軸2・採用値・変更する frontmatter はオーナー決定後に確定する。現在はどの案も承認済みとして記録しない。
+Dを選んでも、**元の frontmatter が正解だったと遡及的に認めるわけではない**。
+軸2は共通 `.ai/skills/bloom-model-tier/SKILL.md` の「主要認知行為」を基準として
+以下に分類し、異なる採用値が必要ならその理由を別に評価する。
+本表の「軸2」は作業のモデル選定の判断であり、レビュー finding の `scope` 等と混同しない。
 
-## 3. ロール別対応表：実際の値と導出候補
+## 2. 9ロール：判定・変更前後・根拠
 
-| ロール | 主な認知行為・軸2の提案 | Bloom | 閾値表からの導出候補（層／予算） | 現行ロール表 | 現行 Claude `model/effort` | 現時点の差分と判断待ち |
-|---|---|---|---|---|---|---|
-| issue-investigator | 原因・影響の照合／網羅性 | Lv4 | 中位／大 | 中位／大 | sonnet/xhigh | 一致 |
-| ac-designer | AC の妥当性評価／判断 | Lv5 | 最上位／中 | 最上位／中 | opus/high | 一致 |
-| change-planner | 計画の設計とトレードオフ／判断 | Lv6 | 最上位／大 | 最上位／大 | opus/xhigh | 一致 |
-| plan-reviewer | 検証設計・計画の合否評価／判断 | Lv5 | 最上位／中 | 最上位／中 | opus/high | 一致 |
-| test-writer | 境界・反例の網羅／網羅性 | Lv4 | **中位／大** | **中位／中** | **sonnet/high** | 両者とも導出候補より予算が低い |
-| issue-implementer | 承認済み計画の適用／網羅性（対案：判断） | Lv3 | 中位／中（判断なら中位／大） | 中位／中 | sonnet/xhigh | frontmatter は中より大きい。軸2と引上げ理由は未決 |
-| pr-reviewer | 実害・整合性の評価／判断（対案：網羅性） | Lv5 | **最上位／中**（網羅性なら中位／最大） | 最上位／中 | **sonnet/xhigh** | モデル層が導出候補より低い。予算の多さで補償不可 |
-| issue-fixer | 根本原因と責任箇所の分析／網羅性 | Lv4 | **中位／大** | **中位／中** | **sonnet/high** | 両者とも導出候補より予算が低い。旧 rationale の表現も要注記 |
-| adviser | 相談事項に応じて決定／相談内容依存 | 可変 | **最上位固定／該当 Lv・軸2の予算** | 最上位／相談内容で引く | opus/high | 最上位固定は2026-11-16決定。予算が大・最大なら dispatch で引上げが必要 |
+**参照した正本**：Bloom 12セル `.ai/skills/bloom-model-tier/SKILL.md`、
+変更前の9行 `.ai/skills/issue-pipeline/SKILL.md`、9ファイルの
+`.claude/agents/<role>.md` frontmatter、Claude 写像
+`.claude/skills/bloom-model-tier/SKILL.md`、Codex 写像 `.ai/model-policy.json`。
+変えるのは**ロールの表と必要な Claude frontmatter**であり、閾値表と写像は変えない。
 
-**読み方**：`pr-reviewer` は「最上位／中」と「中位／最大」が異なるセルであり、`sonnet/xhigh` だけではどちらを意図したか確定できない。`issue-implementer` も同様に、`xhigh` は判断セルまたは安全側の引上げか判別できない。「同じ `xhigh`」だけで抽象予算が大・最大のどちらかを逆算しない。
+| ロール | 認知行為（Bloom Lv／軸2） | 閾値表から導出 | 採用層／予算 | Claude 変更前 → 変更後 | 判定・逸脱の根拠 |
+|---|---|---|---|---|---|
+| issue-investigator | 調査対象の因果照合（Lv4／網羅性） | 中位／大 | 中位／大 | `sonnet/xhigh` → 同左 | 漏れのない調査報告を行い、裁定は上位へ渡す |
+| ac-designer | AC妥当性の評価（Lv5／判断） | 最上位／中 | 最上位／中 | `opus/high` → 同左 | 曖昧な受入条件の評価を担当 |
+| change-planner | 変更計画の設計（Lv6／判断） | 最上位／大 | 最上位／大 | `opus/xhigh` → 同左 | 制約と依存関係を統合して新規計画を構成 |
+| plan-reviewer | 設計適否の評価（Lv5／判断） | 最上位／中 | 最上位／中 | `opus/high` → 同左 | 検証条件を評価する |
+| test-writer | 反例・境界の抽出（Lv4／網羅性） | **中位／大** | **中位／大** | **`sonnet/high` → `sonnet/xhigh`** | 旧設定の「中」は現行閾値より低いため補正 |
+| issue-implementer | 承認済み計画の適用（Lv3／網羅性） | 中位／中 | **中位／大** | `sonnet/xhigh` → 同左 | **意図的な予算引上げ**：実装差分と既存 Red/Green・影響面の見落としを抑え、既存の大予算を下げない。モデル層を引上げず、Lv3/判断への根拠なき付替えもしない |
+| pr-reviewer | 実害・契約適否の評価（Lv5／判断） | **最上位／中** | **最上位／大** | **`sonnet/xhigh` → `opus/xhigh`** | **意図的な予算引上げ**：全変更ファイル・対称箇所・権限/fail-closeの評価で既存の大予算を維持。従来の中位モデルは判断セルの最上位に不足するため昇格 |
+| issue-fixer | findingの根本原因分析（Lv4／網羅性） | **中位／大** | **中位／大** | **`sonnet/high` → `sonnet/xhigh`** | 旧設定の「中」は現行閾値より低いため補正。歴史的な根拠は別文書に保存 |
+| adviser | 相談ごとに主要行為を判定（Lv・軸2可変） | 該当セル／予算可変 | **最上位固定／相談ごとの予算** | `opus/high` → 同左 | **層のみ意図的な固定引上げ**（2026-11-16のオーナー決定）。`high` は静的初期値で、相談が大・最大なら dispatch で `xhigh` へ引上げ |
 
-## 4. Codex 既定5ロールの切替下限（D案採用時の候補）
+**変更した frontmatter：3ロール**。`test-writer` と `issue-fixer` は予算を
+中→大（`high`→`xhigh`）にした。レビュー担当 `pr-reviewer` は中位→最上位
+（`sonnet`→`opus`）とし、既存の大予算（`xhigh`）は維持した。
+この3変更はモデル利用量・コストを増やす可能性がある。一方で**モデル層や推論予算の引下げはない**。
+`issue-implementer` は既存 `xhigh` を残し、「Lv3判断セルだから」と誤って説明せず
+採用値が導出値より大きい**意図的な引上げ**と説明する。
 
-次表は **閾値表からの導出候補を Codex 実行者へ指定した場合** の比較である。実際の dispatch でリスク引上げされた場合は、必ず**その実指定値**を下限として再判定する。既定実行者の割当て自体は #829 で決定済みであり変更しない。
+## 3. Codex 既定5ロール：切替後の下限
 
-| ロール | Codex 候補（抽象層／予算 → tier／effort） | Claude 既存値 | 候補下限を満たすか／必要な操作 |
+`.ai/model-policy.json` の Codex tiers は低位＝`low`、中位＝`mid`、最上位＝`top`。
+Codex budgets は最小＝`low`、小＝`medium`、中＝`high`、
+大＝`xhigh`、最大＝`max`。具体モデルIDは runtime resolver が選ぶ。
+Claude の写像は低位＝`haiku`、中位＝`sonnet`、最上位＝`opus`、
+最小＝`low`、小＝`medium`、中＝`high`、大・最大＝`xhigh`。
+後者は多対一なので **Claude の `xhigh` だけから元の抽象予算を逆算できない**。
+
+| Codex 既定ロール | 採用層／予算 → Codex tier/effort | 整合後の Claude frontmatter | Codexから切替する際の条件 |
 |---|---|---|---|
-| issue-investigator | 中位／大 → mid/xhigh | sonnet/xhigh | 満たす |
-| test-writer | 中位／大 → mid/xhigh | sonnet/high | **不足**。切替時は少なくとも sonnet/xhigh へ引上げ（または STOP） |
-| issue-implementer | 中位／中 → mid/high | sonnet/xhigh | 満たす（軸2が判断＝大でも満たす） |
-| issue-fixer | 中位／大 → mid/xhigh | sonnet/high | **不足**。切替時は少なくとも sonnet/xhigh へ引上げ（または STOP） |
-| adviser | 最上位／相談内容依存 → top／その予算 | opus/high | **条件付き**。相談に必要な予算が中以下なら満たす。大・最大なら opus/xhigh への引上げ（または STOP） |
+| issue-investigator | 中位／大 → `mid/xhigh` | `sonnet/xhigh` | 通常基準を満たす |
+| test-writer | 中位／大 → `mid/xhigh` | `sonnet/xhigh` | 通常基準を満たす |
+| issue-implementer | 中位／大 → `mid/xhigh` | `sonnet/xhigh` | 通常基準を満たす |
+| issue-fixer | 中位／大 → `mid/xhigh` | `sonnet/xhigh` | 通常基準を満たす |
+| adviser | 最上位／相談毎 → `top/<算定結果>` | `opus/high` | 中以下では満たす。大・最大では `opus/xhigh` 以上に引上げ、不能なら STOP |
 
-Codex の「最大」は `max`、Claude の「大／最大」はどちらも `xhigh` に対応する。**PF 固有 effort 文字列の辞書順で優劣を判定しない。** 抽象予算を保持して比較し、Claude の写像で最後に変換する（#829 既存契約のまま）。
+**#829 の切替規範を変更しない**：比較下限は上表の通常基準ではなく、
+*実際に Codex 実行者へ指定した*層と抽象予算である。
+安全上のリスク信号等で上位指定したら、切替後 Claude も同じ抽象層・予算以上にし、
+実行モデルでそれを確保できない場合は STOP する。層の不足を予算の過剰で相殺しない。
+Codex `max` と Claude `xhigh` も抽象段階を保持して既存写像で照合する。
+実 dispatch の到達・完走は**未実測**である。
 
-なお、この表の「満たす／不足」は **候補と静的 frontmatter の比較結果** であり、Codex の実行・Claude 再 dispatch の成功を実測したものではない。
+## 4. 旧記述と変更範囲
 
-## 5. 決定後の実装順と影響
+- `.ai/rationale/issue-fixer.md` の Issue #308 時点の `sonnet/high` を消さずに、
+  新しい現行閾値 Lv4／大と D 採用後の `sonnet/xhigh` を後続節で区別する。
+- `.ai/skills/issue-pipeline/SKILL.md` の9行に導出値・採用値・理由を記載する。
+  `.ai/skills/bloom-model-tier/SKILL.md` の12セルを修正しない。
+- `.ai/model-policy.json`、`.claude/skills/bloom-model-tier/SKILL.md` の写像、
+  既定実行者の割当て、#829 の切替発動条件・継続検査は変更しない。
+- `adviser` の最上位固定は従来のオーナー決定を尊重する。静的
+  frontmatter を全ケースの下限保証と取り違えない。
 
-1. オーナーが本 Issue に **A/B/C/D** を選択し、軸2の対案・逸脱を採用するかも決める。Dなら例外毎に理由を記録する。
-2. 選択に基づき共通ロール表の9行と閾値表との関係を規範に反映する。汎用 Bloom 閾値表自体は D では変更しない。
-3. 影響する `.claude/agents/*.md` の model/effort を明示承認の範囲で更新する。必要なら変更前後の値、変更理由、実行コストと層の変化を PR 本文に列挙する。
-4. `.ai/rationale/issue-fixer.md` の旧判断は史実として残し、選定根拠の現行値と未承認値を区別する。
-5. 選択後の切替下限と **実 dispatch の指定値** が異なる場合は、例外・上位指定を尊重して比較する。#829 の切替規範本文は矛盾が生じた場合だけ修正する。
+## 5. 機械検査の是非
 
-`adviser` の最上位固定、Claude の写像表、`.ai/model-policy.json` の tier→model ID、既定実行者、切替の発動条件は #851 では変更しない。
+**要（別 Issue で扱う提案）。** 3つの資産が別々に更新されると同じ不一致が再発するため、
+9ロールの欠落、固定値、Bloom Lv/軸2→導出値、採用値の逸脱理由、Claudeの多対一写像、
+5ロールの Codex 切替下限の**機械的に決まる部分だけ**の検査を推奨する。
+主要認知行為・軸2の妥当性や例外採用自体は人間の判断であり、
+単なる YAML と閾値表の完全一致テストでは、D 案が認める正当な引上げを誤検出する。
+**Issue #851 は機械検査を実装しない**。新規 Issue が必要かは別途判断する。
 
-### frontmatter 変更前後の事実
+## 6. 点検方法・実測の範囲
 
-**第1弾では変更なし（9ロールすべて）**。上表は変更提案ではなく読取結果である。特に `test-writer`／`issue-fixer`／`pr-reviewer` は実行時モデル／予算を変えうるため、オーナー決定前に修正しない。
+1. GitHub の各原本を取得し、ロール毎の主要行為→Bloom Lv→軸2→
+   閾値表セル→抽象層／予算を個別に導出。採用値が違えば理由を別に確認。
+2. `.claude/agents/` の9件を別々に読み、frontmatter の `model` と
+   `effort` を Claude の写像へ対応させ、ロール表の採用値と比較。
+3. 5ロールの採用値を Codex の `tier/effort` へ写像し、Claude の frontmatter と
+   **抽象層・予算**で比較。これらは**静的な照合**であり切替の実行テストではない。
+4. Codex 独立レビューは第1弾の旧HEADに対して `completed`・findings なし
+   だったが、D案を反映した新HEADは**別途独立再レビュー**を要する。
+5. `python3 -m asset_parity check`（MISSING なし）、
+   `python3 -m unittest tests.unit.test_governance_sync` と
+   `python3 -m maintainability_lint check` をCIまたは実行環境で確かめる。
+   ローカル checkout がないため、未実行のテストを成功と記録しない。
 
-## 6. 機械検査の要否（提案・未承認）
-
-**要：後続の別 Issue に分離することを推奨。** 層表と frontmatter と閾値表の3箇所が独立に編集されると再び不整合が生じうるため。反面、主要認知行為・軸2・例外理由は人間の判断を含み、単純な完全一致検査では誤検知や例外潰しが起きる。
-
-対象にするなら、(a) 明示した Bloom Lv・軸2からの導出、(b) オーナー承認済みの採用値・例外理由、(c) 予算の `xhigh` 多対一写像、(d) 9ロール／Codex既定5ロールの欠落と下限比較、の**機械的な部分だけ**を検証する。機械検査の実装は本 Issue の Out of scope なので行わない。要否の最終決定もオーナー判断として記録する。
-
-## 7. 検証記録と未達条件
-
-- GitHub `main` の以下を個別に取得：`.ai/skills/bloom-model-tier/SKILL.md`、`.ai/skills/issue-pipeline/SKILL.md`、`.claude/skills/bloom-model-tier/SKILL.md`、`.ai/model-policy.json`、`.ai/rationale/issue-fixer.md`、9ロールの `.claude/agents/*.md` 先頭。表の値はこれらの直接読取から転記した。
-- 比較方法：Bloom Lv と提案した軸2を12セルに当て、抽象層／予算を得る。Claude と Codex の写像は**別々に適用**し、静的 `model/effort` と両軸を比較した。役割の行為分類は提案であり未承認。
-- 実行テスト、`asset_parity check`、`test_governance_sync.py`、`maintainability_lint check`、実 dispatch、独立レビューはいずれも **この照合時点では未実測**。PR の CI 成否を別途確認する。
-- **未達 AC**：オーナー選択記録、選択に基づく本番規範・frontmatter の整合、最終実測、独立レビュー clean。未承認のまま合格へ進めない。
+**残る完了条件**：最新HEADに対する CI・独立レビューを確認し、
+未解決の実害 finding が0件であること。これは PR の merge 承認を意味しない。
