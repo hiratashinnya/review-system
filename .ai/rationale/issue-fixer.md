@@ -28,6 +28,23 @@ model/effort 選定根拠（/bloom-model-tier・Issue #308）:
   決定にも沿う——昇格は品質ではなくラウンド数への反応になるため。）
 ```
 
+
+### 現行閾値表との不一致（Issue #851・2026-11-23 点検追記）
+
+上のコードブロックは Issue #308 時点の**歴史的な選定根拠**であり、現在の
+`.ai/skills/bloom-model-tier/SKILL.md` の導出結果を保証する記述ではない。
+現在の閾値表では Bloom **Lv4 の網羅性・判断の両セルとも「中位／大」**であり、
+Claude 写像は `sonnet`／`effort: xhigh`。したがって、上記の
+「閾値表より `sonnet` + `effort: high`」という記述は**現行閾値表とは一致しない**。
+現行 `.claude/agents/issue-fixer.md` は `sonnet/high`、
+`.ai/skills/issue-pipeline/SKILL.md` の層表も「中位／中」のままである。
+
+本節は誤った現行根拠の援用を防ぐための非規範の追記であって、設定値・
+オーナー決定・許可された予算引下げ／引上げを新設しない。選択肢、
+9ロールの比較、Codex 切替下限と未承認事項は
+[model-tier-alignment-851.md](model-tier-alignment-851.md) に記録する。
+Issue #851 で基準を決めるまで、旧値を「現在の閾値表から正当に導出された値」と扱わない。
+
 ## なぜ初回実装と型が分かれているか（勝手に兼用しない）（移設元：同名の節）
 
 `SubagentStop` のペイロードは `agent_type` / `agent_id` / `last_assistant_message` だけで、
