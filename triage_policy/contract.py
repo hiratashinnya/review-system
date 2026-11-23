@@ -4,7 +4,7 @@ from collections.abc import Mapping
 
 SCHEMA = "triage-policy/v1"
 VERSION = "1.1"
-OUTCOMES = ("fix-here", "deferred", "advisory")
+OUTCOMES = ("fix-here", "advisory", "deferred")  # rule evaluation order
 PHASES = ("review", "remediation_review")
 BOOLEANS = (
     "reviewer_verified", "evidence_complete", "ac_relation_verified",

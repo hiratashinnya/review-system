@@ -77,6 +77,20 @@ class TestTriagePolicy(unittest.TestCase):
         self.assertEqual(suggest(self.policy, finding)["candidate"], "advisory")
         self.assertEqual(evaluate(self.policy, finding)["disposition"], "owner-review")
 
+    def test_preexisting_optional_no_harm_minor_is_advisory_not_deferred(self):
+        finding = evidence(harm="none", optional_improvement=True, preexisting=True)
+        self.assertEqual(suggest(self.policy, finding),
+                         {"candidate": "advisory", "reason_codes": ["rule:advisory"]})
+
+    def test_preexisting_real_harm_minor_stays_deferred(self):
+        finding = evidence(harm="real", preexisting=True)
+        self.assertEqual(suggest(self.policy, finding),
+                         {"candidate": "deferred", "reason_codes": ["rule:deferred"]})
+
+    def test_rule_order_puts_advisory_before_deferred(self):
+        self.assertEqual([rule["outcome"] for rule in self.policy["rules"]],
+                         ["fix-here", "advisory", "deferred"])
+
     def test_missing_evidence_fails_closed(self):
         for key in ("regression", "ac_relation_verified", "reviewer_verified", "handoff_verified"):
             finding = evidence(ac_violation=True)
