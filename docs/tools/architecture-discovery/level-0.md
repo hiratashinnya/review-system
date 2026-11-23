@@ -10,10 +10,12 @@ flowchart TD
         Req([P0-01 Issue と対象を指定])
         Refuse([停止・診断・前提の再確認])
         StartStatus[実装の開始前に Project Status を In progress に更新]
+        Dispatch[工程担当を起動]
         StopStatus[Project Status を Ready に戻す]
         Expect[P0-06 取込期待値を記録して独立レビューを依頼]
         ReviewResult{カルテの是正対象を確認}
-        MergeReport[P0-10 申し送り再照合・最新 PR blocker report]
+        Recheck[P0-10 申し送りを再照合しカルテに保存]
+        MergeReport[最新 PR blocker report を取得]
         Notice([通知結果を受領])
         Finish([検査結果・残課題を受領])
     end
@@ -22,15 +24,16 @@ flowchart TD
         ManualMerge([GitHub で手動マージ])
     end
     subgraph L2[工程ゲート・Git 安全制御]
-        Gate{P0-02 依存・権限・対象を確認}
-        Git{P0-03 必要な Git 操作の前提を確認}
+        Gate{P0-02 起動前に依存・権限・作業面を照合}
         Collect{P0-05 Stop・回収・解放を確認}
         Continue{後続工程の入力と前提を照合}
         Hold([一時停止・解放待ちを再評価])
     end
     subgraph L3[工程担当]
+        Git{P0-03 作業 branch の作成・採用}
         Run[P0-04 束縛した工程で成果物を作成]
         Publish[作者が commit・push、実装担当が draft PR を作成]
+        AuthorStop[通常 STOP を返す]
         Fix[指摘を是正]
     end
     subgraph LReview[独立レビュー・カルテ取込]
@@ -53,14 +56,20 @@ flowchart TD
     end
     Req --> Gate
     Gate -->|実装着手の ALLOW| StartStatus
-    StartStatus --> Git
-    Gate -->|その他の許可・上限からの再投入を含む| Git
-    Gate -->|拒否・証拠不足| Refuse
-    Git -->|確認済み・操作不要| Run
-    Git -->|不一致・操作拒否| Refuse
+    StartStatus --> Dispatch
+    Gate -->|その他の許可・上限からの再投入を含む| Dispatch
+    Gate -->|起動前の拒否・証拠不足| Refuse
+    Dispatch -->|branch を作成・採用する工程| Git
+    Dispatch -->|作成・採用を伴わない工程| Run
+    Git -->|checkout 成功| Run
+    Git -->|起動後の作成・採用の拒否または失敗| AuthorStop
     Run -->|作者の公開工程| Publish
-    Run -->|公開を伴わない引渡し・停止| Collect
-    Publish -->|公開結果・停止イベント| Collect
+    Run -->|公開を伴わない引渡し・上限 STOP| Collect
+    Run -->|通常 STOP| AuthorStop
+    Publish -->|公開した ref・該当する PR と handoff| Collect
+    Publish -->|公開失敗で通常 STOP| AuthorStop
+    AuthorStop -->|停止イベント・handoff| Collect
+    AuthorStop -->|実装担当の通常 STOP を主文脈が受領| StopStatus
     Collect -->|回収済み・解放状態を渡す| Continue
     Collect -->|handoff 未生成で一時停止中| Hold
     Collect -->|handoff なしで停止し running 残留・回収不能| Refuse
@@ -72,7 +81,7 @@ flowchart TD
     Continue -->|再投入条件を満たす上限 STOP| Gate
     Continue -->|後続作者に必要な前担当の解放待ち| Hold
     Continue -->|該当工程の確認条件を充足| Finish
-    Continue -->|実装担当の通常 STOP| StopStatus
+    Continue -->|回収した報告で実装担当の通常 STOP を確認| StopStatus
     StopStatus -->|更新後にオーナーへ報告| Refuse
     Continue -->|その他の STOP・未解消・入力不整合| Refuse
     Expect -->|承認済みの対象・照合ヘッダ| Review
@@ -84,8 +93,9 @@ flowchart TD
     Ingest -.->|対象 verb の実行後| Notify
     Notify -->|通知・スキップ・診断| Notice
     ReviewResult -->|要是正| Fix
-    ReviewResult -->|実装レビューが clean| MergeReport
+    ReviewResult -->|実装レビューが clean| Recheck
     ReviewResult -->|その他のレビュー完了| Finish
+    Recheck -->|申し送りの検証結果・診断を添える| MergeReport
     MergeReport -->|レビュー判定・ALLOW / BLOCK / ERROR・診断| MergeDecision
     MergeDecision -->|前提を確認してマージを選択| ManualMerge
     Fix -->|是正後に公開| Publish
@@ -107,16 +117,17 @@ flowchart TD
 
 | 処理・担当 | 正常経路と外部副作用 | 拒否・保留・診断の境界と根拠 |
 | --- | --- | --- |
-| `P0-01`〜`P0-02` D2、依存判定 D5 | 依頼から GitHub の証拠または検証対象の snapshot、工程承認・束縛を照合。許可後の managed dispatch は起動単位の所有台帳を更新し得る。 | 依存や証拠の不備、承認と role/run/target/OID/digest の不一致を診断。条件を満たさない起動へ進まない。[工程ゲート](../../../issue_start/gate.py) · [束縛](../../../issue_start/phase_dispatch.py) · [束縛テスト](../../../tests/unit/test_phase_dispatch_binding.py) |
+| `P0-01`〜`P0-02` D2、依存判定 D5 | 依頼から GitHub の証拠または検証対象の snapshot、工程承認・束縛を照合。後続作者の起動前に、検査作業面の detached HEAD と対象 branch を保持する worktree の有無を確認する。managed dispatch が許可されると、起動単位で所有台帳の起票を試みる。 | 依存や証拠の不備、承認や作業面の不一致は起動前に拒否し、拒否された作者の台帳 entry は起票されない。[工程ゲート](../../../issue_start/gate.py) · [作業面の照合](../../../issue_start/phase_target_binding.py) · [束縛テスト](../../../tests/unit/test_phase_dispatch_binding.py) |
 | `P0-02`・`P0-05` の Project Status 更新 D2 | 工程契約では、実装前の Issue-start が `ALLOW` を返した直後かつ実装担当の起動前に、主文脈が `In progress` に更新する。実装担当から通常の STOP を受けたら `Ready` に戻してからオーナーへ報告する。 | `BLOCK` では着手時更新を行わない。Codex 実行者の上限で引継ぎが成立し切替再投入する場合は Status を維持する。引継ぎが成立しなければ通常の STOP を扱う。Claude 担当自身の上限は回収・解放と継続検査の条件を満たす場合だけ再投入し、`running` の残留はオーナーへ報告する。[工程契約](https://github.com/hiratashinnya/review-system/blob/4866a525c5ce923992a62cab3b6458d31bbda9dc/.ai/skills/issue-pipeline/SKILL.md#L222-L229) · [上限時の扱い](https://github.com/hiratashinnya/review-system/blob/4866a525c5ce923992a62cab3b6458d31bbda9dc/.ai/skills/issue-pipeline/SKILL.md#L186-L201) |
-| `P0-03` D3 | `verify_branch_source` は default または PR head を照合用ローカル ref に fetch して OID を照合する。`new-branch` は照合済みの起点で新規 branch を作成して checkout、`adopt-branch` は既存 branch の ref・OID・使用状況を照合して checkout する。 | 不整合は作成・checkout 前に拒否する。起点照合で fetch 後に拒否しても照合用 ref の更新は残り得る。[起点 facade](../../../branch_source/policy.py) · [CLI](../../../gitgate/cli.py) · [起点テスト](../../../tests/unit/test_branch_source_refactor_g05.py) |
+| `P0-03` D3 | 起動した作者が、担当の worktree で初回設計の `new-branch` または後続の `adopt-branch` を行う。`verify_branch_source` は default または PR head を照合用ローカル ref に fetch し、`new-branch` は照合済み OID で作成・checkout する。`adopt-branch` は既存 branch の ref・OID・使用状況を照合して checkout する。 | 作成・checkout 前の拒否でも、fetch 済みの照合用 ref の更新は残り得る。起動済みの後続作者の採用失敗は通常 STOP となり、作者の entry が台帳に残る。実装担当の STOP が届いたら主文脈が `Ready` に戻して報告する。[作者の契約](../../../.ai/agents/creation-stage-contract.md) · [起動前拒否・起動後の採用失敗](https://github.com/hiratashinnya/review-system/blob/4866a525c5ce923992a62cab3b6458d31bbda9dc/.ai/troubleshooting/issue-pipeline.md#L43-L57) · [起点 facade](../../../branch_source/policy.py) · [CLI](../../../gitgate/cli.py) · [起点テスト](../../../tests/unit/test_branch_source_refactor_g05.py) · [採用テスト](../../../tests/unit/test_gitgate_refactor_g04.py) |
 | `P0-04` D2、Git 操作 D3 | 工程担当が IR/VD/CP/TestDesign 等の成果物と handoff を作成。branch を継承する作者は commit・push し、後続作者は回収・解放済み receipt とリモート branch の exact OID を照合する。実装担当は検証・commit・push の後に draft PR を開き、その head が実装レビューの照合対象になる。 | push や draft PR の作成に失敗した場合は、存在を確認できた ref・PR と停止理由を主文脈へ渡す。後続の採用は承認された OID と所有状態が前提。[工程契約](../../../.ai/skills/issue-pipeline/SKILL.md) · [実装担当](../../../.ai/agents/issue-implementer.md) · [push テスト](../../../tests/unit/test_gitgate.py) · [後続の adopt テスト](../../../tests/unit/test_gitgate_worktree.py) |
 | `P0-05` D2、回収・解放 D3 | Stop フックが担当本人の handoff を検出すると台帳を `stopped` に進め、回収・解放を試みる。STOP の報告も回収対象になる。後続工程は束縛に合う `ready` かつ未解消の指摘・未決の判断がない入力を受理し、後続作者の起動は前担当の `released` と回収済み receipt を検証する。 | 手掛かりとなる handoff がない場合は `running` のまま保留する。担当が続行できる一時停止なら後の Stop で回収できるが、実行が終了したままなら回収・後続 dispatch が拒否される。回収失敗は `stale`、回収後の物理削除待ち `release_pending` は次の gate が再試行。fixer の Stop がカルテ検査でブロックされた場合は回収・解放段に進まない。同じ role の再投入は検証済みの実行上限 STOP receipt を扱う別の継続経路。[Stop](../../../issue_start/subagent_hooks.py) · [工程入力](../../../issue_envelope/handoff.py) · [作者の継続](../../../issue_start/author_continuation.py) · [解放待ち](../../../issue_start/gate_residue.py) · [停止・回収テスト](../../../tests/unit/test_subagent_hooks.py) · [running 残留テスト](../../../tests/unit/test_claude_limit_running_stall.py) |
 | `P0-06` D1、レビュー依頼は主文脈 | 主文脈は `karte activate` で取込期待値を記録してから独立レビューを依頼。現行の Claude Code の `pr-reviewer` は、主 checkout にある `tmp/_handoff/pr-reviewer--<key>.md` の絶対パスへ原本を新規保存し、本人が `ingest-reviewer` で取り込む。CLI が専用パス・ヘッダ・round を検証し、scope 申告原本、カルテ、来歴の確定、進行ポインタの順に保存する。 | 期待値不一致・空レポート（[#801](https://github.com/hiratashinnya/review-system/issues/801)）はカルテ等の書込前に拒否。保存途中のエラーと、要再掲の指摘を引き継いだ「取込済み・未完了」は下表の回復へ。取込完了後の是正・完了は主文脈がカルテから判断する。[レビュー担当](../../../.ai/agents/pr-reviewer.md) · [受入 CLI](../../../karte/reviewer_cli.py) · [保存処理](../../../karte/ingest_review.py) · [受入・回復テスト](../../../tests/unit/test_karte_reviewer_ingest.py) |
 | `P0-07` D1 | 通知フックは対象 verb の後に `status` を読み、既読記録に応じて `systemMessage` を返す。GitHub への指摘の発行は専用 verb。 | 通知用 status を取得できない場合はスキップ。既読記録の保存に失敗しても通知は返し得る。[通知](../../../karte_notify/hook.py) · [通知テスト](../../../tests/unit/test_karte_notify_fail_open.py) |
 | `P0-08` D5 | 検査は単独実行できる。Actions が blocker snapshot を発行。Project 同期 CLI は有効な snapshot と Project の状態から計画を作り、apply で設定する値は `Ready` / `Blocked` に限る。`In progress` / `In review` は維持する。workflow は CLI がローカルに保存した `report.json` を、終了コード 0 または 20 のとき `project-status-sync-report` ブランチへ発行する。 | dry-run は Status を更新せず、不正・不完全・期限切れ snapshot は Project API の前で中断する。いずれもレポートの発行対象になり得る。発行成功後に CLI 20 を報告して job を失敗させる。push 拒否などで発行 step が失敗すると job はその場で失敗する。その回のレポートの発行は確認できず、CLI 20 の報告 step も実行されない。発行 step のログと CLI の Step Summary で診断する。保存不能など CLI のその他の非 0 は発行前に job が失敗する。blocker の部分 snapshot は発行後に異常を報告でき、parity の `STALE` は診断。[snapshot workflow](../../../.github/workflows/blocker-snapshot.yml) · [Project workflow](../../../.github/workflows/project-status-sync.yml) · [同期テスト](../../../tests/unit/test_project_status_sync.py) · [parity 仕様](../../../asset_parity/README.md) |
 | `P0-09` D4 | 判断を既存 CLI で記録し、索引を導出する。ADR の明示的な `file-issue --create` では外部 Issue 作成を伴う。 | 検査が schema 不正や既存原本の不適切な変更を報告する。Issue 作成後に追跡番号の書戻しが失敗した場合は番号から復旧。[ADR の使い方](../../../adr/README.md) · [ADR テスト](../../../tests/unit/test_adr.py) · [台帳の検査](../../../feedback_ledger/check.py) · [台帳テスト](../../../tests/unit/test_feedback_ledger.py) |
-| `P0-10` 合流前の工程・結果提示 D2、申し送り再照合 D1、PR blocker report D5 | 実装レビューが clean になったら、主文脈は `karte handoff-recheck` で申し送りを再照合し、`pr_merge_gate report` で PR・合流方式に対する最新の依存証拠を取る。`ALLOW` 候補は GitHub の証拠を再取得して安定性を照合する。主文脈はレビュー判定と report をオーナーへ提示して停止し、オーナーが GitHub で手動の合流を判断する。 | 申し送りの無効・不一致は指摘する。ブロッカーは `BLOCK`、再評価で証拠が安定しない場合や取得不能などは `ERROR` として報告する。`ALLOW` は取得時点の判断材料で、report の `automatic_merge_authorized` と `merge_api_called` は常に `false`。手動操作との間に証拠が変わり得る。[工程契約](https://github.com/hiratashinnya/review-system/blob/4866a525c5ce923992a62cab3b6458d31bbda9dc/.ai/skills/issue-pipeline/SKILL.md#L280-L285) · [report の契約](../../tools/pr-merge-gate.md) · [再評価](../../../pr_merge_gate/gate.py) · [判定テスト](../../../tests/unit/test_pr_merge_gate.py) |
+| `P0-10` 申し送り再照合 D1、実行・提示 D2 | 合流前に主文脈が `karte handoff-recheck` を呼ぶ。カルテの既存申し送りと現在の宛先・内容を照合し、GitHub から取得した宛先 Issue が open であることと、転記コメントの URL・内容と、認証中のユーザーが投稿者であることを検証する。整合すれば、`karte` がカルテの申し送りに `verified` と検証日時を保存する。 | 取得失敗、宛先のクローズ、コメントの編集・削除や不一致では、対象の記録に `invalid` を保存して理由を返す（終了コード 4）。観測後に finding が変わった場合は書込を拒否する。保存エラーでも 4 を返し、古い検証状態が残り得る。主文脈は無効・不一致・保存失敗を合流前の診断に添える。[再照合](../../../karte/verb_handoff_recheck.py) · [読み戻し](../../../karte/finding_handoff_observe.py) · [書戻し](../../../karte/finding_handoff_store.py) · [再照合テスト](../../../tests/unit/test_karte_finding_handoff_verbs_recheck.py) |
+| `P0-10` PR blocker report D5、実行・提示 D2 | 実装レビューが clean になったら、主文脈は `pr_merge_gate report` で PR・合流方式に対する最新の依存証拠を取る。`ALLOW` 候補は GitHub の証拠を再取得して安定性を照合する。主文脈はレビュー判定、申し送りの診断、report をオーナーへ提示して停止し、オーナーが GitHub で手動の合流を判断する。 | ブロッカーは `BLOCK`、再評価で証拠が安定しない場合や取得不能などは `ERROR` として報告する。`ALLOW` は取得時点の判断材料で、report の `automatic_merge_authorized` と `merge_api_called` は常に `false`。手動操作との間に証拠が変わり得る。[工程契約](https://github.com/hiratashinnya/review-system/blob/4866a525c5ce923992a62cab3b6458d31bbda9dc/.ai/skills/issue-pipeline/SKILL.md#L280-L285) · [report の契約](../../tools/pr-merge-gate.md) · [再評価](../../../pr_merge_gate/gate.py) · [判定テスト](../../../tests/unit/test_pr_merge_gate.py) |
 
 `P0-06` の保存到達点と回復は [カルテの取込契約](../../../karte/README.md) に従う。
 
@@ -149,9 +160,9 @@ flowchart LR
     S7[(S7 通知既読・MCP cooldown)]
     Main -->|Issue 識別・対象・承認・判断・取込期待値| H
     H -->|判定・診断・通知・索引| Main
-    Main -->|対象 PR・合流方式| H
+    Main -->|申し送り再照合要求・対象 PR・合流方式| H
     H -->|申し送り再照合の診断・最新 PR blocker report| Main
-    Main -.->|レビュー判定・最新 PR blocker report| MergeOwner
+    Main -.->|レビュー判定・申し送りの診断・最新 PR blocker report| MergeOwner
     MergeOwner -.->|手動マージの要求| GH
     Workers -->|工程成果物・handoff・公開する branch と draft PR 情報| H
     H -->|束縛済み作業入力・検証結果| Workers
@@ -160,9 +171,10 @@ flowchart LR
     PF -->|hook イベント・検査や同期の要求・MCP 要求| H
     H -->|allow/block・結果 JSON・終了コード・レポート| PF
     GH -->|Issue 依存・PR 差分と head・remote OID・snapshot・Project 状態| H
+    GH -->|申し送り先 Issue の状態・投稿コメントと投稿者| H
     H -->|作者が push する branch ref・実装担当の draft PR| GH
     H -->|新規 Issue・コメント| GH
-    Main -.->|工程契約による In progress・Ready への更新| GH
+    Main -.->|実装着手の In progress・通常 STOP の Ready| GH
     H -->|同期 CLI による Ready・Blocked への更新| GH
     H -->|Actions が発行する snapshot・同期レポート| GH
     S1 -->|ローカル ref・台帳状態| H
@@ -171,6 +183,8 @@ flowchart LR
     S2 -->|成果物・受領済み handoff| H
     H -->|取込期待値・レビュー原本・scope 原本・来歴・カルテ・進行状態| S3
     S3 -->|レビュー原本・取込期待値・進行状態・カルテ| H
+    S3 -->|記録済みの申し送り| H
+    H -->|申し送りの検証状態と成功時の検証日時| S3
     H -->|設計判断・オーナー判断・追跡状態| S4
     S4 -->|判断原本・置換関係・参照 ID| H
     S5 -->|入力契約・規範・比較基準| H
@@ -187,7 +201,7 @@ flowchart LR
 | --- | --- | --- |
 | `S1` D2/D3 | Git がローカル ref と worktree を保持。起点の検証が照合用 ref を更新し、作成・採用が branch の checkout を変える。`tmp/_worktree/ledger.json` は main worktree にある所有情報の原本で、工程ゲート、フック、`gitgate` が `issue_start` の台帳 API を使って更新する。作者の push 済み remote ref と draft PR の head は GitHub/Git から照会する。 | [起点検証](../../../branch_source/policy.py) · [所有台帳](../../../issue_start/worktree_ledger.py) · [台帳テスト](../../../tests/unit/test_worktree_ledger.py) |
 | `S2` D2/D3 | 工程担当が所定のディレクトリに canonical TOML と工程 handoff を作成し、回収処理が回収物を主 checkout に保存する。dispatcher の承認・期待値・Git OID を成果物の申告と照合する。 | [配置規則](../../../issue_envelope/placement.py) · [工程 handoff](../../../issue_envelope/handoff.py) · [回収](../../../gitgate/worktree_collect_handoff.py) · [配置テスト](../../../tests/issue_envelope_tests/test_artifact_paths.py) |
-| `S3` D1 | 主文脈が `activate` で取込期待値を `tmp/_karte/active.json` に記録する。独立レビュー担当は主 checkout の `tmp/_handoff/pr-reviewer--<key>.md` にレビュー原本を直接保存する。`karte` の取込処理が scope 申告原本・来歴、`tmp/_karte/issue-<N>.md`、進行ポインタを更新し、`status` の表示は導出する。 | [レビュー原本パス](../../../karte/handoff_path.py) · [カルテの保存境界](../../../karte/README.md) · [来歴](../../../karte/scope_origin_store.py) · [来歴テスト](../../../tests/unit/test_karte_scope_origin.py) |
+| `S3` D1 | 主文脈が `activate` で取込期待値を `tmp/_karte/active.json` に記録する。独立レビュー担当は主 checkout の `tmp/_handoff/pr-reviewer--<key>.md` にレビュー原本を直接保存する。`karte` の取込処理が scope 申告原本・来歴、`tmp/_karte/issue-<N>.md`、進行ポインタを更新し、`status` の表示は導出する。`handoff-recheck` は同じカルテの申し送り記録を読み、観測後の変更がないことを確かめて検証状態を書き戻す。検証日時を更新するのは `verified` を保存するとき。 | [レビュー原本パス](../../../karte/handoff_path.py) · [カルテの保存境界](../../../karte/README.md) · [来歴](../../../karte/scope_origin_store.py) · [来歴テスト](../../../tests/unit/test_karte_scope_origin.py) · [申し送りの書戻し](../../../karte/finding_handoff_store.py) |
 | `S4` D4 | `<tool>/adr/*.toml` は道具別設計判断の追跡原本。`.ai/feedback/{ledger,queue,triage}/*.toml` はオーナー判断・改訂案・棚卸しの記録。各 CLI が保存し、索引と表示はそこから導出。 | [ADR schema](../../../adr/schema.py) · [台帳パス](../../../feedback_ledger/paths_layout.py) · [ADR README](../../../adr/README.md) · [台帳 README](../../../feedback_ledger/README.md) |
 | `S5` D5 | 版管理された規範・schema・例外・`maintainability_lint/baseline.json` が判定入力。lint の baseline は明示生成できる負債集合。`.ai/guidance/` と共通原則 Skill の原稿は guidance の入力正本。 | [baseline の読み書き](../../../maintainability_lint/baseline.py) · [guidance の入力・出力パス](../../../guidance_sync/sources.py) · [guidance テスト](../../../tests/unit/test_guidance_sync.py) |
 | `S6` D5 | `blocker_gate` が Issue 依存から snapshot JSON を生成し、Actions が `blocker-snapshot` ブランチへ発行する。gate と Project 同期は完全性や鮮度を用途別に検証する。Project 同期 CLI はローカルに `report.json` を保存し、Actions が `project-status-sync-report` ブランチへ発行する。`AGENTS.md` と `.github/copilot-instructions.md` は `guidance_sync` が原稿から導出する展開先。 | [snapshot 発行](../../../.github/workflows/blocker-snapshot.yml) · [鮮度の検証](../../../project_status_sync/snapshot_check.py) · [レポート発行](../../../.github/workflows/project-status-sync.yml) · [guidance 同期](../../../guidance_sync/sync.py) |
