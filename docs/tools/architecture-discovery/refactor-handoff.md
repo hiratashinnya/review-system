@@ -35,7 +35,7 @@
 
 ### 担当範囲の調整
 
-- **#769 は D5 [#842](https://github.com/hiratashinnya/review-system/issues/842)** が受ける。D5 の範囲に `project_status_sync/` と `.github/workflows/project-status-sync.yml` を加え、snapshot の投影・検証、Project 状態の読取り、変更計画・apply、CLI の診断レポート生成と Actions の発行を追う。依存関係の判定根拠は blocker 側のデータとして追う。D2 は工程側で別途設定する `In progress` の境界を参照する。[同期契約](../../../project_status_sync/README.md) · [#769](https://github.com/hiratashinnya/review-system/issues/769)
+- **#769 は D5 [#842](https://github.com/hiratashinnya/review-system/issues/842)** が受ける。D5 の範囲に `project_status_sync/` と `.github/workflows/project-status-sync.yml` を加え、snapshot の投影・検証、Project 状態の読取り、変更計画・apply、CLI の診断レポート生成と Actions の発行を追う。依存関係の判定根拠は blocker 側のデータとして追う。D2 は主文脈が実装工程の着手で `In progress`、通常 STOP で `Ready` を設定する境界を扱う。[Level 0 の工程と同期](level-0.md) · [同期契約](../../../project_status_sync/README.md) · [#769](https://github.com/hiratashinnya/review-system/issues/769)
 - **#771 は D2 [#839](https://github.com/hiratashinnya/review-system/issues/839)** が受ける。D2 の範囲に `.codex/mcp/claude_review/` の実行境界を加え、request/response、workspace・モデル、外部 PR 読取、Claude 起動・失敗・cooldown を追う。D1 はカルテ受入・通知を扱う。既定の工程ルートから MCP が呼ばれるかは実際の呼出口で確認する。[MCP 契約](../../../.codex/mcp/claude_review/README.md) · [#771](https://github.com/hiratashinnya/review-system/issues/771)
 - D2 と D5 は着手時に自分の Issue 本文「変更申し送り（受入キュー）」にある F0 の担当範囲調整を確認し、変更 PR の到着に先立って、上記の対象パス・入出力・担当を発掘範囲に含める。完了直前にも受入キューを照合する。新規移設先が担当範囲をまたぐ場合は取り込み責任と関係先を記録する。[F0 の担当決定](https://github.com/hiratashinnya/review-system/issues/836) · [D2 受入先](https://github.com/hiratashinnya/review-system/issues/839) · [D5 受入先](https://github.com/hiratashinnya/review-system/issues/842)
 
