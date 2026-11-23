@@ -2,6 +2,7 @@
 import re
 
 from .ac_snapshot_fence import advance as advance_fence
+from .ac_snapshot_escape import find_unescaped
 
 _NEW_BLOCK = re.compile(r"^ {0,3}(?:#{1,6}(?:[ \t]|$)|(?:[-*+]|\d{1,9}[.)])[ \t]+|>|\x60{3,}|~{3,})")
 _LIST = re.compile(r"^ {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]+")
@@ -44,8 +45,8 @@ def visible_line(line, in_comment, code_ticks, future_lines):
                 return "".join(parts), True, 0, True
             pos, in_comment, hidden = close + 3, False, True
             continue
-        opening = line.find("<!--", pos)
-        tick = line.find(chr(96), pos)
+        opening = find_unescaped(line, "<!--", pos)
+        tick = find_unescaped(line, chr(96), pos)
         if tick >= 0 and (opening < 0 or tick < opening):
             end = tick
             while end < len(line) and line[end] == chr(96):
