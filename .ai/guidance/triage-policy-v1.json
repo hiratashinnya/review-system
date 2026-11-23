@@ -27,24 +27,6 @@
       "equals": {}
     },
     {
-      "outcome": "deferred",
-      "all_true": [
-        "preexisting"
-      ],
-      "all_false": [
-        "ac_violation",
-        "design_violation",
-        "contract_violation",
-        "regression",
-        "worsened",
-        "high_risk"
-      ],
-      "any_true": [],
-      "equals": {
-        "severity": "minor"
-      }
-    },
-    {
       "outcome": "advisory",
       "all_true": [
         "optional_improvement"
@@ -60,6 +42,24 @@
       "any_true": [],
       "equals": {
         "harm": "none"
+      }
+    },
+    {
+      "outcome": "deferred",
+      "all_true": [
+        "preexisting"
+      ],
+      "all_false": [
+        "ac_violation",
+        "design_violation",
+        "contract_violation",
+        "regression",
+        "worsened",
+        "high_risk"
+      ],
+      "any_true": [],
+      "equals": {
+        "severity": "minor"
       }
     }
   ]

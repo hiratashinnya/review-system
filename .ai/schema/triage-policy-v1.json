@@ -78,7 +78,7 @@
           "$ref": "#/$defs/rule",
           "properties": {
             "outcome": {
-              "const": "deferred"
+              "const": "advisory"
             }
           }
         },
@@ -86,7 +86,7 @@
           "$ref": "#/$defs/rule",
           "properties": {
             "outcome": {
-              "const": "advisory"
+              "const": "deferred"
             }
           }
         }
