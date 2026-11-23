@@ -18,7 +18,7 @@ from karte.exit_codes import EXIT_INCOMPLETE
 from .arguments import parse_request
 from .artifact_binding import verify_artifact_binding
 from .errors import CodexExecError
-from .invocation import build_codex_argv, compose_prompt
+from .invocation import build_codex_argv, compose_prompt, profile_for_role
 from .launcher import run_codex
 from .nesting_guard import refuse_nested_launch
 from .profile_pin import verify_profile_pinned
@@ -43,8 +43,16 @@ def _launch(
     request = parse_request(argv)
     refuse_nested_launch(environ)
     worktree = bind_worktree(request.worktree, cwd)
-    verify_profile_pinned(worktree, request.role)
+    verify_profile_pinned(worktree, profile_for_role(request.role))
     verify_project_trusted(worktree, codex_home(environ))
+    if request.role == "finding-triager":
+        from .triager_dispatch import dispatch
+        from .triager_profile import verify_readonly_profile
+        try:
+            verify_readonly_profile(worktree)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise CodexExecError("CODEX_EXEC_TRIAGER_PROFILE", str(error)) from None
+        return dispatch(request, cwd, worktree, environ, codex)
     expected_issue = verify_artifact_binding(request, cwd, worktree)
     body = read_prompt(request.prompt_file, cwd, worktree)
     output_file = resolve_output_target(request.output_file, cwd, worktree)

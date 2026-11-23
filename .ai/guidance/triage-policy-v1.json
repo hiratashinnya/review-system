@@ -1,7 +1,7 @@
 {
   "schema": "triage-policy/v1",
   "policy_id": "review-finding-disposition",
-  "policy_version": "1.0",
+  "policy_version": "1.1",
   "status": "draft",
   "auto_apply_enabled": false,
   "enabled_phases": [
@@ -27,6 +27,24 @@
       "equals": {}
     },
     {
+      "outcome": "advisory",
+      "all_true": [
+        "optional_improvement"
+      ],
+      "all_false": [
+        "ac_violation",
+        "design_violation",
+        "contract_violation",
+        "regression",
+        "worsened",
+        "high_risk"
+      ],
+      "any_true": [],
+      "equals": {
+        "harm": "none"
+      }
+    },
+    {
       "outcome": "deferred",
       "all_true": [
         "preexisting"
@@ -42,23 +60,6 @@
       "any_true": [],
       "equals": {
         "severity": "minor"
-      }
-    },
-    {
-      "outcome": "advisory",
-      "all_true": [
-        "optional_improvement"
-      ],
-      "all_false": [
-        "ac_violation",
-        "design_violation",
-        "contract_violation",
-        "regression",
-        "worsened"
-      ],
-      "any_true": [],
-      "equals": {
-        "harm": "none"
       }
     }
   ]

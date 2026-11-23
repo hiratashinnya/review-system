@@ -76,6 +76,10 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--source", required=True, type=Path)
     parser.add_argument("--approval-file", required=True)
+    parser.add_argument("--triage-pr", type=int)
+    parser.add_argument("--triage-phase", choices=("review", "remediation_review"))
+    parser.add_argument("--triage-round", type=int)
+    parser.add_argument("--triage-output")
     options, executor_args = parser.parse_known_args(argv)
     request = parse_request(executor_args)
     if request.binding_file is None:
@@ -83,6 +87,10 @@ def main(argv=None):
     marker = dict(binding_file=str(request.binding_file), approval_file=options.approval_file)
     target = prepare_readonly_workspace(options.source, request.worktree, request.role,
                                         marker, request.prompt_file)
+    triage = (options.triage_pr, options.triage_phase, options.triage_round, options.triage_output)
+    if any(value is not None for value in triage):
+        from .triage_existing_capture import execute_from_options
+        return execute_from_options(triage, request, executor_args, target, marker, execute)
     return execute(executor_args, cwd=target)
 
 

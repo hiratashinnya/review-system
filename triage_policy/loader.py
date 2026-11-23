@@ -16,8 +16,9 @@ def policy_digest(policy: dict) -> str:
     return hashlib.sha256(canonical).hexdigest()
 
 
-def load_policy(path: Path = DEFAULT_POLICY) -> dict:
-    policy = json.loads(path.read_text(encoding="utf-8"))
+def load_policy(path: Path = DEFAULT_POLICY, *, raw: bytes | None = None) -> dict:
+    """Load and validate policy; trusted callers may supply exact committed bytes."""
+    policy = json.loads(path.read_bytes() if raw is None else raw)
     errors = validate_policy(policy)
     if errors:
         raise ValueError("invalid triage policy: " + ", ".join(errors))

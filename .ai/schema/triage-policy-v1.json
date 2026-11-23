@@ -23,7 +23,7 @@
       "const": "review-finding-disposition"
     },
     "policy_version": {
-      "const": "1.0"
+      "const": "1.1"
     },
     "status": {
       "enum": [
@@ -78,7 +78,7 @@
           "$ref": "#/$defs/rule",
           "properties": {
             "outcome": {
-              "const": "deferred"
+              "const": "advisory"
             }
           }
         },
@@ -86,7 +86,7 @@
           "$ref": "#/$defs/rule",
           "properties": {
             "outcome": {
-              "const": "advisory"
+              "const": "deferred"
             }
           }
         }
@@ -238,11 +238,14 @@
           "minLength": 1
         },
         "policy_ref": {
-          "const": "review-finding-disposition@1.0"
+          "const": "review-finding-disposition@1.1"
         },
         "phase": {
           "type": "string",
           "enum": [
+            "verification_design",
+            "solution_planning",
+            "test_design",
             "review",
             "remediation_review"
           ]
@@ -321,7 +324,7 @@
           "type": "boolean"
         }
       },
-      "description": "Values must be grounded by #783 triager and the preserved reviewer source."
+      "description": "Values must be grounded by #783 triager and the preserved reviewer source. high_risk only blocks deferred/advisory candidates; it never turns a mandatory violation into owner-review."
     },
     "owner_approval": {
       "type": "object",
@@ -348,7 +351,7 @@
           "pattern": "^FBK-"
         },
         "policy_ref": {
-          "const": "review-finding-disposition@1.0"
+          "const": "review-finding-disposition@1.1"
         },
         "policy_digest": {
           "type": "string",
