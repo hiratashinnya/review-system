@@ -87,6 +87,12 @@ class TestTriagePolicy(unittest.TestCase):
         self.assertEqual(suggest(self.policy, finding),
                          {"candidate": "deferred", "reason_codes": ["rule:deferred"]})
 
+    def test_preexisting_no_harm_minor_not_optional_is_deferred(self):
+        # F-783-05: deferred does not read harm; this is the intended design (owner option b).
+        finding = evidence(harm="none", optional_improvement=False, preexisting=True)
+        self.assertEqual(suggest(self.policy, finding),
+                         {"candidate": "deferred", "reason_codes": ["rule:deferred"]})
+
     def test_rule_order_puts_advisory_before_deferred(self):
         self.assertEqual([rule["outcome"] for rule in self.policy["rules"]],
                          ["fix-here", "advisory", "deferred"])
