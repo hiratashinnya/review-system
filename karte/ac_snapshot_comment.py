@@ -3,7 +3,6 @@ import re
 
 from .ac_snapshot_fence import advance as advance_fence
 
-# A code span must not cross the start of a new Markdown block.
 _NEW_BLOCK = re.compile(r"^ {0,3}(?:#{1,6}(?:[ \t]|$)|(?:[-*+]|\d{1,9}[.)])[ \t]+|>|\x60{3,}|~{3,})")
 _LIST = re.compile(r"^ {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]+")
 
@@ -18,7 +17,6 @@ def _same_block(line, following, indent):
         if minimum is not None and ("\t" in leading or len(leading) < minimum):
             break
         yield candidate
-
 
 def _close(line, position, width):
     """End of first closing backtick run with exactly this width."""
@@ -62,7 +60,6 @@ def visible_line(line, in_comment, code_ticks, future_lines):
                 code_ticks = width
                 break
             else:
-                # Unmatched delimiter is literal text, not an open code span.
                 parts.append(line[pos:end])
                 pos = end
             continue
@@ -72,7 +69,6 @@ def visible_line(line, in_comment, code_ticks, future_lines):
         parts.append(line[pos:opening])
         pos, in_comment, hidden = opening + 4, True, True
     return "".join(parts), in_comment, code_ticks, hidden
-
 
 class CommentFilter:
     def __init__(self):

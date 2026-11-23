@@ -47,7 +47,7 @@ class MultilineCodeSpanTest(unittest.TestCase):
 
     def test_code_span_delimiter_width_and_unclosed_tick(self):
         body = ("## Acceptance criteria\n- [ ] AC1 " + TICK * 2 + "literal\n"
-                "foo " + TICK + " <!--\nbar" + TICK * 2 + "\n- [ ] AC2\n")
+                "  foo " + TICK + " <!--\n  bar" + TICK * 2 + "\n- [ ] AC2\n")
         self.assertEqual(2, len(from_issue_body(body)))
         stray = ("## Acceptance criteria\n- [ ] AC1 unmatched " + TICK +
                  " <!-- hidden -->\n- [ ] AC2\n")
