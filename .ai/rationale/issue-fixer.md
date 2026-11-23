@@ -29,21 +29,27 @@ model/effort 選定根拠（/bloom-model-tier・Issue #308）:
 ```
 
 
-### 現行閾値表との不一致（Issue #851・2026-11-23 点検追記）
+### 閾値表の変化と #851 による整合（2026-11-23 の追加記録）
 
-上のコードブロックは Issue #308 時点の**歴史的な選定根拠**であり、現在の
-`.ai/skills/bloom-model-tier/SKILL.md` の導出結果を保証する記述ではない。
-現在の閾値表では Bloom **Lv4 の網羅性・判断の両セルとも「中位／大」**であり、
-Claude 写像は `sonnet`／`effort: xhigh`。したがって、上記の
-「閾値表より `sonnet` + `effort: high`」という記述は**現行閾値表とは一致しない**。
-現行 `.claude/agents/issue-fixer.md` は `sonnet/high`、
-`.ai/skills/issue-pipeline/SKILL.md` の層表も「中位／中」のままである。
+上のコードブロックは Issue #308 時点の**歴史的な選定根拠**として保持する。
+現在の `.ai/skills/bloom-model-tier/SKILL.md` の閾値表では、Bloom **Lv4 の
+網羅性・判断の両セルとも「中位／大」**であり、Claude 写像は
+`sonnet`／`effort: xhigh`。したがって旧い「閾値表より `sonnet` +
+`effort: high`」という記述を現在の選定根拠とみなしてはならない。
 
-本節は誤った現行根拠の援用を防ぐための非規範の追記であって、設定値・
-オーナー決定・許可された予算引下げ／引上げを新設しない。選択肢、
-9ロールの比較、Codex 切替下限と未承認事項は
-[model-tier-alignment-851.md](model-tier-alignment-851.md) に記録する。
-Issue #851 で基準を決めるまで、旧値を「現在の閾値表から正当に導出された値」と扱わない。
+#851 の**当初点検時**には `.claude/agents/issue-fixer.md` が
+`sonnet/high`、`.ai/skills/issue-pipeline/SKILL.md` の層表が
+「中位／中」だった。この不一致を確認後、オーナーは **D案
+（閾値表を導出元とし、採用値・例外理由をロール表に明記）**を
+2026-11-23 に選択した。よって層表の issue-fixer は **Lv4・網羅性／
+導出＝採用「中位／大」**に改め、Claude frontmatter の `effort` を
+**`high` → `xhigh`** に変更する（モデル `sonnet` は維持）。
+
+この変更は**分析ロールの閾値表へ合わせる**ものであって、
+「レビューが増えたからモデル層を昇格する」という過去の却下理由
+（上の史料）を覆すものではない。変更履歴、9ロールの採用値、
+Codex 切替下限は [#851 の判断記録](model-tier-alignment-851.md)
+と PR #865 を参照する。
 
 ## なぜ初回実装と型が分かれているか（勝手に兼用しない）（移設元：同名の節）
 
