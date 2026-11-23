@@ -361,5 +361,7 @@ Codex is no longer used as an interactive main context; it runs as a sub-executo
 `codex exec`. The tmux-pane `Stop` hook that injected `continue` after a rate-limit reset
 (the rate-limit Stop-hook scripts and the legacy launcher wrapper) was therefore removed, along with
 its `Stop` entry in `.codex/hooks.json`, the `CODEX_RL_*` variables and their tests. It had
-already stopped recovering in practice (Issue #508, merged into #569). If `codex exec` fails
-on a rate limit, re-submit with the same model and configuration; do not downgrade.
+already stopped recovering in practice (Issue #508, merged into #569). If a direct
+`codex exec` run (`codex-review`) fails on a rate limit, re-submit with the same model and
+configuration; do not downgrade. When the Codex executor of an issue-pipeline role stops on a
+rate limit, follow `.ai/skills/issue-pipeline/SKILL.md` ("Codex 実行者が上限で止まったときの切替").
