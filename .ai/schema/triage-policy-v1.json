@@ -243,6 +243,9 @@
         "phase": {
           "type": "string",
           "enum": [
+            "verification_design",
+            "solution_planning",
+            "test_design",
             "review",
             "remediation_review"
           ]
