@@ -27,6 +27,14 @@ class RawHtmlBlockInAcSectionTest(unittest.TestCase):
         items = from_issue_body("## Acceptance criteria\n- [ ] AC1\n<pre>x</pre>\n- [ ] AC2\n")
         self.assertEqual([item.text.splitlines()[0] for item in items], ["AC1", "AC2"])
 
+    def test_comment_opener_inside_pre_does_not_hide_following_ac(self):
+        # Regression (Codex P1 r4681455581): an unterminated <!-- literal inside a raw
+        # block must not start a comment that swallows the real AC2.
+        body = "## Acceptance criteria\n- [ ] AC1\n<pre>\n<!-- literal\n</pre>\n- [ ] AC2\n"
+        items = from_issue_body(body)
+        self.assertEqual([item.text.splitlines()[0] for item in items], ["AC1", "AC2"])
+        self.assertIn("<!-- literal", items[0].text)
+
     def test_script_and_style_blocks_are_raw_too(self):
         body = ("## Acceptance criteria\n- [ ] AC1\n<script>\n- [ ] fake\n</script>\n"
                 "<style>\n## Fake\n</style>\n- [ ] AC2\n")

@@ -32,7 +32,8 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
     visible_lines = [""] * len(lines)  # physical line indices remain unchanged
     for number, raw_line in enumerate(lines, start=1):
         was_inline_code = comments.code_ticks != 0
-        line, hidden = comments.filter(raw_line, fence, in_ac, list_context, content_indent, lines[number:])
+        html_block, in_html = advance_html(html_block, raw_line, fence is None and not was_inline_code and not comments.in_comment)
+        line, hidden = (raw_line, False) if in_html else comments.filter(raw_line, fence, in_ac, list_context, content_indent, lines[number:])
         visible_lines[number - 1] = line
         if hidden and not line.strip():
             continue  # A comment-only line must not create an AC or heading.
@@ -40,7 +41,6 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
         leading = line[:len(line) - len(line.lstrip(" \t"))]
         indent = len(leading)
         was_fenced = fence is not None
-        html_block, in_html = advance_html(html_block, line, not was_fenced and not was_inline_code and fence is None and indent <= 3)
         child = (in_ac and list_context and base_indent is not None and indent >= base_indent + 2)
         is_heading = not was_fenced and not was_inline_code and not in_html and not child and indent <= 3 and "\t" not in leading
         heading = section_level(visible_lines, number, is_heading)
