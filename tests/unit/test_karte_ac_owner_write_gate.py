@@ -1,4 +1,6 @@
 """Owner AC GitHub write gate: actual evidence and a simulated remote only."""
+import fcntl
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -57,6 +59,32 @@ class OwnerWriteGateTest(unittest.TestCase):
     def run_update(self, remote, **kwargs):
         return ac_owner_update.perform(self.root, 801, 1, self.snapshot,
                                        "hiratashinnya/review-system", remote=remote, **kwargs)
+
+    def test_writer_lock_is_held_across_every_github_call(self):
+        # Regression (Codex P2 r4681303847): a concurrent karte writer must not get in
+        # between round verification and read-back, so every remote call probes the lock.
+        lock_path = paths.karte_dir(self.root) / ".writer.lock"
+        inner = Remote()
+        observed = []
+
+        def probing_remote(host, repository, issue, *, new_body=None):
+            fd = os.open(lock_path, os.O_RDWR)
+            try:
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    observed.append("free")
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+                except BlockingIOError:
+                    observed.append("held")
+            finally:
+                os.close(fd)
+            return inner(host, repository, issue, new_body=new_body)
+
+        changed = self.run_update(probing_remote)
+        self.assertEqual(changed, [1])
+        self.assertEqual(inner.writes, 1)
+        self.assertEqual(observed, ["held"] * len(observed))
+        self.assertEqual(len(observed), 4)
 
     def test_only_satisfied_checkbox_is_written_and_read_back(self):
         remote = Remote()
