@@ -8,6 +8,7 @@ import re
 
 from .format_error import KarteFormatError
 from .ac_snapshot_fence import advance as advance_fence
+from .ac_snapshot_html import advance as advance_html
 from .ac_snapshot_comment import CommentFilter
 from .ac_snapshot_model import AC, digest
 from .ac_snapshot_heading import heading_level, remove_setext_title, section_level
@@ -25,6 +26,7 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
     base_indent = content_indent = None
     list_context = False
     fence = None  # 全Issue本文のフェンス状態をAC節の外でも追跡
+    html_block = None  # raw HTML block end-tag regex (<pre> etc.), kept across lines
     comments = CommentFilter()
     lines = body.splitlines()
     visible_lines = [""] * len(lines)  # physical line indices remain unchanged
@@ -38,9 +40,9 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
         leading = line[:len(line) - len(line.lstrip(" \t"))]
         indent = len(leading)
         was_fenced = fence is not None
-        child = (in_ac and list_context and base_indent is not None
-                 and indent >= base_indent + 2)
-        is_heading = not was_fenced and not was_inline_code and not child and indent <= 3 and "\t" not in leading
+        html_block, in_html = advance_html(html_block, line, not was_fenced and not was_inline_code and fence is None and indent <= 3)
+        child = (in_ac and list_context and base_indent is not None and indent >= base_indent + 2)
+        is_heading = not was_fenced and not was_inline_code and not in_html and not child and indent <= 3 and "\t" not in leading
         heading = section_level(visible_lines, number, is_heading)
         if heading:
             if found:
@@ -51,18 +53,19 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
             remove_setext_title(visible_lines, number, items)
             in_ac = False
             list_context = False
-        if not was_inline_code:
+        if not was_inline_code and not in_html:
             fence = advance_fence(
                 fence, line,
                 list_indent=(content_indent if in_ac and list_context else None),
             )
         if heading or not in_ac:
             continue
-        checkbox = CHECKBOX.fullmatch(line) if not was_fenced and not was_inline_code and fence is None else None
+        plain_ok = not was_fenced and not was_inline_code and fence is None and not in_html
+        checkbox = CHECKBOX.fullmatch(line) if plain_ok else None
         # A stripped prefix cannot create a new writable checkbox position.
         if checkbox is not None and CHECKBOX.fullmatch(raw_line) is None:
             checkbox = None
-        plain = ITEM.match(line) if not was_fenced and not was_inline_code and fence is None else None
+        plain = ITEM.match(line) if plain_ok else None
         # 4-space/tab-indented code is never an independent AC checkbox.
         is_top_item = (checkbox is not None or plain is not None) and (
             indent <= 3 and "\t" not in leading
@@ -78,7 +81,7 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
             else:
                 items.append(([plain.group(1).strip()], None, number))
         elif items:
-            if (stripped and next_level is None and fence is None and base_indent is not None
+            if (stripped and next_level is None and fence is None and not in_html and base_indent is not None
                     and indent <= base_indent and items[-1][0]
                     and not items[-1][0][-1].strip()):
                 items.append(([line], None, number))
