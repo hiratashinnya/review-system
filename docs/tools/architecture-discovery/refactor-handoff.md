@@ -55,6 +55,21 @@ PR メタデータの merge SHA が基準 `main` の祖先であることを Git
 
 親 #745 の着手前合流対象も基準履歴にある。karte [#696](https://github.com/hiratashinnya/review-system/pull/696)・[#697](https://github.com/hiratashinnya/review-system/pull/697) はそれぞれ `dd3c9596e2f2a5aab85ffa3d78355ee064d9b3f4`・`2d7585f10c0fa5157899028ecdb4f521ab3af388`。branch_source [#740](https://github.com/hiratashinnya/review-system/pull/740)・[#741](https://github.com/hiratashinnya/review-system/pull/741) は [`c29613fc68a66963dee069c7f44188d94a667bca`](https://github.com/hiratashinnya/review-system/commit/c29613fc68a66963dee069c7f44188d94a667bca) に統合されている。K-01〜04 は対応表の PR から分割後の実装を D1 が照合する。
 
+## オープン PR の発掘候補
+
+2026-11-24（UTC）にオープン・未マージを確認した関連 PR。観測 HEAD は発掘候補の根拠とし、現行実装と図の根拠には基準 `main` を使う。
+
+| PR・関連 Issue | 観測 HEAD | 発掘担当 | 確認する境界 |
+| --- | --- | --- | --- |
+| [#846 レビュー 0 件の記録と AC 照合](https://github.com/hiratashinnya/review-system/pull/846)・[#801](https://github.com/hiratashinnya/review-system/issues/801) | [`f62c28b886a61c25860c5e45b3dce15940290186`](https://github.com/hiratashinnya/review-system/commit/f62c28b886a61c25860c5e45b3dce15940290186) | D1 [#838](https://github.com/hiratashinnya/review-system/issues/838) | 0 件レビューの受理、round・原本記録と AC 照合。レビュー呼出と主文脈による AC 更新の工程接続は D2 [#839](https://github.com/hiratashinnya/review-system/issues/839) が確認。 |
+| [#862 STOP 時の介入試行](https://github.com/hiratashinnya/review-system/pull/862)・[#513](https://github.com/hiratashinnya/review-system/issues/513) | [`8e145618f03f112023896e3956163323d578f583`](https://github.com/hiratashinnya/review-system/commit/8e145618f03f112023896e3956163323d578f583) | D2 [#839](https://github.com/hiratashinnya/review-system/issues/839) | Karte の STOP に関わる出力を受けて介入する Claude フックとセッション状態。Karte の出力境界は D1 [#838](https://github.com/hiratashinnya/review-system/issues/838) が確認。 |
+| [#865 工程ロールのモデル層・推論予算](https://github.com/hiratashinnya/review-system/pull/865)・[#851](https://github.com/hiratashinnya/review-system/issues/851) | [`059aaaf53a1b47c363521f0a2c5c0efe82d8b3fc`](https://github.com/hiratashinnya/review-system/commit/059aaaf53a1b47c363521f0a2c5c0efe82d8b3fc) | D2 [#839](https://github.com/hiratashinnya/review-system/issues/839) | 工程ロールのモデル層・推論予算の閾値、規範、agent 設定の対応。 |
+| [#866 オーナー判断の FBK 記録](https://github.com/hiratashinnya/review-system/pull/866)・[#513](https://github.com/hiratashinnya/review-system/issues/513) | [`2843e9651c78cbab84db1a7c0e7ecb9c24d699bc`](https://github.com/hiratashinnya/review-system/commit/2843e9651c78cbab84db1a7c0e7ecb9c24d699bc) | D4 [#841](https://github.com/hiratashinnya/review-system/issues/841) | 差分は FBK エントリ 3 件の追加のみ。判断の正本と Issue・PR の出典参照を確認。 |
+
+発掘担当は着手時に関連 PR の一覧・状態・HEAD と最新 `main` を再取得する。PR が未マージのままクローズされた場合や変更の中止・範囲変更があった場合は、候補の状態と担当・確認範囲を見直す。
+
+関連 PR のマージ直前に、変更側は発掘の進捗と最新 `main` を照合し、追従担当を確認する。発掘の完了前にマージされた差分は、発掘担当がマージ後の `main` の SHA を確認し、完了前に図・設計概要・根拠索引へ必要な変更を取り込む。発掘完了後は変更側が、当該 PR または先にマージする文書 PR で必要な追従を行う。[#835 の双方向ドリフト防止](https://github.com/hiratashinnya/review-system/issues/835)
+
 ## 使用手順
 
 1. リファクタリング担当は着手時・マージ直前に [#835](https://github.com/hiratashinnya/review-system/issues/835) と表の担当発掘 Issue、最新 `main`、設計資料の SHA を確認する。PR 本文に `Discovery status: completed / pending / out-of-scope`、担当 Issue、比較対象の SHA、追従または申し送り先と受入状況を記録する。
