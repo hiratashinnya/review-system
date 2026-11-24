@@ -32,7 +32,7 @@ def instruction(event: dict) -> str:
     reasons = "; ".join(f"{code}: {', '.join(map(str, items)) or '(詳細なし)'}"
                         for code, items in event["reasons"])
     return (
-        "【強制STOP／Issue #513 試行版】\n"
+        "【強制STOP】\n"
         f"Issue #{event['issue']} でオーナー判断が必要です。根拠: {reasons}\n"
         "このまま是正・再レビュー・実装・push・PR操作を続けることは工程違反です。"
         "技術的にツールが動くことは、続行の承認ではありません。\n"
@@ -40,5 +40,5 @@ def instruction(event: dict) -> str:
         "拒否されたツールをそのまま再実行しないでください。"
         "AskUserQuestionで判断を仰ぐことは許可されています。"
         "オーナーの決定を得るまでは自己判断で次工程へ進まないでください。"
-        "※試行版では同じSTOP事象の機械denyは1回だけです。2回目以降の許可は承認ではありません。"
+        "※同じSTOP事象の機械denyは1回だけです。2回目以降の許可は承認ではありません。"
     )
