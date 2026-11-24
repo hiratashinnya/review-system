@@ -1,0 +1,39 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20261124-実機検証は母数を増やさず1回の観測で足りる"
+topic = "実機検証は母数を増やさず1回の観測で足りる"
+theme = "検証・追跡"
+occurred_at = 2026-11-24
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "medium"
+recorded_by = "Claude Code (AI)"
+affected_assets = [".ai/skills/issue-pipeline/SKILL.md"]
+supersedes = ""
+
+[[source]]
+issue = 513
+pr = 862
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+PR #862（Issue #513 の STOP 1回 deny 試行）の実機検証で、主文脈は追加の実機 run で母数を増やすことを選択肢として提示した。また Issue #513 の先行試行 AC5（1 回の deny で十分かを実機観測で判断する）について、観測が 1 回分にとどまるためチェック不可とする案を示した。
+'''
+recommendation = '''
+追加の実機 run で母数を増やしてから評価する。AC5 は評価が未了としてチェックを付けず、判断は実運用の観測後に回す。
+'''
+recommendation_reason = '''
+観測が少数では「十分か」を判断できないため。
+'''
+uncertainty = '''
+「1回の試行でよい」は、オーナー自身が観測回数の意図だと確認した（実機で観測した 1 回分で足りるという意味で、deny 回数を 1 回に固定する意味ではない）。主文脈の読みと一致し、AC5 は Issue #513 へその意味でチェック付きで反映済み。「母数稼ぎは要らん」は実機検証の追加試行に対する発言で、他の種類の検証（機械検証の網羅など）には及ぶとは限らない。
+'''
+owner_verbatim = '''
+母数稼ぎは要らん。
+ac5も1回の試行でよい。
+'''
+inferred_reason = '''
+推測：実機検証は、既に観測した結果で判断材料として足りるとし、追加の試行で統計的な裏付けを積むことを求めていない、と読める。
+'''
