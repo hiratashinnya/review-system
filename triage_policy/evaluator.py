@@ -23,7 +23,7 @@ def suggest(policy: object, finding: object) -> dict:
             and finding["ac_relation_verified"]):
         return {"candidate": "owner-review", "reason_codes": ["unverified-evidence"]}
     if (finding["reviewer_conflict"] or finding["scope_override_requested"]
-            or finding["high_risk"] or finding["spec_decision_required"]
+            or finding["spec_decision_required"]
             or finding["scope_expansion_required"]):
         return {"candidate": "owner-review", "reason_codes": ["owner-judgment-required"]}
     if finding["worsened"] and not finding["regression"]:
@@ -47,10 +47,11 @@ def suggest(policy: object, finding: object) -> dict:
 
 def _safe_deferred(finding: dict) -> bool:
     return (finding["preexisting"] and not finding["worsened"]
-            and finding["severity"] == "minor"
+            and finding["severity"] == "minor" and not finding["high_risk"]
             and not any(finding[key] for key in MANDATORY))
 
 
 def _safe_advisory(finding: dict) -> bool:
     return (finding["harm"] == "none" and finding["optional_improvement"]
+            and not finding["high_risk"]
             and not any(finding[key] for key in MANDATORY))

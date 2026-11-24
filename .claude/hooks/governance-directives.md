@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@0bf055d38c27 -->
+<!-- synced-from: CLAUDE.md@512c7da27cfd -->
 <!-- 変更・同期判断の履歴は .ai/rationale/governance-directives.md に保管。 -->
 
 
@@ -74,12 +74,31 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
    （`area:harness`）。`.claude/` 全体を対象外扱いしない。**新しい汎用ハーネスを追加したときは
    同一 PR でこの判定表も更新する**。**上記1〜3（PR7・起票必須・独断禁止）は起票先が変わっても弱まらない**。
    両方に及ぶ変更・境界事例は成果物側の規律を満たした上で Issue 化する（厳しい側に倒す）。
-10. **レートリミット由来の品質降格は禁止（絶対規範）** — サブエージェントがレートリミット／
-    セッション上限で停止しても、**モデル降格・effort 低下・サブエージェント委譲の取りやめ
-    （主文脈による代行）はしない**。正しい対処は**同じ構成でそのまま再投入する**こと。
-    主文脈が動けている＝その時点でレートリミットは解除されている。モデル選定はリスク信号表
-    （変更の性質）に従うのであって、実行環境の都合（レートリミット）では変えない。
-    「急ぎ/軽微」等の例外は作らない。
+10. **レートリミット由来の品質降格は禁止（絶対規範・例外なし）** — レートリミット／セッション上限を
+    理由に、**モデル降格・effort 低下・サブエージェント委譲の取りやめ（主文脈による代行）はしない**。
+    「急ぎ/軽微」は理由にならない。**Claude ロール自身が上限で止まったら、同じ構成でそのまま
+    同じロールを再 dispatch する**（主文脈が動けている＝Claude の枠は回復している）。継続検査の対象
+    （change-planner・test-writer・issue-implementer）では、止まったロールの台帳 entry が `running` のまま
+    残る主な経路は同じブランチで再 dispatch できないのでオーナーへ打ち上げる（forget→`--force-uncollected`
+    で解放しても継続検査が拒否する）。entry が `stopped`/`stale` のときに限り、主文脈が上限の逐語を
+    `stop_reason` に入れた `stop_kind: claude-limit` の receipt を止まったロールの `handoff_path` に書き、
+    `collect-worktree` で回収・解放してから再 dispatch する（未 commit・未 push の変更が無く、ロールの
+    handoff が無いときだけ。それ以外はオーナーへ打ち上げ、主文脈は commit も既存 receipt への書き足しもしない）。**同じ構成での再投入の唯一の
+    例外は委譲先の Codex 実行者の上限**（3つの禁止の例外ではない）：Codex が上限到達を示した出力の逐語（証拠）があるときに限り、主文脈が同じ
+    ロールを Codex 指定なしで再 dispatch して Claude へ切り替えてよい。切替後の層と推論予算は
+    Codex に指定していたもの以上にする。主文脈は逐語を記録してから切り替える（逐語による暫定運用。
+    上限を示す文字列・終了コードは初回の実測後に共通本文へ追記する）。証拠の無い失敗
+    （profile pin 拒否・timeout・権限拒否・起動失敗など）は切り替えず STOP する。
+    **未 commit の部分変更が残るときは、ロールが差分とテストで確かめ、依頼範囲内ならテストが赤くても
+    commit・push してから STOP し、そのあとで切り替える（コミットメッセージの本文の末尾に
+    `Handover: codex-limit` と、`Tests: red-unfinished`／`Tests: red-intended`／`Tests: green` の
+    どれか1行を置く。引き継ぎではない意図した Red の commit には `Tests: red-intended` だけを置く）。範囲外・確かめられないときは切り替えず
+    オーナーへ打ち上げる。** adviser は相談の難度を理由に Claude へ切り替えない（層は最上位に固定）。
+    設計・レビュー系（ac-designer・change-planner・plan-reviewer・pr-reviewer）は Claude 固定、
+    issue-investigator・test-writer・issue-implementer・issue-fixer・adviser は Codex 既定
+    （詳細＝`.ai/skills/issue-pipeline/SKILL.md`「実行先、モデル、相談」）。`codex-review` は
+    同じ構成での再投入のまま。モデル選定はリスク信号表（変更の性質）に従うのであって、
+    実行環境の都合（レートリミット）では変えない。
 11. **PR8「消さない」の適用範囲は区分で決める** — PR8 条文が扱うのは論理設計の
     MVP スコーピングであって、記録・成果物の保全一般ではない。「（消さない＝PR8）」として援用
     してきた対象は**区分1（決定履歴・却下案・経緯・例外理由＝削除せず `.ai/rationale/` へ移設

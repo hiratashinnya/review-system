@@ -28,7 +28,7 @@ from __future__ import annotations
 WRITE_ROLES = frozenset({
     "ac-designer", "change-planner", "test-writer", "issue-implementer", "issue-fixer",
 })
-READ_ONLY_ROLES = frozenset({"issue-investigator", "plan-reviewer", "pr-reviewer", "adviser"})
+READ_ONLY_ROLES = frozenset({"issue-investigator", "plan-reviewer", "pr-reviewer", "adviser", "finding-triager"})
 GATED_ROLES = WRITE_ROLES | READ_ONLY_ROLES
 
 __all__ = ["GATED_ROLES"]

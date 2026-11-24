@@ -1,7 +1,14 @@
 # `codex_worktree_exec` — Codex を自分の worktree で実行者として起動する
 
-Claude Code の工程ロールと `issue-fixer` が、自分の linked worktree で元ロールの権限を維持して
-Codex を起動する `codex exec -C <worktree>` の薄いラッパー（#538、#371）。
+Claude Code の Issue 工程ロールのうち Codex 既定のロール（`issue-investigator`・`test-writer`・
+`issue-implementer`・`issue-fixer`・`adviser`）の作業を、linked worktree で元ロールの権限を維持した
+Codex に実行させる `codex exec -C <worktree>` の薄いラッパー（#538、#371、#829）。
+書込ロール（`test-writer`・`issue-implementer`・`issue-fixer`）は自分の worktree でこのラッパーを起動する。
+read-only ロール（`issue-investigator`・`adviser`）は、主文脈が `issue_start.readonly_workspace` を実行し、
+その入口がこのラッパーを呼ぶ。
+Claude 固定のロール（`ac-designer`・`change-planner`・`plan-reviewer`・`pr-reviewer`）は Codex 実行者を使わない。
+ラッパーと gate はこれらの `--role` も機械的には受理するが、使わないことは運用規範
+（`.ai/skills/issue-pipeline/SKILL.md`「既定実行者」）で定める。
 
 ```
 python3 -m codex_worktree_exec --role <自ロール> -C <自分の worktree ルート> --prompt-file <依頼文> --output-file <最終応答> --model <モデル> --reasoning-effort <low|medium|high|xhigh|max> [--timeout-seconds <1〜3600>]
@@ -52,7 +59,7 @@ profile の生成・digest 検査・bwrap・台帳連携は持たない。区分
 envelopeのinput digestを分け、expected値をartifactからコピーして補完しない。
 著作ロールはworkspace編集、調査・レビュー・adviserはread-only profileを使う。
 全ロールでnetworkと認証情報を拒否し、commit/pushは呼び出し側Claudeの許可ロールだけが行う。
-origin/mainとのprofile pinは維持するため、未merge profileの実起動は拒否される。
+origin/mainとのprofile pinは維持するため、未merge profileの実起動は拒否される。`finding-triager` は既存 `adviser` profile を共有し、内容の read-only/network deny 検査を追加する。
 新工程のnative dispatchはmanifestでavailableとし、入力・独立review・owner承認を必須にする。
 worktree継承は `FBK-20261017-工程別worktreeへ同一branchを継承する` に従って各作者専用worktreeへ
 同branch/remote exact OIDをadoptする。前roleのreceipt回収・終了・collect/releaseを確認する。

@@ -24,12 +24,13 @@ effort: xhigh
 
 共通契約上、オーナー確認が必要になった場合は STOP して選択肢と理由付き推奨を呼び出し元へ報告し、回答なしに実装範囲を拡張しない。
 
-## Codex 実行者経路（任意・Issue #538）
+## Codex 実行者経路（既定・Issue #538／#829）
 
-- dispatch prompt で主文脈が Codex の利用と `--model`・`--reasoning-effort` の値を指定した場合に限り、ファイル編集とテスト実行を Codex に行わせてよい。指定が無ければ従来どおり自分で実装する。
+- 本ロールの既定実行者は Codex で、主文脈が dispatch prompt に Codex の利用と `--model`・`--reasoning-effort` の値を指定する（`.ai/skills/issue-pipeline/SKILL.md`「既定実行者」）。指定がある場合に限り、ファイル編集とテスト実行を Codex に行わせる。指定が無い dispatch（上限の証拠による切替の再 dispatch など）では自分で実装する。
 - 起動は `python3 -m codex_worktree_exec --role issue-implementer -C <自分の worktree ルート> --prompt-file <依頼文> --output-file <最終応答> --binding-file <信頼callerの入力束縛JSON> --model <指定値> --reasoning-effort <指定値>` の1コマンドだけとする。依頼文は Write で worktree の `tmp/` に書く。`codex exec` を直接呼ばず、agy の `codex_*` も使わない。
 - Codex は commit・push・PR 作成をしない。Codex の変更は `python3 -m gitgate diff` と単体テストで自分で確かめ、依頼範囲外の変更が混じっていたら commit せず STOP して報告する。commit・push・PR 作成は自分が行う。
-- 終了コード `2` は検査不合格（stderr の `CODEX_EXEC_*` 識別子で原因を確かめ、直せなければ STOP）、`124` は timeout。レートリミットで止まったら同じモデル・推論予算で再投入し、降格しない。
+- 終了コード `2` は検査不合格（stderr の `CODEX_EXEC_*` 識別子で原因を確かめ、直せなければ STOP）、`124` は timeout。どちらも Claude 実行へ切り替える理由にならない。
+- Codex がレートリミットで止まったら、ハンドオフに `status: stop`・`stop_kind: codex-limit`・`stop_reason`（`|` の block scalar で、字下げした行に上限を示す出力の逐語）を書いて STOP を返す。継続検査はこの3欄で切替へ進める STOP と判別し、同じロールの再 dispatch を通すので、`stop_kind` は引き継ぎ commit を済ませたときか未 commit の変更が無かったときだけ書き、引き継げなかったときは書かない。`stop_kind: claude-limit` は書かない（Claude 自身が上限で止まったときの receipt は主文脈が書く）。自分で実装へ切り替えず、降格もしない。Codex が未 commit の変更を残していたら、`python3 -m gitgate diff` と単体テストで確かめる。依頼範囲に収まると確かめられたら、テストが赤くても commit・push し、commit、変更パス、テスト結果、残作業を逐語と一緒に `stop_reason` へ記録する。この commit のコミットメッセージは、本文の末尾に `Handover: codex-limit` と、`Tests: red-unfinished`／`Tests: red-intended`／`Tests: green` のどれか1行を置く。全パス前に行ってよいのは commit・push だけで、draft PR がまだ無ければ開かない。依頼範囲外の変更が混じる、または確かめられないときは commit せず、変更パスと理由を `stop_reason` に記録する。切替は主文脈が行い、切替後の dispatch では commit 済みの続きから実装する。全パス前の commit の例外は共通本文「実装契約」、固定行の意味は `.ai/skills/issue-pipeline/SKILL.md`「Codex 実行者が上限で止まったときの切替」に従う。逐語で示せなければ上限と扱わない。
 - 契約の正本は `docs/methods/codex-workspace-binding.md`。
 
 許可module/verbの機械SSoTは本PF hookの基底・role別表と `phase_role_permissions` 拡張であり、

@@ -225,3 +225,11 @@
 ## main再統合時の履歴保存（Issue #812・2026-11-16）
 
 .claude/rules/05-skills-agents.md の gh-create-issue allowlist 説明をagent定義への参照へ切り替えた。main側の .claude/hooks/governance-directives.md は 6f3d9e01bfdb に marker を同期していた。PR #846 の運用配送本文から履歴を分離する方針を維持し、この履歴はrationaleへ保存した。main取り込み後は両親ブランチの正本全件に対して同期markerを再計算する。
+
+## main再統合時の履歴保存（Issue #829・2026-11-15／是正ラウンド8・9 2026-11-17・11-18）
+
+Issue #829（2026-11-15）: `.claude/rules/03-operational.md` のレートリミット節を書き換え（委譲先 Codex 実行者の上限時に限る Claude への切替、既定実行者の参照）。Claude 固有の切替は rules 03 にだけ置き、`.ai/guidance/common.md` の降格禁止の1行は PF 共通の内容のまま変えていない。項10を書き換えて配送する。Claude ロール自身の上限は同一構成の再投入のまま。marker を再計算した（#812 の取り込み後に再計算）。
+
+是正ラウンド8（2026-11-17・new-24）：rules 03 の「Claude ロール自身が上限で止まったとき」に、`stop_kind: claude-limit` の receipt を主文脈が書いて回収してから同じロールを再 dispatch する手順を加えた。項10に同じ内容を写し、marker を再計算した。
+
+是正ラウンド9（2026-11-18・F-847-r8-1）：その手順が通るのは台帳 entry が `stopped`/`stale` のときに限り、主な経路（entry が `running` のまま）はオーナーへ打ち上げる、と rules 03 を実態に合わせた。項10に同じ内容を写し、marker を再計算した。

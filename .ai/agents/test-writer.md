@@ -15,4 +15,40 @@ ST/ITケースとの対応、正常/境界/失敗/回復・冪等の必要範囲
 STOPは入力不一致、未決owner decision、計画外判断、矛盾、権限不足、検証不能の場合。
 チャット返却は保存されたartifact絶対パスと1行要約だけとし、STOPも同じ形式で返す。
 
+Redテストを含むcommitは、メッセージの末尾に `Tests: red-intended` を置く。引き継ぎcommitの行は
+`.ai/skills/issue-pipeline/SKILL.md`「Codex 実行者が上限で止まったときの切替」に従う。
+
+## 出力とハンドオフ（完了receipt）
+
+完了receiptは、主文脈がdispatchの `handoff_path`（`tmp/_handoff/test-writer--issue-<N>-<suffix>.yaml`）で
+渡したファイル1つで、YAMLで書く。ファイル名は自分で決めない。TestDesign本体は転載せず、path/digestで参照する。
+receiptの `status`・`stop_reason` は、TestDesign（TOML artifact）の同名欄とは別物である。
+TestDesignのstatus/stop_reasonはartifactの成立を表し、receiptのものは今回のdispatchの終わり方を表す。
+
+```yaml
+schema_version: 1
+agent: test-writer
+status: done|stop
+issue: Issue番号
+branch: ブランチ名
+work_unit: 承認CP内の単一ID
+test_design: TestDesignのrepo相対path（未成立なら空文字）
+test_design_digest: そのcommit済みbytesのSHA-256（未成立なら空文字）
+commits:
+  - commit OID
+stop_kind: codex-limit（Codex実行者の上限で止まり、切替へ進めるSTOPのときだけ書く。`claude-limit` はロールが書かない＝Claude自身の上限では主文脈が書く）
+stop_reason: |
+  STOPの理由（doneのときは空文字 `stop_reason: ""`）
+```
+
+- `status: done` は、TestDesignとRedテストをcommit/pushし終えたときだけ使う。
+- 通常のSTOP（入力不一致・矛盾など）は `status: stop` と `stop_reason` を書き、`stop_kind` は書かない。
+- Codex実行者の上限でSTOPするときは、TestDesignの成立に関係なくこのreceiptだけに記録する。
+  TestDesignは `red_evidence` を1件以上要するので、途中で止まると成立しないことがある。
+  `stop_reason` は `|` のblock scalarとし、字下げした行に上限を示す出力の逐語を書く。
+  引き継ぎcommitを済ませたとき、または未commitの変更が無かったときは、`status: stop`・`stop_kind: codex-limit`・`stop_reason` の
+  3欄を書く。継続検査はこの3欄で切替へ進めるSTOPと判別する。引き継いだときは、引き継ぎcommit、変更path、テスト結果、残作業も書く。
+  範囲外の変更が混じる、または範囲に収まると確かめられずcommitしなかったときは、`stop_kind` を書かず、逐語、変更path、理由を書く。
+- チャットにはreceiptの絶対パスと1行要約だけを返す。STOPでもreceiptは書く。
+
 入力の `expected.work_unit` は承認CP内の単一IDへ束縛し、TestDesignの `work_unit` に保持する。TestDesignは `input_refs=[承認CPのID]` と `input_digest=そのCPのSHA-256` を記録し、別unitへ取り替えない。

@@ -386,22 +386,5 @@
     "attempt": "### Attempt 1\nround: 2\nfinding_ids: []\nroot_cause: \nchange_kind: \ntargets: []\ndiagnosis: \n",
     "result": "### Result 1\nattempt: 1\nfinding_ids: []\ntouched: []\noutcome: \nnote: \n"
   },
-  "roundtrip_exceptions": {
-    "list-49-diagnosis": {
-      "before": "['x', 'y']",
-      "after": "[\"'x'\", \"'y'\"]"
-    },
-    "nonint-49-diagnosis": {
-      "before": "['1x']",
-      "after": "[\"'1x'\"]"
-    },
-    "list-56-note": {
-      "before": "['x', 'y']",
-      "after": "[\"'x'\", \"'y'\"]"
-    },
-    "nonint-56-note": {
-      "before": "['1x']",
-      "after": "[\"'1x'\"]"
-    }
-  }
+  "roundtrip_exceptions": {}
 }

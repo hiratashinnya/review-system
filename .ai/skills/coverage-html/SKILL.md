@@ -3,6 +3,9 @@
 coverage・HTML・bytecode は checkout 外に生成する。coverage の導入・実行は
 `uv run --no-project --with coverage` に限定し、uv 不在なら停止（pip へのフォールバック禁止）。
 
+カバレッジの計測対象はプロジェクトルートの `.coveragerc` の `[run] source` で決まる。
+対象パッケージの一覧は本スキルへ複写せず、設定ファイルを正本として参照する。
+
 ## 手順
 
 1. Git HEAD と tracked worktree が一致する作業面で、一時出力先を決める。
