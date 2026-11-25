@@ -62,6 +62,32 @@ class RawHtmlBlockInAcSectionTest(unittest.TestCase):
                 self.assertEqual([item.text.splitlines()[0] for item in items],
                                  ["AC1", "AC2"])
 
+    def test_type7_after_block_boundaries(self):
+        for prefix in ("", "- [ ] AC1\n\n### Example\n",
+                       "- [ ] AC1\n\n```\ncode\n```\n"):
+            for fake in ("- [ ] example only", "## Notes"):
+                with self.subTest(prefix=prefix, fake=fake):
+                    body = ("## Acceptance criteria\n" + prefix +
+                            f"<span>\n{fake}\n</span>\n\n- [ ] AC2\n")
+                    items = from_issue_body(body)
+                    checked = [item.text.splitlines()[0] for item in items
+                               if item.checked is not None]
+                    self.assertEqual(checked, (["AC1"] if prefix else []) + ["AC2"])
+
+    def test_type7_does_not_interrupt_paragraph(self):
+        body = ("## Acceptance criteria\n- [ ] AC1\n  prose\n"
+                "  <span>\n- [ ] AC2\n")
+        items = from_issue_body(body)
+        self.assertEqual([item.checked for item in items], [False, False])
+
+    def test_html_container_ends_at_sibling(self):
+        for tag in ("div", "pre"):
+            body = ("## Acceptance criteria\n- [ ] AC1\n"
+                    f"  <{tag}>\n  example\n  </{tag}>\n- [x] AC2\n")
+            items = from_issue_body(body)
+            self.assertEqual([item.text.splitlines()[0] for item in items], ["AC1", "AC2"])
+            self.assertEqual([item.checked for item in items], [False, True])
+
 
 if __name__ == "__main__":
     unittest.main()

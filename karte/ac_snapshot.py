@@ -11,7 +11,7 @@ from .ac_snapshot_fence import advance as advance_fence
 from .ac_snapshot_html import advance as advance_html
 from .ac_snapshot_comment import CommentFilter
 from .ac_snapshot_model import AC, digest
-from .ac_snapshot_heading import heading_level, remove_setext_title, section_level
+from .ac_snapshot_heading import heading_level, remove_setext_title, section_level, ATX_GENERIC, FENCE_MARKER, THEMATIC_BREAK
 
 CHECKBOX = re.compile(r"^(\s*(?:[-*+]|[0-9]{1,9}[.)])\s+)\[([ xX])\](\s+\S.*)$")
 ITEM = re.compile(r"^\s*(?:[-*+]|[0-9]{1,9}[.)])\s+(\S.*)$")
@@ -32,7 +32,7 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
     visible_lines = [""] * len(lines)  # physical line indices remain unchanged
     for number, raw_line in enumerate(lines, start=1):
         was_inline_code = comments.code_ticks != 0
-        html_block, in_html = advance_html(html_block, raw_line, fence is None and not was_inline_code and not comments.in_comment, after_blank=number == 1 or not lines[number - 2].strip())
+        html_block, in_html = advance_html(html_block, raw_line, fence is None and not was_inline_code and not comments.in_comment, boundary=number == 1 or not lines[number - 2].strip() or bool(ATX_GENERIC.match(lines[number - 2]) or FENCE_MARKER.fullmatch(lines[number - 2]) or THEMATIC_BREAK.fullmatch(lines[number - 2])), list_indent=content_indent if in_ac and list_context else None)
         line, hidden = (raw_line, False) if in_html else comments.filter(raw_line, fence, in_ac, list_context, content_indent, lines[number:])
         visible_lines[number - 1] = line
         if hidden and not line.strip():
