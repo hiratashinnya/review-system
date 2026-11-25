@@ -82,19 +82,20 @@ profileのorigin/main pinは変更せず、未merge profileの拒否を成功dis
 
 #### 既定実行者
 
-実行者は role ごとに次の表で決まる（オーナー決定・2026-11-15・Issue #829）。
+実行者は role ごとに次表を適用する。
+割当ての選定理由・決定経緯は `.ai/rationale/executor-rate-limit-switch-829.md` を参照する。
 
-| ロール | 既定実行者 | 理由 |
-|---|---|---|
-| issue-investigator | Codex | 事実・原因・影響の調査は委譲し、Claude のトークンを節約する |
-| ac-designer | Claude 固定 | 検証設計は設計判断であり Claude で押さえる |
-| change-planner | Claude 固定 | 解決計画と ADR は設計判断であり Claude で押さえる |
-| plan-reviewer | Claude 固定 | 設計の独立レビューは Claude で押さえる |
-| test-writer | Codex | 承認済み VD/CP に沿う Red テストの著作は委譲する |
-| issue-implementer | Codex | 承認済み計画の適用は委譲する |
-| pr-reviewer | Claude 固定 | 2a/2b の独立レビューは Claude で押さえる |
-| issue-fixer | Codex | 診断の範囲に限った是正の編集とテスト実行は委譲する |
-| adviser | Codex | 相談への回答は委譲する |
+| ロール | 既定実行者 |
+|---|---|
+| issue-investigator | Codex |
+| ac-designer | Claude 固定 |
+| change-planner | Claude 固定 |
+| plan-reviewer | Claude 固定 |
+| test-writer | Codex |
+| issue-implementer | Codex |
+| pr-reviewer | Claude 固定 |
+| issue-fixer | Codex |
+| adviser | Codex |
 
 - **Claude 固定の4 role は Codex 実行者を使わない。** 主文脈は Codex 実行者を指定せず、role も起動しない。
 - **Codex 既定の5 role は、主文脈が Codex 実行者を指定して起動する。** 指定の形は role の作業面で分かれ、PF wrapper に従う。
@@ -102,10 +103,8 @@ profileのorigin/main pinは変更せず、未merge profileの拒否を成功dis
   - read-only role（issue-investigator・adviser）：主文脈が read-only の専用入口（下記「read-only の Codex 実行先」）を実行し、その入口が Codex を起動する。この経路では Claude の role サブエージェントを dispatch しない。主文脈が切替またはオーナー判断で Claude の role を dispatch するときは Codex 実行者を指定せず、role は Codex を起動せず自分で調査・回答する。
 - **AI が既定を外してよい例外は、Codex 実行者の上限の証拠による切替（下記）だけである。** それ以外の理由で Codex 既定の role を Claude で実行するには、書込・read-only のどちらの経路でもオーナーの明示判断を要する。
 - 高リスク信号のある実装も Codex 既定の例外にしない。Codex 側の層を引き上げる。
-- test-writer と issue-implementer は同じモデルファミリになる。独立性は、Claude 固定の pr-reviewer が 2a と 2b を別 dispatch で審査することで保つ。
-- read-only の Codex 経路は実 dispatch が未実測である（#652）。実測が済むまでも既定は Codex とし、上限の証拠が無い失敗は切り替えず STOP する。起動 gate の受理や unit の合格を実 dispatch の成功と報告しない。
-- adviser は相談の難度を理由に Claude へ切り替えない。adviser の層は最上位に固定してあり、難しい相談も Codex の最上位で扱う（オーナー決定・2026-11-16）。
-- この表は運用規範であり、機械では強制していない。`codex_worktree_exec` と起動 gate は Claude 固定の role の起動形も受理する。
+- read-only の Codex 経路も既定実行者は Codex とする。上限の証拠が無い失敗は切り替えず STOP する。起動 gate の受理や unit の合格を実 dispatch の成功と報告しない。
+- adviser は相談の難度を理由に Claude へ切り替えない。adviser の層は最上位固定とし、難しい相談も Codex の最上位で扱う。
 
 #### read-only の Codex 実行先
 
