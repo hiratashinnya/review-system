@@ -32,7 +32,7 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
     visible_lines = [""] * len(lines)  # physical line indices remain unchanged
     for number, raw_line in enumerate(lines, start=1):
         was_inline_code = comments.code_ticks != 0
-        html_block, in_html = advance_html(html_block, raw_line, fence is None and not was_inline_code and not comments.in_comment)
+        html_block, in_html = advance_html(html_block, raw_line, fence is None and not was_inline_code and not comments.in_comment, after_blank=number == 1 or not lines[number - 2].strip())
         line, hidden = (raw_line, False) if in_html else comments.filter(raw_line, fence, in_ac, list_context, content_indent, lines[number:])
         visible_lines[number - 1] = line
         if hidden and not line.strip():

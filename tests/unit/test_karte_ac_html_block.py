@@ -41,6 +41,27 @@ class RawHtmlBlockInAcSectionTest(unittest.TestCase):
         items = from_issue_body(body)
         self.assertEqual([item.text.splitlines()[0] for item in items], ["AC1", "AC2"])
 
+    def test_div_and_other_block_tags_hide_examples_until_blank(self):
+        for tag in ("div", "table", "details", "section", "custom-tag"):
+            for example in ("- [ ] example only", "## Notes"):
+                with self.subTest(tag=tag, example=example):
+                    body = ("## Acceptance criteria\n- [ ] AC1\n\n"
+                            f"<{tag}>\n{example}\n</{tag}>\n\n- [ ] AC2\n")
+                    items = from_issue_body(body)
+                    self.assertEqual([item.text.splitlines()[0] for item in items],
+                                     ["AC1", "AC2"])
+                    self.assertEqual([item.checked for item in items], [False, False])
+                    self.assertNotEqual(items, from_issue_body(body.replace("AC2", "changed")))
+
+    def test_other_raw_block_terminators(self):
+        for start, end in (("<?", "?>"), ("<![CDATA[", "]]>"), ("<!DOCTYPE", ">")):
+            with self.subTest(start=start):
+                body = ("## Acceptance criteria\n- [ ] AC1\n"
+                        f"{start}\n## Notes\n- [ ] fake\n{end}\n- [ ] AC2\n")
+                items = from_issue_body(body)
+                self.assertEqual([item.text.splitlines()[0] for item in items],
+                                 ["AC1", "AC2"])
+
 
 if __name__ == "__main__":
     unittest.main()
