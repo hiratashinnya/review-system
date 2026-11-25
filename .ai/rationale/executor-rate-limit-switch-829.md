@@ -47,6 +47,36 @@ Issue #829 の本文は同日チャットの決定を結論だけ記録してい
 3. agy は振り分け方針だけ定義し、有効化は #606 の解除契約に従う。
 4. 工程に乗らない低難度作業の経路は別 Issue（#831）。
 
+### 9ロールの既定実行者を選んだ理由（2026-11-25移設）
+
+Issue #851／PR #865 のオーナー指摘「判断理由・経緯はrationaleへ置く」により、
+`.ai/skills/issue-pipeline/SKILL.md`「既定実行者」の旧「理由」列をここへ移した。
+割当ての正本・実行契約は引き続き同Skillを参照する。次表は割当てを決めた根拠の
+**判断記録**であり、実行時に別の選択基準を追加するものではない。
+
+| ロール | 採用した既定実行者 | 当初の選定理由（Skill旧「理由」列） |
+|---|---|---|
+| issue-investigator | Codex | 事実・原因・影響の調査は委譲し、Claude のトークンを節約する |
+| ac-designer | Claude 固定 | 検証設計は設計判断であり Claude で押さえる |
+| change-planner | Claude 固定 | 解決計画と ADR は設計判断であり Claude で押さえる |
+| plan-reviewer | Claude 固定 | 設計の独立レビューは Claude で押さえる |
+| test-writer | Codex | 承認済み VD/CP に沿う Red テストの著作は委譲する |
+| issue-implementer | Codex | 承認済み計画の適用は委譲する |
+| pr-reviewer | Claude 固定 | 2a/2b の独立レビューは Claude で押さえる |
+| issue-fixer | Codex | 診断の範囲に限った是正の編集とテスト実行は委譲する |
+| adviser | Codex | 相談への回答は委譲する |
+
+この割当てでは `test-writer` と `issue-implementer` が同じモデルファミリに
+なる。独立性は Claude 固定の `pr-reviewer` が 2a と 2b を別dispatchで
+審査する工程契約で確保するという判断を採った。
+また、既定実行者表は**現時点では機械的な強制ではなく運用規範**である。
+`codex_worktree_exec` と起動 gate は Claude 固定ロールの起動形も受理する。
+そのためオーナー承認なしの割当て変更を主文脈の規律で禁止している。
+
+read-only の Codex 実行経路は Issue #652 の時点で実dispatch未実測と
+記録されていた。入口／unitテストの成功と実dispatchの完走は区別する。
+実測の有無を判断する際は当該経路の最新の実測証拠に従う。
+
 ### 覆す根拠（AI の分析。オーナー決定は結論のみ）
 
 Issue #321 の「同じ構成で再投入」の根拠は「主文脈が動いている＝枠は回復している」である。これは Claude 側の枠の話で、別提供者である Codex の枠が回復したことは示さない。主文脈（Claude）が動いていても、Codex 実行者の上限は続いていることがある。

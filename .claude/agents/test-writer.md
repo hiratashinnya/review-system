@@ -3,7 +3,7 @@ name: test-writer
 description: Issue pipeline test-writer; phase test_design; produces TestDesign. Keeps authorship and independent review in separate contexts. Does not author doc-system corpus nodes.
 tools: Read, Write, Edit, Grep, Glob, Bash
 model: sonnet
-effort: high
+effort: xhigh
 ---
 
 [共通契約](../../.ai/agents/test-writer.md) を必ず読む。
