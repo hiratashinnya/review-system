@@ -1,6 +1,7 @@
 """CLI entry point for read-only collection and annotated report rendering."""
 
 import argparse
+from datetime import datetime
 from pathlib import Path
 import subprocess
 import sys
@@ -8,7 +9,7 @@ import sys
 from . import analysis, output, snapshot
 from .github import normalize_repository
 from .local import resolve_root
-from .period import resolve_period
+from .period import JST, resolve_period
 
 
 def _page_limit(raw):
@@ -26,7 +27,7 @@ def parser():
     collect.add_argument("--base-ref", default="origin/main", help="観測時に解決するローカル基準 ref")
     collect.add_argument("--start", help="期間の開始 (ISO 8601、オフセット省略時 JST)")
     collect.add_argument("--end", help="期間の終了 (ISO 8601、オフセット省略時 JST)")
-    collect.add_argument("--now", help="観測時刻の固定注入 (ISO 8601、テスト・再現用)")
+    collect.add_argument("--now", help="期間イベントの基準時刻を固定 (ISO 8601、テスト・再現用)")
     collect.add_argument("--previous", help="比較する前回 snapshot.json")
     collect.add_argument("--max-pages", default=30, type=_page_limit, help="各 API 応答の検証上限")
     render = commands.add_parser("render", help="snapshot を再使用して分析付き HTML と要約を保存")
@@ -53,10 +54,12 @@ def main(argv=None):
         root = resolve_root(Path.cwd())
         interpretation = None
         if args.action == "collect":
-            period = resolve_period(args.start, args.end, args.now)
+            observed_at = datetime.now(JST)
+            period = resolve_period(args.start, args.end, args.now, observed_at=observed_at)
             repository = normalize_repository(args.repository)
             previous = _previous(args.previous)
-            data = snapshot.collect(root, repository, args.base_ref, period, args.max_pages, previous)
+            data = snapshot.collect(root, repository, args.base_ref, period, args.max_pages, previous,
+                                    observed_at=observed_at)
         else:
             data = snapshot.load(args.snapshot)
             if data["schema_version"] != snapshot.SCHEMA_VERSION:

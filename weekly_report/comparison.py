@@ -2,7 +2,7 @@
 
 import math
 
-from .period import parse_jst
+from .period import COLLECTION_START, parse_jst
 
 
 def _span(period):
@@ -24,14 +24,19 @@ def compare(current, previous):
         old_start, old_end, old_observed_span = _span(previous["period"])
         provenance = {"previous_period": previous["period"],
                       "previous_observed_at": previous["observed_at"]}
-        if old_end != start or end - start != old_end - old_start:
-            return _unavailable("incomparable", "対象期間が連続していないか、期間の長さが異なります") | provenance
-        if observed_span != old_observed_span:
-            return _unavailable("incomparable", "途中経過を含み、観測済みの期間の長さが異なります") | provenance
         if not isinstance(previous["metrics"], dict):
             raise ValueError("missing previous metrics")
-        metrics = _compare_metrics(current["metrics"], previous["metrics"])
-        return {"status": "comparable", "reason": None, "metrics": metrics, **provenance}
+        period_reason = None
+        if old_end != start or end - start != old_end - old_start:
+            period_reason = "対象期間が連続していないか、期間の長さが異なります"
+        elif observed_span != old_observed_span:
+            period_reason = "途中経過を含み、観測済みの期間の長さが異なります"
+        elif not observed_span.total_seconds():
+            period_reason = "観測済みの時間帯がありません"
+        observation = _observation_comparison(current, previous, start + observed_span, old_start + old_observed_span)
+        reasons = {"period": period_reason, "observation": observation["reason"]}
+        metrics = _compare_metrics(current["metrics"], previous["metrics"], reasons)
+        return {**_status(period_reason), "metrics": metrics, "observation": observation, **provenance}
     except (KeyError, ValueError, TypeError, AttributeError, OverflowError):
         return _unavailable("incomparable", "前回 snapshot の比較情報を解釈できません")
 
@@ -44,19 +49,47 @@ def _numeric(value):
     return type(value) in (float, int) and math.isfinite(value)
 
 
-def _compare_metrics(current, previous):
+def _status(reason):
+    return {"status": "comparable" if reason is None else "incomparable", "reason": reason}
+
+
+def _observation_comparison(current, previous, cutoff, previous_cutoff):
+    now, before = parse_jst(current["observed_at"]), parse_jst(previous["observed_at"])
+    reason = None
+    if any(snapshot.get("observation_source") != COLLECTION_START for snapshot in (current, previous)):
+        reason = "実際の取得開始時刻と確認できない snapshot があります"
+    elif now < cutoff or before < previous_cutoff:
+        reason = "取得時点が、記録された期間イベントの観測上限より前にあります"
+    elif before >= now:
+        reason = "前回の取得時点が今回より前にありません"
+    return {**_status(reason), "previous_observed_at": before.isoformat(), "observed_at": now.isoformat()}
+
+
+def _compare_metrics(current, previous, reasons):
     metrics = {}
     for key, item in current.items():
         old = previous.get(key)
-        reason = None
+        reason = reasons[item["basis"]]
         before = old.get("value") if isinstance(old, dict) else None
-        if item["basis"] != "period":
-            reason = "残数・検査は観測時点の値です"
-        elif not isinstance(old, dict) or any(item[field] != old.get(field)
-                                              for field in ("basis", "definition", "unit")):
+        if reason is None and (not isinstance(old, dict) or any(item.get(field) != old.get(field)
+                                                               for field in ("basis", "definition", "unit"))):
             reason = "指標定義、算定単位または観測範囲が異なります"
-        elif not _numeric(before) or not _numeric(item["value"]):
+        if reason is None and (not _numeric(before) or not _numeric(item["value"])):
             reason = "一方または両方が未計測です"
         metrics[key] = {"previous": before, "delta": None if reason else item["value"] - before,
                         "reason": reason}
     return metrics
+
+
+def comparison_note(comparison, basis):
+    if basis == "observation":
+        actual = comparison.get("observation")
+        if actual is None:
+            return "取得時点の差は比較できません"
+        reason = actual["reason"] or "取得時点どうしの比較"
+        return f'{reason}　前回取得 {actual["previous_observed_at"]} ／ 今回取得 {actual["observed_at"]}'
+    note = comparison["reason"] or "前回の対象期間と比較"
+    if "previous_period" in comparison:
+        previous = comparison["previous_period"]
+        note += f'　前回対象 {previous["start"]} ～ {previous["end"]}'
+    return note

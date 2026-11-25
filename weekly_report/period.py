@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
 
 JST = timezone(timedelta(hours=9), "JST")
+NO_OBSERVED_TIME = "観測済みの時間帯がありません"
+COLLECTION_START = "collection_start"
 
 
 def parse_jst(value):
@@ -40,13 +42,15 @@ class Period:
         }
 
 
-def resolve_period(start, end, now):
-    observed_at = parse_jst(now) if now else datetime.now(JST)
+def resolve_period(start, end, now, *, observed_at=None):
+    cutoff = parse_jst(now) if now else observed_at or datetime.now(JST)
+    if observed_at is not None:
+        cutoff = min(cutoff, observed_at)
     if start is None and end is None:
-        today = observed_at.date()
+        today = cutoff.date()
         monday = today - timedelta(days=today.weekday())
         beginning = datetime.combine(monday, time.min, JST)
-        return Period(beginning, beginning + timedelta(days=7), observed_at)
+        return Period(beginning, beginning + timedelta(days=7), cutoff)
     if start is None or end is None:
         raise ValueError("--start と --end は組で指定してください")
-    return Period(parse_jst(start), parse_jst(end), observed_at)
+    return Period(parse_jst(start), parse_jst(end), cutoff)

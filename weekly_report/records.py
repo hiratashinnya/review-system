@@ -1,6 +1,9 @@
 """Validate and project the fields used in weekly GitHub observations."""
 
 from datetime import datetime
+import re
+
+OID = re.compile(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})")
 
 
 def _number(value):
@@ -24,6 +27,10 @@ def _moment(value):
 
 def _optional_moment(value):
     return _moment(value) if value is not None else None
+
+
+def _oid(value):
+    return value.lower() if isinstance(value, str) and OID.fullmatch(value) else None
 
 
 def _item(row):
@@ -56,8 +63,10 @@ def pull(row):
     draft = row["draft"]
     if not isinstance(draft, bool):
         raise ValueError("draft must be a boolean")
+    head = row.get("head")
     return {**item, "merged_at": _optional_moment(row["merged_at"]),
-            "draft": draft, "base": _text(row["base"]["ref"])}
+            "draft": draft, "base": _text(row["base"]["ref"]),
+            "head_sha": _oid(head.get("sha")) if isinstance(head, dict) else None}
 
 
 def relation(row):
@@ -72,13 +81,13 @@ def relation(row):
 def workflow_run(row):
     return {"id": _number(row["id"]), "name": row.get("name"), "event": _text(row["event"]),
             "status": _text(row["status"]), "conclusion": row["conclusion"],
-            "created_at": _moment(row["created_at"]), "head_sha": _text(row["head_sha"])}
+            "created_at": _moment(row["created_at"]), "head_sha": _oid(row.get("head_sha"))}
 
 
 def review(row):
     return {"id": _number(row["id"]), "state": _text(row["state"]),
             "submitted_at": _optional_moment(row.get("submitted_at")),
-            "commit_id": row.get("commit_id")}
+            "commit_id": _oid(row.get("commit_id"))}
 
 
 def public_item(item):

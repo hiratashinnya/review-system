@@ -3,7 +3,6 @@
 from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
-import subprocess
 from typing import cast
 from advisory.catalog import check_catalog, load_catalog
 from advisory.paths import directory
@@ -12,35 +11,26 @@ from feedback_ledger.store import load_store
 from maintainability_lint.baseline import load_baseline
 from maintainability_lint.scanner import scan
 
+from .git_source import read_git
 from .period import parse_jst
 from .quantities import measured
 
 
-def _git(repo, *args):
-    outcome = subprocess.run(
-        ["git", "--no-optional-locks", "-C", str(repo), *args],
-        check=False, capture_output=True, text=True, timeout=30,
-    )
-    if outcome.returncode:
-        raise ValueError(f"git {args[0]} が失敗しました")
-    return outcome.stdout.rstrip("\n")
-
-
 def resolve_root(repo):
-    return Path(_git(repo, "rev-parse", "--show-toplevel")).resolve()
+    return Path(read_git(repo, "rev-parse", "--show-toplevel")).resolve()
 
 
 def checkout(repo, base_ref):
     base_error = None
     try:
-        base = _git(repo, "rev-parse", "--verify", "--end-of-options", base_ref + "^{commit}")
+        base = read_git(repo, "rev-parse", "--verify", "--end-of-options", base_ref + "^{commit}")
     except ValueError:
         base = None
         base_error = "指定 ref をローカルで解決できません"
     return {
         "base_ref": base_ref, "base_sha": base, "base_reason": base_error,
-        "checkout_sha": _git(repo, "rev-parse", "--verify", "HEAD"),
-        "checkout_dirty": bool(_git(repo, "status", "--porcelain=v1")),
+        "checkout_sha": read_git(repo, "rev-parse", "--verify", "HEAD"),
+        "checkout_dirty": bool(read_git(repo, "status", "--porcelain=v1")),
     }
 
 

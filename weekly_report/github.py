@@ -66,8 +66,8 @@ def get(repository, endpoint, max_pages, *, convert, collection=None):
 
 
 def _complete_rows(source, pages, max_pages, collection, convert):
-    if len(pages) >= max_pages:
-        return evidence(source, reason="ページ上限に到達し、完全性を確認できません", pages=len(pages))
+    if len(pages) > max_pages:
+        return evidence(source, reason="取得ページ数が検証上限を超えています", pages=len(pages))
     batches, count = _page_rows(pages, collection)
     if any(not isinstance(batch, list) for batch in batches):
         raise ValueError("ページが配列ではありません")

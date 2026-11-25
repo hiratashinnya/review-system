@@ -14,13 +14,13 @@ def _open(data):
     return [row for row in data["rows"] if row["state"] == "open"]
 
 
-def measure(period, github):
+def measure(observed_at, github):
     issues, pulls = _open(github["issues"]), _open(github["pulls"])
     metrics = {}
     for kind, rows in (("issues", issues), ("pulls", pulls)):
         data = github[kind]
         stale = None if rows is None else [row for row in rows
-                                          if row["updated_at"] <= period.observed_at - STALE_AFTER]
+                                          if row["updated_at"] <= observed_at - STALE_AFTER]
         metrics[f"open_{kind}"] = count(rows, f"観測時に open の {kind}", data)
         metrics[f"stale_{kind}"] = count(stale, f"観測時に最新更新から30日以上の open {kind}", data)
     details = github["blocked_by"]

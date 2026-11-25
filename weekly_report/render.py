@@ -3,6 +3,7 @@
 from html import escape
 
 from .analysis import KINDS, SECTIONS
+from .comparison import comparison_note
 from .labels import LABELS
 from .snapshot import dumps
 
@@ -56,9 +57,11 @@ def _metric_row(name, metric, comparison):
         debt = metric["observed_by_status"]
         detail += f'<br><small>実測内訳 {_html(dumps(debt).replace(chr(10), " "))}</small>'
     delta = comparison.get(name)
-    change = "—" if delta is None else display(delta["delta"])
+    change = "—" if delta is None else _html(display(delta["delta"]))
     if delta and delta["reason"]:
         change = f'— <small>{_html(delta["reason"])}</small>'
+    elif delta and "previous" in delta:
+        change += f'<br><small>前回 {_html(display(delta["previous"]))}</small>'
     return (f'<tr><th scope="row">{_html(label)}</th><td>{_html(value + unit)}<br>{detail}</td>'
             f'<td>{change}</td><td>{_html(metric["definition"])}<br>'
             f'<small>{_html(metric["source"])}</small></td></tr>')
@@ -77,10 +80,6 @@ def report(data, analysis):
     period = data["period"]
     marker = "途中経過" if period["partial"] else "対象期間終了"
     comparison = data["comparison"]
-    compare_text = comparison["reason"] or "前回と比較"
-    if "previous_period" in comparison:
-        previous = comparison["previous_period"]
-        compare_text += f'　前回対象 {previous["start"]} ～ {previous["end"]}'
     return f'''<!doctype html>
 <html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
@@ -90,7 +89,7 @@ def report(data, analysis):
 <p>観測上限 {_html(period["observed_until"])}　観測時点 {_html(data["observed_at"])}</p>
 <p><a href="snapshot.json">snapshot.json</a> · <a href="summary.txt">チャット用要約</a></p></header>
 <main><h2>今週の評価と次週の計画</h2>{_analysis(analysis)}
-<h2>期間内の指標</h2><p>{_html(compare_text)}</p>{_table(data, "period")}
-<h2>観測時の残数と実測</h2>{_table(data, "observation")}
+<h2>期間内の指標</h2><p>{_html(comparison_note(comparison, "period"))}</p>{_table(data, "period")}
+<h2>観測時の残数と実測</h2><p>{_html(comparison_note(comparison, "observation"))}</p>{_table(data, "observation")}
 {evidence_sections(data)}
 </main></body></html>'''

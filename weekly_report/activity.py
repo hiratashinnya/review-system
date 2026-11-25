@@ -2,9 +2,7 @@
 
 from statistics import median
 
-from defect_metrics.metrics import compute_window_metrics
-from defect_metrics.model import IssueRecord, PullRequestRecord, Window
-
+from . import defect_evidence
 from .quantities import count, measured
 from .records import public_item
 
@@ -33,11 +31,12 @@ def measure(period, repository, issue_data, pull_data):
     created = _select(issue_data, lambda row: period.contains(row["created_at"]))
     closed = _select(issue_data, lambda row: row["state"] == "closed" and period.contains(row["closed_at"]))
     merged = _select(pull_data, lambda row: period.contains(row["merged_at"]))
+    defect_inputs = defect_evidence.inputs(period, issue_data["rows"], pull_data["rows"])
     metrics = {
         "issues_created": count(created, "期間内に起票された Issue", issue_data),
         "pulls_merged": count(merged, "期間内にマージされた PR（全 base）", pull_data),
         "pull_lead_days": _lead(merged, "merged_at", "期間内マージ PR の起票からマージまでの中央値", pull_data),
-        "defects_per_merge": _defects(period, repository, issue_data, pull_data),
+        "defects_per_merge": defect_evidence.measure(period, repository, defect_inputs, issue_data, pull_data),
     }
     close_groups = {key: None if closed is None else [row for row in closed if _close_reason(row) == key]
                     for key in ("completed", "not_planned", "duplicate", "unknown")}
@@ -58,30 +57,6 @@ def measure(period, repository, issue_data, pull_data):
     )
     events = {key: None if rows is None else [public_item(row) for row in rows]
               for key, rows in {"created": created, "closed": closed, "merged": merged}.items()}
-    return metrics, events
-
-
-def _defects(period, repository, issues, pulls):
-    from defect_metrics.metric_values import WindowMetrics
-
-    definition = "defect_metrics の窓内派生 Issue / 窓内マージ PR"
-    source = {"definition": "defect_metrics/README.md", "inputs": [issues["source"], pulls["source"]]}
-    if issues["rows"] is None or pulls["rows"] is None:
-        return measured(None, definition, source, reason="Issue または PR の全件を取得できません")
-    if period.cutoff == period.start:
-        return measured(None, definition, source, reason="観測済みの時間帯がありません", n=0)
-    result: WindowMetrics = compute_window_metrics(
-        Window(period.start, period.cutoff),
-        [IssueRecord(row["number"], row["created_at"], row["closed_at"], row["body"] or "")
-         for row in issues["rows"]],
-        [PullRequestRecord(row["number"], row["merged_at"]) for row in pulls["rows"] if row["merged_at"]],
-        repository,
-    )
-    primary = result.as_dict()["primary"]
-    assert isinstance(primary, dict)
-    return measured(
-        result.derived_per_pr, primary["definition"], source,
-        reason="分母のマージ PR が0件" if result.merged_prs == 0 else None,
-        numerator=result.derived_issues, denominator=result.merged_prs,
-        derived_issue_numbers=list(result.derived_issue_numbers),
-    )
+    if missing_timestamp:
+        events["closed_known"], events["closed"] = events["closed"], None
+    return metrics, events, defect_inputs

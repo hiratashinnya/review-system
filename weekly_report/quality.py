@@ -1,6 +1,6 @@
 """Measure CI and review evidence, and state limits of its interpretation."""
 
-from collections import Counter
+from collections import Counter, defaultdict
 
 from .quantities import count, measured
 
@@ -36,15 +36,45 @@ def measure(period, github):
         workflow_counts = Counter(run["conclusion"] or run["status"] for run in workflows)
         metrics["workflow_runs"]["by_result"] = dict(sorted(workflow_counts.items()))
     reviews = github["reviews"]
-    complete = github["pulls"]["rows"] is not None and all(data["rows"] is not None for data in reviews.values())
-    in_period = [row for data in reviews.values() for row in data["rows"] or []
-                 if period.contains(row["submitted_at"])]
+    rows = [row for data in reviews.values() for row in data["rows"] or []]
+    reason = None
+    if github["pulls"]["rows"] is None or any(data["rows"] is None for data in reviews.values()):
+        reason = "PR またはレビュー投稿の取得範囲が不完全です"
+    elif any(row["state"] != "PENDING" and row["submitted_at"] is None for row in rows):
+        reason = "投稿済みレビューの時刻に欠損があり、期間内の件数を確定できません"
+    in_period = [row for row in rows if row["state"] != "PENDING" and period.contains(row["submitted_at"])]
     metrics["review_submissions"] = measured(
-        len(in_period) if complete else None,
+        len(in_period) if reason is None else None,
         "収集対象 PR の期間内レビュー投稿（観測時 open または期間内に close/merge）",
         "GitHub REST pulls/{number}/reviews",
-        reason=None if complete else "PR またはレビュー投稿の取得範囲が不完全です",
+        reason=reason,
         target_pr_numbers=sorted(reviews),
         observed_submissions=len(in_period),
     )
     return metrics
+
+
+def matching_heads(github):
+    """Identify evidence with a known SHA matching the observed PR head."""
+    if github["pulls"]["rows"] is None:
+        return None
+    runs = github["ci"]["rows"]
+    runs_by_sha = defaultdict(list)
+    for row in runs or []:
+        if row["head_sha"] is not None:
+            runs_by_sha[row["head_sha"]].append(row["id"])
+    heads = {}
+    for pull in github["pulls"]["rows"]:
+        number, sha = pull["number"], pull["head_sha"]
+        if number not in github["reviews"]:
+            continue
+        reviews = github["reviews"][number]["rows"]
+        review_ids = None if sha is None or reviews is None else [
+            row["id"] for row in reviews if row["commit_id"] == sha
+            and row["state"] != "PENDING" and row["submitted_at"] is not None
+        ]
+        heads[number] = {
+            "head_sha": sha, "matching_workflow_run_ids": None if sha is None or runs is None else runs_by_sha[sha],
+            "matching_review_ids": review_ids,
+        }
+    return heads

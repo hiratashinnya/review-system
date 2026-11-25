@@ -6,7 +6,7 @@ LABELS = {
     "issues_closed_not_planned": "予定なしでクローズ",
     "issues_closed_duplicate": "重複でクローズ",
     "issues_closed_unknown": "理由不明のクローズ",
-    "pulls_merged": "PR マージ",
+    "pulls_merged": "PR マージ（全マージ先）",
     "issue_lead_days": "Issue リードタイム",
     "pull_lead_days": "PR リードタイム",
     "defects_per_merge": "派生 Issue / マージ PR",
