@@ -1,7 +1,4 @@
 """Issue #801: GitHub Issue 本文からレビュアー用 AC snapshot を正規化する。
-
-snapshot はレビュー開始時の主文脈が作成し、Codex へも同一内容を渡す。
-チェックと本文は明示的に凍結し、レビューアの自己申告で置換しない。
 """
 
 import re
@@ -11,7 +8,7 @@ from .ac_snapshot_fence import advance as advance_fence
 from .ac_snapshot_html import advance as advance_html
 from .ac_snapshot_comment import CommentFilter
 from .ac_snapshot_model import AC, digest
-from .ac_snapshot_heading import heading_level, remove_setext_title, section_level, THEMATIC_BREAK
+from .ac_snapshot_heading import heading_level, remove_setext_title, section_level, block_transition
 
 CHECKBOX = re.compile(r"^(\s*(?:[-*+]|[0-9]{1,9}[.)])\s+)\[([ xX])\](\s+\S.*)$")
 ITEM = re.compile(r"^\s*(?:[-*+]|[0-9]{1,9}[.)])\s+(\S.*)$")
@@ -26,11 +23,11 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
     base_indent = content_indent = None
     list_context = False
     fence = None  # 全Issue本文のフェンス状態をAC節の外でも追跡
-    html_block = None  # raw HTML block end-tag regex (<pre> etc.), kept across lines
+    html_block = None
     comments = CommentFilter()
     boundary = True
     lines = body.splitlines()
-    visible_lines = [""] * len(lines)  # physical line indices remain unchanged
+    visible_lines = [""] * len(lines)
     for number, raw_line in enumerate(lines, start=1):
         was_inline_code = comments.code_ticks != 0
         html_block, in_html = advance_html(html_block, raw_line, fence is None and not was_inline_code and not comments.in_comment, boundary=boundary, list_indent=content_indent if in_ac and list_context else None)
@@ -50,8 +47,6 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
                 raise KarteFormatError("Issue本文のAcceptance criteriaセクションが重複")
             in_ac, level, found = True, heading, True
         next_level = heading_level(visible_lines, number, is_heading)
-        if next_level is not None:
-            list_context = False
         if in_ac and not heading and next_level is not None and next_level <= level:
             remove_setext_title(visible_lines, number, items)
             in_ac = False
@@ -61,13 +56,7 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
                 fence, line,
                 list_indent=(content_indent if in_ac and list_context else None),
             )
-        if not in_html and not was_inline_code:
-            boundary = not stripped or next_level is not None or (was_fenced and fence is None) or bool(THEMATIC_BREAK.fullmatch(line))
-            if (next_level is not None or (not was_fenced and fence is not None)
-                    or THEMATIC_BREAK.fullmatch(line)) and not child:
-                list_context = False
-        else:
-            boundary = False
+        boundary, list_context = block_transition(line, next_level, was_fenced, fence, in_html, was_inline_code, child, list_context)
         if heading or not in_ac:
             continue
         plain_ok = not was_fenced and not was_inline_code and fence is None and not in_html
@@ -107,4 +96,3 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
     if len({(item.text, item.checked is not None) for item in result}) != len(result):
         raise KarteFormatError("同一文言のACが重複しており照合できない")
     return result
-
