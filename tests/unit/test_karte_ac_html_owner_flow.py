@@ -35,11 +35,12 @@ def cases():
         ):
             body = prefix + opening + "\n" + fake + "\n" + closing + "\n" + LAST
             yield body, ["AC1", "AC2"] if "AC1" in prefix else ["AC2"], "AC2"
+    yield "<!--\n## Acceptance criteria\n- [ ] example only\n-->\n\n" + FIRST + "- [ ] AC2\n", ["AC1", "AC2"], "AC2"
     yield FIRST + "  <div>\n  example\n  </div>\n- [ ] AC2\n", ["AC1", "AC2"], "AC2"
     yield FIRST + "  <pre>\n  example\n- [ ] AC2\n", ["AC1", "AC2"], "AC2"
-    yield HEAD + "- [ ] AC1 " + chr(96) + "literal\n  foo <!--\n  bar" + chr(96) + "\n" + LAST, ["AC1", "AC2"], "AC2"
+    yield HEAD + "- [ ] AC1 " + chr(96) + "literal\n  foo <!--\n  bar" + chr(96) + "\n- [ ] AC2\n", ["AC1", "AC2"], "AC2"
     yield HEAD + "- [ ] AC1 unmatched " + chr(96) + "\n- [x] AC2 " + chr(96) + "code" + chr(96) + "\n", ["AC1", "AC2"], "AC2"
-    yield HEAD + "- [ ] AC1 \<!-- must authenticate -->\n- [x] AC2\n", ["AC1", "AC2"], "must authenticate"
+    yield HEAD + "- [ ] AC1 \\<!-- must authenticate -->\n- [x] AC2\n", ["AC1", "AC2"], "must authenticate"
 
 
 class HtmlOwnerFlowTest(unittest.TestCase):
