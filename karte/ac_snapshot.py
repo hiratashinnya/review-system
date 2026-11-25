@@ -11,7 +11,7 @@ from .ac_snapshot_fence import advance as advance_fence
 from .ac_snapshot_html import advance as advance_html
 from .ac_snapshot_comment import CommentFilter
 from .ac_snapshot_model import AC, digest
-from .ac_snapshot_heading import heading_level, remove_setext_title, section_level, ATX_GENERIC, FENCE_MARKER, THEMATIC_BREAK
+from .ac_snapshot_heading import heading_level, remove_setext_title, section_level, THEMATIC_BREAK
 
 CHECKBOX = re.compile(r"^(\s*(?:[-*+]|[0-9]{1,9}[.)])\s+)\[([ xX])\](\s+\S.*)$")
 ITEM = re.compile(r"^\s*(?:[-*+]|[0-9]{1,9}[.)])\s+(\S.*)$")
@@ -28,11 +28,12 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
     fence = None  # 全Issue本文のフェンス状態をAC節の外でも追跡
     html_block = None  # raw HTML block end-tag regex (<pre> etc.), kept across lines
     comments = CommentFilter()
+    boundary = True
     lines = body.splitlines()
     visible_lines = [""] * len(lines)  # physical line indices remain unchanged
     for number, raw_line in enumerate(lines, start=1):
         was_inline_code = comments.code_ticks != 0
-        html_block, in_html = advance_html(html_block, raw_line, fence is None and not was_inline_code and not comments.in_comment, boundary=number == 1 or not lines[number - 2].strip() or bool(ATX_GENERIC.match(lines[number - 2]) or FENCE_MARKER.fullmatch(lines[number - 2]) or THEMATIC_BREAK.fullmatch(lines[number - 2])), list_indent=content_indent if in_ac and list_context else None)
+        html_block, in_html = advance_html(html_block, raw_line, fence is None and not was_inline_code and not comments.in_comment, boundary=boundary, list_indent=content_indent if in_ac and list_context else None)
         line, hidden = (raw_line, False) if in_html else comments.filter(raw_line, fence, in_ac, list_context, content_indent, lines[number:])
         visible_lines[number - 1] = line
         if hidden and not line.strip():
@@ -49,6 +50,8 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
                 raise KarteFormatError("Issue本文のAcceptance criteriaセクションが重複")
             in_ac, level, found = True, heading, True
         next_level = heading_level(visible_lines, number, is_heading)
+        if next_level is not None:
+            list_context = False
         if in_ac and not heading and next_level is not None and next_level <= level:
             remove_setext_title(visible_lines, number, items)
             in_ac = False
@@ -58,6 +61,13 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
                 fence, line,
                 list_indent=(content_indent if in_ac and list_context else None),
             )
+        if not in_html and not was_inline_code:
+            boundary = not stripped or next_level is not None or (was_fenced and fence is None) or bool(THEMATIC_BREAK.fullmatch(line))
+            if (next_level is not None or (not was_fenced and fence is not None)
+                    or THEMATIC_BREAK.fullmatch(line)) and not child:
+                list_context = False
+        else:
+            boundary = False
         if heading or not in_ac:
             continue
         plain_ok = not was_fenced and not was_inline_code and fence is None and not in_html

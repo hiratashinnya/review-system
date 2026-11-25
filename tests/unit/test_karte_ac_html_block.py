@@ -88,6 +88,23 @@ class RawHtmlBlockInAcSectionTest(unittest.TestCase):
             self.assertEqual([item.text.splitlines()[0] for item in items], ["AC1", "AC2"])
             self.assertEqual([item.checked for item in items], [False, True])
 
+    def test_setext_and_root_html_after_list(self):
+        prefixes = ("Acceptance criteria\n===================\n",
+                    "Acceptance criteria\n-------------------\n",
+                    "## Acceptance criteria\n- [ ] AC1\n\n### Example\n",
+                    "## Acceptance criteria\n- [ ] AC1\n\n```\ncode\n```\n")
+        for prefix in prefixes:
+            for fake in ("- [ ] example only", "# Notes"):
+                for tag in ("span", "div"):
+                    with self.subTest(prefix=prefix, fake=fake, tag=tag):
+                        body = prefix + f"  <{tag}>\n{fake}\n  </{tag}>\n\n- [x] AC2\n"
+                        items = from_issue_body(body)
+                        checks = [item for item in items if item.checked is not None]
+                        expected = ["AC1", "AC2"] if "AC1" in prefix else ["AC2"]
+                        self.assertEqual([item.text.splitlines()[0] for item in checks], expected)
+                        self.assertTrue(checks[-1].checked)
+                        self.assertNotEqual(items, from_issue_body(body.replace("AC2", "changed")))
+
 
 if __name__ == "__main__":
     unittest.main()
