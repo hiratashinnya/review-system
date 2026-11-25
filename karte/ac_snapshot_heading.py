@@ -63,11 +63,15 @@ def remove_setext_title(lines: list[str], number: int, items: list) -> None:
         items[-1][0].pop()
 
 
-def block_transition(line, next_level, was_fenced, fence, in_html, was_inline_code, child, list_context):
+def block_transition(line, next_level, was_fenced, fence, in_html, was_inline_code, child, list_context, html_block, html_container):
     """Track boundaries from recognized blocks, not raw previous-line guesses."""
     if next_level is not None:
         list_context = False
-    if in_html or was_inline_code:
+    if html_container == 0:
+        list_context = False
+    if in_html:
+        return html_block is None, list_context
+    if was_inline_code:
         return False, list_context
     thematic = bool(THEMATIC_BREAK.fullmatch(line))
     boundary = not line.strip() or next_level is not None or (was_fenced and fence is None) or thematic

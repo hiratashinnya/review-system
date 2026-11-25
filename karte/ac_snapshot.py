@@ -30,7 +30,7 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
     visible_lines = [""] * len(lines)
     for number, raw_line in enumerate(lines, start=1):
         was_inline_code = comments.code_ticks != 0
-        html_block, in_html = advance_html(html_block, raw_line, fence is None and not was_inline_code and not comments.in_comment, boundary=boundary, list_indent=content_indent if in_ac and list_context else None)
+        html_block, in_html, html_container = advance_html(html_block, raw_line, fence is None and not was_inline_code and not comments.in_comment, boundary=boundary, list_indent=content_indent if in_ac and list_context else None)
         line, hidden = (raw_line, False) if in_html else comments.filter(raw_line, fence, in_ac, list_context, content_indent, lines[number:])
         visible_lines[number - 1] = line
         if hidden and not line.strip():
@@ -56,7 +56,7 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
                 fence, line,
                 list_indent=(content_indent if in_ac and list_context else None),
             )
-        boundary, list_context = block_transition(line, next_level, was_fenced, fence, in_html, was_inline_code, child, list_context)
+        boundary, list_context = block_transition(line, next_level, was_fenced, fence, in_html, was_inline_code, child, list_context, html_block, html_container)
         if heading or not in_ac:
             continue
         plain_ok = not was_fenced and not was_inline_code and fence is None and not in_html

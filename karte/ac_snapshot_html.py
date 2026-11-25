@@ -27,7 +27,7 @@ def advance(block, line, active, *, boundary=False, list_indent=None):
             block = None
     if block is None:
         if not active:
-            return None, False
+            return None, False, None
         container = list_indent if list_indent and line.startswith(" " * list_indent) else 0
         candidate = line[container:]
         match = RAW.match(candidate)
@@ -44,7 +44,7 @@ def advance(block, line, active, *, boundary=False, list_indent=None):
         else:
             return None, False
         block = (block, container)
-    end, _ = block
+    end, container = block
     if end.search(line):
-        return None, end is not BLANK
-    return block, True
+        return None, end is not BLANK, container
+    return block, True, container
