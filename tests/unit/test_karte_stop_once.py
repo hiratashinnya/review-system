@@ -119,6 +119,21 @@ class OneShotStopTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("invalid one-shot state", log)
 
+    def test_record_missing_issue_or_reasons_is_logged_and_not_consumed(self):
+        for field in ("issue", "reasons"):
+            session = f"missing-{field}-session"
+            with self.subTest(field=field):
+                self.post(status(undecided=["F-513-01"]), session=session)
+                path = store.state_file(self.root, session)
+                data = json.loads(path.read_text(encoding="utf-8"))
+                del data["events"]["513"][field]
+                path.write_text(json.dumps(data), encoding="utf-8")
+                code, log = self.run_main(["pre"], json.dumps(tool("Bash", session)))
+                self.assertEqual(code, 0)
+                self.assertIn("invalid one-shot state", log)
+                after = json.loads(path.read_text(encoding="utf-8"))
+                self.assertEqual(after["events"]["513"]["denied"], 0)
+
     def test_load_and_argument_failures_exit_zero_with_log(self):
         with patch("sys.argv", ["hook"]):
             code, log = self.run_main([], "{}")

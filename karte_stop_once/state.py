@@ -23,7 +23,14 @@ def _events(data: dict) -> dict:
 def _valid_event(event) -> bool:
     return (isinstance(event, dict) and isinstance(event.get("digest"), str)
             and type(event.get("denied")) is int and event["denied"] >= 0
-            and isinstance(event.get("followup_tools"), list))
+            and isinstance(event.get("followup_tools"), list)
+            and type(event.get("issue")) is int and _valid_reasons(event.get("reasons")))
+
+
+def _valid_reasons(reasons) -> bool:
+    return isinstance(reasons, list) and all(
+        isinstance(r, (list, tuple)) and len(r) == 2 and isinstance(r[0], str)
+        and isinstance(r[1], list) for r in reasons)
 
 
 def arm(root: Path, session: str, issue: int, read_event) -> bool:
