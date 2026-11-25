@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@5dd836e75a4c -->
+<!-- synced-from: CLAUDE.md@5fec7e49cc6d -->
 <!--
   Issue #812 (2026-11-16): .claude/rules/05-skills-agents.md の gh-create-issue
   allowlist説明をエージェント定義への参照に変更。配送本文の中核規範は変えず、
@@ -359,3 +359,5 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
     `adviser` はread-only相談のみで、編集・push・台帳変更・承認・STOP解除をしない。
     全Issue工程roleは非対話であり、曖昧さはSTOPで主文脈へ返す。正本＝`.claude/rules/05-skills-agents.md`。
 14. **ドキュメントと既存コードの食い違い** — コードの書き方に従い、見つけた食い違いを最後の返答ですべて挙げる。
+
+15. **AC と PR の対応を着手前に確定する** — 主文脈は全 AC の割り当て表をチャットに提示し、1 PR で満たせない場合は分割案とオーナー判断を得るまで実装に着手しない。PR 作成担当は本文に closing／非 closing と closure 宣言、非 closing の理由・必要な子 Issue を記録する。詳細・記法の参照先は `.ai/skills/issue-pipeline/SKILL.md`「AC の PR 割り当てと closure 宣言」。既存の close・AC 更新の事前確認を維持する。

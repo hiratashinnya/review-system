@@ -1,5 +1,5 @@
 <!-- generated-by: python3 -m guidance_sync render; edit-source-only -->
-<!-- common-source: .ai/guidance/common.md; sha256: a2e2130982fee7e50041b9af997e07466379e2dfd8699e667083c793061da35f -->
+<!-- common-source: .ai/guidance/common.md; sha256: 0a65b9c11cce85cc48999055b88f653c644e3b8c53d23c74a1e5034054ea19b6 -->
 <!-- principles-source: .ai/skills/spec-principles/SKILL.md; sha256: 17df1f5cce696a3a65181f465a2eba0a38afe65ed6a298acea0f230edaff64d9 -->
 <!-- platform-source: .ai/guidance/platforms/copilot.md; sha256: caf0edb10a886553e39f1c3cbd4e850c44ace71170fa4f0e3f79eaabb6beac1b -->
 
@@ -21,6 +21,7 @@
 - 矛盾・情報不足・オーナー判断必須で停止するときは、事実、選択肢、メリット／デメリット、理由付き推奨を示す。空の停止や AI による独断的な「対応不要」は禁止する。
 - 依頼済みの開発作業に含まれ、対象 repo・branch・PR・Issue が一致する非破壊の通常操作は追加の事前確認なく実行し、結果を事後報告する。作業 branch への non-force push、PR 作成・本文更新・レビュー記録、Issue 作成・更新・コメント、通常の CI/check 実行・再実行が含まれる。ただし Issue・PR のクローズと、それぞれの受け入れ基準（AC）の更新は対象と変更内容を示して事前確認する。対象と内容が一致する明示的な指示・承認が既にある場合は再質問しない。公開 repository であることだけを理由に確認を求めない。依頼範囲外は停止する。
 - AI は PR merge／auto-merge を実行しない。force push、remote branch 削除、履歴改変・大量削除は個別操作の明示指示を要する。公開設定・アクセス権変更、本番デプロイ、正式 Release 公開、SNS・ブログ等への対外投稿や第三者へのメール・DM は原則事前確認し、対象と内容が一致する既存の明示承認は重ねて尋ねない。禁止 branch・role 権限・秘密保護・課金・機械的な承認ゲートは維持する。
+- 主文脈は Issue の実装着手前に全 AC の PR 割り当て対応表をチャットへ提示し、1 PR で全 AC を満たせない場合は子 Issue の分割案を示してオーナー判断を得るまで着手しない。PR 作成担当は本文に `Closes #N` または `Refs #N` と closure 宣言を置き、非 closing の理由・必要な分割先を明示する。根拠は `FBK-20261110-acは1prで満たし大きいissueは着手時に分割する`、手順・表の定義・宣言記法の参照先は `.ai/skills/issue-pipeline/SKILL.md`「AC の PR 割り当てと closure 宣言」。既存の close・AC 更新の承認境界と FBK のベースラインリファクタリング例外を変更しない。
 - スケジュールや後続スプリントへの繰越は、オーナーの明示指示なしに決めない。
 - CI や外部サービスは無課金で実現できる方法を優先する。課金が避けられない場合は実装前にオーナーの明示認可を得る。
 - 設計で仕様から一意に決まらない点は、論点・選択肢・推奨・暫定決定・影響範囲を判断記録へ残して前進する。
