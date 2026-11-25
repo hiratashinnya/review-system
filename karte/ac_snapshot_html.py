@@ -19,8 +19,8 @@ TAG = re.compile(r"^ {0,3}(?:<[a-zA-Z][a-zA-Z0-9-]*" + ATTR + r"*[ \t]*/?>|</[a-
 BLANK = re.compile(r"^[ \t]*$")
 
 
-def advance(block, line, active, *, boundary=False, list_indent=None):
-    """Return (end condition, whether this line is raw HTML)."""
+def advance(block, line, active, *, boundary=False, list_indent=None) -> tuple[tuple[re.Pattern, int] | None, bool, int | None]:
+    """Return (remaining HTML block, raw-HTML flag, container indent or None)."""
     if block is not None:
         end, container = block
         if container and line.strip() and not line.startswith(" " * container):
@@ -42,7 +42,7 @@ def advance(block, line, active, *, boundary=False, list_indent=None):
         elif BLOCK.match(candidate) or (boundary and TAG.fullmatch(candidate)):
             block = BLANK
         else:
-            return None, False
+            return None, False, None
         block = (block, container)
     end, container = block
     if end.search(line):
