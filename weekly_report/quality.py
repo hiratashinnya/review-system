@@ -2,12 +2,16 @@
 
 from collections import Counter, defaultdict
 
+from .gh_details import review_target
+from .gh_pr_evidence import verified_heads
 from .quantities import count, measured
 
 
 def measure(period, github):
     workflow_data = github["ci"]
-    workflows = workflow_data["rows"]
+    workflows = None if workflow_data["rows"] is None else [
+        row for row in workflow_data["rows"] if period.contains(row["created_at"])
+    ]
     metrics = {
         "workflow_runs": count(workflows, "期間内に作成された GitHub Actions run（取得時の状態）",
                                workflow_data),
@@ -35,27 +39,38 @@ def measure(period, github):
     if workflows is not None:
         workflow_counts = Counter(run["conclusion"] or run["status"] for run in workflows)
         metrics["workflow_runs"]["by_result"] = dict(sorted(workflow_counts.items()))
-    reviews = github["reviews"]
+    reviews = _period_reviews(period, github)
     rows = [row for data in reviews.values() for row in data["rows"] or []]
     reason = None
+    status = "measured"
     if github["pulls"]["rows"] is None or any(data["rows"] is None for data in reviews.values()):
         reason = "PR またはレビュー投稿の取得範囲が不完全です"
+        status = "not_retrieved"
     elif any(row["state"] != "PENDING" and row["submitted_at"] is None for row in rows):
         reason = "投稿済みレビューの時刻に欠損があり、期間内の件数を確定できません"
+        status = "not_measured"
     in_period = [row for row in rows if row["state"] != "PENDING" and period.contains(row["submitted_at"])]
     metrics["review_submissions"] = measured(
         len(in_period) if reason is None else None,
         "収集対象 PR の期間内レビュー投稿（観測時 open または期間内に close/merge）",
         "GitHub REST pulls/{number}/reviews",
-        reason=reason,
+        reason=reason, status=status,
         target_pr_numbers=sorted(reviews),
         observed_submissions=len(in_period),
     )
     return metrics
 
 
+def _period_reviews(period, github):
+    reviews = github["reviews"]
+    return {pull["number"]: reviews.get(pull["number"], {"rows": None})
+            for pull in github["pulls"]["rows"] or [] if review_target(pull, period)}
+
+
 def matching_heads(github):
     """Identify evidence with a known SHA matching the observed PR head."""
+    if "head_ci" in github:
+        return verified_heads(github)
     if github["pulls"]["rows"] is None:
         return None
     runs = github["ci"]["rows"]

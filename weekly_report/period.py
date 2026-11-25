@@ -6,6 +6,7 @@ from datetime import datetime, time, timedelta, timezone
 JST = timezone(timedelta(hours=9), "JST")
 NO_OBSERVED_TIME = "観測済みの時間帯がありません"
 COLLECTION_START = "collection_start"
+WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
 def parse_jst(value):
@@ -42,14 +43,20 @@ class Period:
         }
 
 
-def resolve_period(start, end, now, *, observed_at=None):
+def resolve_cutoff(now, observed_at):
     cutoff = parse_jst(now) if now else observed_at or datetime.now(JST)
-    if observed_at is not None:
-        cutoff = min(cutoff, observed_at)
+    return min(cutoff, observed_at) if observed_at is not None else cutoff
+
+
+def week_beginning(day, week_start):
+    offset = (day.weekday() - WEEKDAYS.index(week_start)) % len(WEEKDAYS)
+    return datetime.combine(day - timedelta(days=offset), time.min, JST)
+
+
+def resolve_period(start, end, now, *, observed_at=None, week_start="monday"):
+    cutoff = resolve_cutoff(now, observed_at)
     if start is None and end is None:
-        today = cutoff.date()
-        monday = today - timedelta(days=today.weekday())
-        beginning = datetime.combine(monday, time.min, JST)
+        beginning = week_beginning(cutoff.date(), week_start)
         return Period(beginning, beginning + timedelta(days=7), cutoff)
     if start is None or end is None:
         raise ValueError("--start と --end は組で指定してください")

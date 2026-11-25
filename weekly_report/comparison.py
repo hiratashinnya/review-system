@@ -2,7 +2,9 @@
 
 import math
 
-from .period import COLLECTION_START, parse_jst
+from .capture_initiatives import compare_initiatives
+from .capture_observations import compare as compare_observations
+from .period import parse_jst
 
 
 def _span(period):
@@ -33,10 +35,12 @@ def compare(current, previous):
             period_reason = "途中経過を含み、観測済みの期間の長さが異なります"
         elif not observed_span.total_seconds():
             period_reason = "観測済みの時間帯がありません"
-        observation = _observation_comparison(current, previous, start + observed_span, old_start + old_observed_span)
+        observation = compare_observations(current, previous, start + observed_span, old_start + old_observed_span)
         reasons = {"period": period_reason, "observation": observation["reason"]}
         metrics = _compare_metrics(current["metrics"], previous["metrics"], reasons)
-        return {**_status(period_reason), "metrics": metrics, "observation": observation, **provenance}
+        initiatives = compare_initiatives(current, previous, observation["reason"])
+        return {**_status(period_reason), "metrics": metrics, "observation": observation,
+                "initiative_changes": initiatives, **provenance}
     except (KeyError, ValueError, TypeError, AttributeError, OverflowError):
         return _unavailable("incomparable", "前回 snapshot の比較情報を解釈できません")
 
@@ -51,18 +55,6 @@ def _numeric(value):
 
 def _status(reason):
     return {"status": "comparable" if reason is None else "incomparable", "reason": reason}
-
-
-def _observation_comparison(current, previous, cutoff, previous_cutoff):
-    now, before = parse_jst(current["observed_at"]), parse_jst(previous["observed_at"])
-    reason = None
-    if any(snapshot.get("observation_source") != COLLECTION_START for snapshot in (current, previous)):
-        reason = "実際の取得開始時刻と確認できない snapshot があります"
-    elif now < cutoff or before < previous_cutoff:
-        reason = "取得時点が、記録された期間イベントの観測上限より前にあります"
-    elif before >= now:
-        reason = "前回の取得時点が今回より前にありません"
-    return {**_status(reason), "previous_observed_at": before.isoformat(), "observed_at": now.isoformat()}
 
 
 def _compare_metrics(current, previous, reasons):

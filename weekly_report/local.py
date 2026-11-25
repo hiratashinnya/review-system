@@ -3,17 +3,16 @@
 from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
-from typing import cast
-from advisory.catalog import check_catalog, load_catalog
-from advisory.paths import directory
-from feedback_ledger.schema import PROPOSAL
-from feedback_ledger.store import load_store
 from maintainability_lint.baseline import load_baseline
 from maintainability_lint.scanner import scan
 
+from . import ledger_advisory, ledger_feedback
 from .git_source import read_git
-from .period import parse_jst
+from .history import breakdown
 from .quantities import measured
+
+LINT_SOURCE = "maintainability_lint/baseline.json + maintainability_lint.scanner.scan"
+LINT_DEFINITION = "現在の作業ツリーで baseline と照合した保守性警告・違反"
 
 
 def resolve_root(repo):
@@ -34,57 +33,38 @@ def checkout(repo, base_ref):
     }
 
 
-def maintainability(root):
-    source = "maintainability_lint/baseline.json + maintainability_lint.scanner.scan"
-    definition = "現在の作業ツリーで baseline と照合した保守性警告・違反"
+def capture_maintainability(root):
     try:
         baseline = load_baseline(root / "maintainability_lint/baseline.json")
         result = scan(root, baseline)
-        by_status = {status: dict(Counter(row.rule for row in result.findings if row.status == status))
-                     for status in ("accepted-debt", "violation")}
-        return measured(
-            sum(by_status["violation"].values()), definition, source,
-            baseline={"schema_version": baseline["schema_version"], "source": baseline["source"],
-                      "module_lines": len(cast(dict, baseline["module_lines"])),
-                      "comment_blocks": sum(cast(dict, baseline["comment_blocks"]).values()),
-                      "mixed_class_files": len(cast(dict, baseline["mixed_class_files"]))},
-            observed_by_status=by_status, findings=[asdict(row) for row in result.findings],
-        )
+        breakdown(baseline)
+        return {"source": LINT_SOURCE, "baseline": baseline,
+                "findings": [asdict(row) for row in result.findings], "reason": None}
     except (OSError, ValueError, SyntaxError, TypeError, AssertionError) as exc:
-        return measured(None, definition, source, reason=f"スキャン不能 ({type(exc).__name__})")
+        return {"source": LINT_SOURCE, "baseline": None, "findings": None,
+                "reason": f"スキャン不能 ({type(exc).__name__})"}
+
+
+def measure_maintainability(evidence):
+    baseline = evidence["baseline"]
+    findings = evidence["findings"]
+    source = evidence["source"]
+    if findings is None or baseline is None:
+        return measured(None, LINT_DEFINITION, source, reason=evidence["reason"], status="not_retrieved")
+    by_status = {status: dict(Counter(row["rule"] for row in findings if row["status"] == status))
+                 for status in ("accepted-debt", "violation")}
+    return measured(sum(by_status["violation"].values()), LINT_DEFINITION, source,
+                    baseline={"schema_version": baseline["schema_version"], "source": baseline["source"],
+                              **breakdown(baseline)}, observed_by_status=by_status, findings=findings)
+
+
+def maintainability(root):
+    return measure_maintainability(capture_maintainability(root))
 
 
 def owner_proposals(root):
-    source = ".ai/feedback/queue"
-    definition = "フィードバック台帳で承認待ち (pending) の改訂案"
-    try:
-        if not (root / source).is_dir():
-            raise ValueError("保管先がありません")
-        store = load_store(root)
-        if any(finding.level == "ERROR" for finding in store.findings):
-            raise ValueError("台帳の検証に失敗しました")
-        pending = [doc.relpath for doc in store.of(PROPOSAL) if doc.data["status"] == "pending"]
-        return measured(len(pending), definition, source, proposals=pending)
-    except (OSError, ValueError, RuntimeError, KeyError) as exc:
-        return measured(None, definition, source, reason=f"台帳を取得できません ({type(exc).__name__})")
+    return ledger_feedback.measure(ledger_feedback.capture(root))["owner_pending_proposals"]
 
 
 def advisory(root, period):
-    source = ".ai/advisory/ledger"
-    definitions = {"advisories_created": "期間内に登録された Advisory",
-                   "advisories_closed": "期間内に closed になった Advisory の遷移"}
-    try:
-        if not directory(root).is_dir():
-            raise ValueError("台帳ディレクトリがありません")
-        catalog = load_catalog(root)
-        if check_catalog(catalog):
-            raise ValueError("台帳の検証に失敗しました")
-        events = [{"id": name, "topic": item["topic"], "event": event}
-                  for name, item in catalog.items() for event in item["history"]
-                  if period.contains(parse_jst(event["at"]))]
-    except (OSError, ValueError, TypeError) as exc:
-        return {key: measured(None, text, source, reason=f"台帳を取得できません ({exc})")
-                for key, text in definitions.items()}
-    selected = {"advisories_created": [row for row in events if row["event"]["action"] == "create"],
-                "advisories_closed": [row for row in events if row["event"]["to_status"] == "closed" and row["event"]["from_status"] != "closed"]}
-    return {key: measured(len(rows), definitions[key], source, events=rows) for key, rows in selected.items()}
+    return ledger_advisory.measure(period, ledger_advisory.capture(root))

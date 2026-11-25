@@ -6,10 +6,9 @@ from pathlib import Path
 import subprocess
 import sys
 
-from . import analysis, output, snapshot
-from .github import normalize_repository
+from . import analysis, batch_cli, output, replay, snapshot
 from .local import resolve_root
-from .period import JST, resolve_period
+from .period import JST
 
 
 def _page_limit(raw):
@@ -30,10 +29,15 @@ def parser():
     collect.add_argument("--now", help="期間イベントの基準時刻を固定 (ISO 8601、テスト・再現用)")
     collect.add_argument("--previous", help="比較する前回 snapshot.json")
     collect.add_argument("--max-pages", default=30, type=_page_limit, help="各 API 応答の検証上限")
+    batch_cli.add_options(collect)
     render = commands.add_parser("render", help="snapshot を再使用して分析付き HTML と要約を保存")
     render.add_argument("--snapshot", required=True)
     render.add_argument("--analysis", required=True, help="Skill が作る分析 JSON")
-    for action in (collect, render):
+    recalculate = commands.add_parser("replay", help="保存 snapshot の証跡で定量値をオフライン再計算")
+    recalculate.add_argument("--snapshot", required=True)
+    recalculate.add_argument("--analysis", help="Skill が作る分析 JSON")
+    recalculate.add_argument("--previous", help="比較対象の差し替え用 snapshot.json")
+    for action in (collect, render, recalculate):
         action.add_argument("--out", help="作業ツリー外の新規出力先（省略時は一時ディレクトリ）")
     return command
 
@@ -52,21 +56,17 @@ def main(argv=None):
     args = parser().parse_args(argv)
     try:
         root = resolve_root(Path.cwd())
-        interpretation = None
         if args.action == "collect":
-            observed_at = datetime.now(JST)
-            period = resolve_period(args.start, args.end, args.now, observed_at=observed_at)
-            repository = normalize_repository(args.repository)
-            previous = _previous(args.previous)
-            data = snapshot.collect(root, repository, args.base_ref, period, args.max_pages, previous,
-                                    observed_at=observed_at)
+            destination = batch_cli.collect(args, root, datetime.now(JST), _previous(args.previous))
         else:
             data = snapshot.load(args.snapshot)
             if data["schema_version"] != snapshot.SCHEMA_VERSION:
                 raise ValueError("snapshot の版に対応していません")
-            interpretation = analysis.validate(snapshot.load(args.analysis))
-        destination = output.write(data, interpretation, args.out, root)
-    except (OSError, ValueError, TypeError, AttributeError, KeyError, subprocess.TimeoutExpired) as exc:
+            if args.action == "replay":
+                data = replay.recalculate(data, _previous(args.previous))
+            interpretation = analysis.validate(snapshot.load(args.analysis)) if args.analysis else None
+            destination = output.write(data, interpretation, args.out, root)
+    except (OSError, ValueError, TypeError, AttributeError, KeyError, OverflowError, subprocess.TimeoutExpired) as exc:
         print(f"weekly_report: {exc}", file=sys.stderr)
         return 1
     print(destination)

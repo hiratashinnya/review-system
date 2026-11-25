@@ -4,10 +4,12 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from . import activity, backlog, local, quality, read_github
+from . import activity, capture_stock, history, ledger, quality
+from .capture import acquire
+from .capture_observations import describe
 from .comparison import compare
-from .git_source import verify_repository
 from .period import COLLECTION_START, NO_OBSERVED_TIME
+from .replay import INPUT_VERSION, previous_input
 
 SCHEMA_VERSION = 1
 
@@ -27,32 +29,48 @@ def load(path):
 
 
 def collect(root, repository, base_ref, period, max_pages, previous, *, observed_at):
-    verify_repository(root, repository)
-    reference = local.checkout(root, base_ref)
-    github = read_github.collect(repository, period, max_pages)
-    event_metrics, events, defect_inputs = activity.measure(period, repository, github["issues"], github["pulls"])
-    stock_metrics, inventory = backlog.measure(observed_at, github)
-    stock_metrics.update({
-        "maintainability_violations": local.maintainability(root),
-        "owner_pending_proposals": local.owner_proposals(root),
-    })
-    metrics = {**event_metrics, **quality.measure(period, github), **local.advisory(root, period)}
+    captured = acquire(root, repository, base_ref, period, max_pages)
+    return assemble(repository, period, captured, observed_at, None, previous)
+
+
+def assemble(repository, period, captured, observed_at, archive, previous):
+    github, reference = captured["github"], captured["reference"]
+    event_metrics, events, defect_inputs = activity.measure(period, repository, github["issues"], github["pulls"],
+                                                            transitions=github.get("transitions"))
+    observation = describe(period, observed_at, archive)
+    if archive:
+        stock_metrics, inventory = capture_stock.from_archive(archive)
+        observation["reference"] = archive["reference"]
+    else:
+        stock_metrics, inventory = capture_stock.measure(github, captured["ledger"], observed_at)
+    metrics = event_metrics | quality.measure(period, github) | ledger.period_metrics(period, captured["ledger"])
     if period.cutoff == period.start:
-        metrics = {key: {**metric, "value": None, "reason": NO_OBSERVED_TIME} for key, metric in metrics.items()}
+        metrics = {key: {**metric, "value": None, "status": "not_measured", "reason": NO_OBSERVED_TIME}
+                   for key, metric in metrics.items()}
         events = dict.fromkeys(events)
+    metrics.update(history.measure(captured["main_history"], period.cutoff))
     metrics = {**{key: {**value, "basis": "period"} for key, value in metrics.items()},
                **{key: {**value, "basis": "observation"} for key, value in stock_metrics.items()}}
     sources = {key: {field: value for field, value in github[key].items() if field != "rows"}
                for key in ("issues", "pulls", "ci")}
+    ci = github["ci"]["rows"]
+    evidence = {"ci": None if ci is None else [row for row in ci if period.contains(row["created_at"])],
+                "reviews": github["reviews"], "defect_metrics": defect_inputs,
+                "pull_heads": quality.matching_heads(github), "transitions": github.get("transitions"),
+                "head_ci": github.get("head_ci"), "pull_files": github.get("pull_files"),
+                "consistency": github.get("consistency")}
+    if archive:
+        evidence["saved_observation"] = archive["evidence"]
     data = {
         "schema_version": SCHEMA_VERSION, "repository": repository,
-        "observed_at": observed_at.isoformat(), "observation_source": COLLECTION_START, "period": period.as_dict(),
+        "observed_at": observation["observed_at"], "observation_source": COLLECTION_START,
+        "observation": observation, "period": period.as_dict(), "collection_period": captured["collection_period"],
         "reference": reference, "metrics": metrics, "sources": sources, "events": events,
-        "inventory": inventory,
-        "evidence": {"ci": github["ci"]["rows"], "reviews": github["reviews"], "defect_metrics": defect_inputs,
-                     "pull_heads": quality.matching_heads(github)},
+        "inventory": inventory, "evidence": evidence,
+        "replay_inputs": {"version": INPUT_VERSION, "captured": captured, "archive": archive,
+                          "previous": previous_input(previous), "current_collection_at": observed_at.isoformat()},
         "limitations": [
-            "GitHub の状態・レビュー・依存は逐次取得した時点の観測です。過去時点の残数は復元しません。",
+            "GitHub の状態・レビュー・依存は逐次取得した時点の観測です。後日取得と対象期間内の実測を区別します。",
             activity.LATEST_CLOSE,
             "Issue/PR の移管・削除や取得中の更新は、API が公開する記録の範囲に限ります。",
         ],

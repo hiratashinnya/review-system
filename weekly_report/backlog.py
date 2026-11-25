@@ -2,6 +2,8 @@
 
 from datetime import timedelta
 
+from .gh_acceptance import acceptance_evidence
+from .gh_initiatives import initiatives
 from .quantities import count, measured
 from .records import public_item
 
@@ -26,13 +28,16 @@ def measure(observed_at, github):
     details = github["blocked_by"]
     blocked = [number for number, data in details.items()
                if any(row["state"] == "open" for row in data["rows"] or [])]
-    unavailable = [number for number, data in details.items() if data["rows"] is None]
+    expected = {row["number"] for row in issues or []}
+    unavailable = sorted(number for number in expected
+                         if number not in details or details[number]["rows"] is None)
     reason = None
     if issues is None or unavailable:
         reason = "open Issue または依存関係の取得範囲が不完全です"
     metrics["blocked_issues"] = measured(
         None if reason else len(blocked), "観測時に未完了の blocked-by 関係がある open Issue",
         "GitHub REST issues/{number}/dependencies/blocked_by", reason=reason,
+        status="not_retrieved" if reason else "measured",
         observed_issue_numbers=blocked, unmeasured_issue_numbers=unavailable,
     )
     return metrics, {
@@ -40,4 +45,8 @@ def measure(observed_at, github):
         "open_pulls": None if pulls is None else [public_item(row) for row in pulls],
         "blocked_by": github["blocked_by"],
         "sub_issues": github["sub_issues"],
+        "initiative_progress": initiatives(github["issues"]["rows"], github["sub_issues"]),
+        "issue_acceptance": None if github["issues"]["rows"] is None else {
+            row["number"]: acceptance_evidence(row) for row in github["issues"]["rows"]
+        },
     }

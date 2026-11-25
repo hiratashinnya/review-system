@@ -3,6 +3,7 @@
 from statistics import median
 
 from . import defect_evidence
+from .gh_period_metrics import lifecycle, merge_destinations
 from .quantities import count, measured
 from .records import public_item
 
@@ -27,7 +28,7 @@ def _close_reason(item):
     return item["state_reason"] if item["state_reason"] in ("completed", "not_planned", "duplicate") else "unknown"
 
 
-def measure(period, repository, issue_data, pull_data):
+def measure(period, repository, issue_data, pull_data, *, transitions=None):
     created = _select(issue_data, lambda row: period.contains(row["created_at"]))
     closed = _select(issue_data, lambda row: row["state"] == "closed" and period.contains(row["closed_at"]))
     merged = _select(pull_data, lambda row: period.contains(row["merged_at"]))
@@ -38,6 +39,7 @@ def measure(period, repository, issue_data, pull_data):
         "pull_lead_days": _lead(merged, "merged_at", "期間内マージ PR の起票からマージまでの中央値", pull_data),
         "defects_per_merge": defect_evidence.measure(period, repository, defect_inputs, issue_data, pull_data),
     }
+    metrics.update(merge_destinations(merged, pull_data, repository))
     close_groups = {key: None if closed is None else [row for row in closed if _close_reason(row) == key]
                     for key in ("completed", "not_planned", "duplicate", "unknown")}
     complete = close_groups["completed"]
@@ -49,7 +51,7 @@ def measure(period, repository, issue_data, pull_data):
     for key, rows in close_groups.items():
         metric = count(rows, f"{LATEST_CLOSE} state_reason={key}", issue_data)
         if rows is not None and (missing_timestamp or (key == "completed" and unknown)):
-            metric |= {"value": None, "reason": unknown, "observed_count": len(rows)}
+            metric |= {"value": None, "status": "not_measured", "reason": unknown, "observed_count": len(rows)}
         metrics[f"issues_closed_{key}"] = metric
     metrics["issue_lead_days"] = _lead(
         complete, "closed_at", "最新の completed Issue の起票からクローズまでの中央値",
@@ -59,4 +61,8 @@ def measure(period, repository, issue_data, pull_data):
               for key, rows in {"created": created, "closed": closed, "merged": merged}.items()}
     if missing_timestamp:
         events["closed_known"], events["closed"] = events["closed"], None
+    if transitions is not None:
+        extra_metrics, extra_events = lifecycle(period, issue_data, metrics["issues_created"], transitions)
+        metrics.update(extra_metrics)
+        events.update(extra_events)
     return metrics, events, defect_inputs
