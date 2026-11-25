@@ -1,1 +1,1 @@
-"""Issue #513: one-shot stop intervention (trial, not a security boundary)."""
+"""Issue #513: one-shot stop intervention (not a security boundary)."""

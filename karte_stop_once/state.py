@@ -10,7 +10,7 @@ _TODO_TOOLS = {"TodoWrite", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet"}
 
 def _events(data: dict) -> dict:
     """Keep one independent STOP history per Issue within a session."""
-    if "digest" in data:  # Migrate existing one-Issue trial state.
+    if "digest" in data:  # Migrate the old single-Issue record format.
         previous = data.copy()
         data.clear()
         data.update(events={str(previous["issue"]): previous}, active_issue=str(previous["issue"]))
