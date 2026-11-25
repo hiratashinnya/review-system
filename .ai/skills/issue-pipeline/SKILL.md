@@ -124,47 +124,27 @@ globやdirectory一括許可を使わず、
 
 #### 層と推論予算
 
-Issue #851（2026-11-23、オーナー選択 D）により、**モデル層と推論予算の導出元**は
-`.ai/skills/bloom-model-tier/SKILL.md` の Bloom Lv × 軸2（網羅性／判断）の閾値表とする。
-**採用値は次表の値**とし、導出値より引き上げる場合は理由を同じ行に残す。軸2はロールが
-繰り返す主要認知行為から判定し、単に `model:`／`effort:` を逆算して決めない。
-「中位／大」などの層・予算は PF 中立の抽象値であり、実際のモデルと effort は既存の
-各 PF 写像へ独立に渡す（Claude：`.claude/skills/bloom-model-tier/SKILL.md`）。
-実行時のリスク信号での引上げは次表を**下限**として適用する。モデル層と予算の相殺・降格は禁止する。
+各ロールのモデル層・推論予算は次表の**採用値**を使う。導出元は
+`.ai/skills/bloom-model-tier/SKILL.md` の Bloom Lv × 軸2 の閾値表とする。
+採用値と導出値の差異も採用値を優先する。選定理由・例外理由・変更経緯は
+`.ai/rationale/model-tier-alignment-851.md` を参照する。
 
-| ロール | 主要認知行為・Bloom Lv | 軸2 | 閾値表からの導出（層／予算） | 採用（層／予算） | 導出との差・採用理由 |
-|---|---|---|---|---|---|
-| issue-investigator | 原因・影響の差分／分析 Lv4 | 網羅性 | 中位／大 | 中位／大 | 一致：調査対象を漏らさず照合し、判断を上位へ返す |
-| ac-designer | AC の妥当性／評価 Lv5 | 判断 | 最上位／中 | 最上位／中 | 一致：曖昧な受入条件を評価する |
-| change-planner | 設計・依存調整／創造 Lv6 | 判断 | 最上位／大 | 最上位／大 | 一致：新しい変更計画を組み立てる |
-| plan-reviewer | 計画・検証条件の合否／評価 Lv5 | 判断 | 最上位／中 | 最上位／中 | 一致：不整合の可否を判断する |
-| test-writer | 境界・反例の網羅／分析 Lv4 | 網羅性 | 中位／大 | **中位／大** | 一致：不足していた旧「中」を現行閾値に合わせる |
-| issue-implementer | 承認済み計画の適用／応用 Lv3 | 網羅性 | 中位／中 | **中位／大** | **意図的引上げ**：実装・既存 Red/Green・影響経路の見落としを減らすため既存 Claude `sonnet/xhigh` の予算を維持する（Lv3を判断と見なすことではない） |
-| pr-reviewer | 実害・契約適合性／評価 Lv5 | 判断 | 最上位／中 | **最上位／大** | **意図的引上げ**：全変更箇所と影響面・権限/fail-closeの精査を要し、既存 `xhigh` の予算を下げずにモデル層を規範と一致させる。初回リスク信号は必要に応じさらに評価する |
-| issue-fixer | finding の根本原因／分析 Lv4 | 網羅性 | 中位／大 | **中位／大** | 一致：不足していた旧「中」を現行閾値に合わせる |
-| adviser | 相談ごとの主要認知行為・Lv を都度判定 | 相談ごとに判定 | 閾値表の該当セル（層／予算） | **最上位固定／相談ごとの導出予算** | **意図的引上げの可能性**：層だけ最上位に固定（2026-11-16オーナー決定）、予算は相談ごとに算定する |
-
-`adviser` の Claude frontmatter（`opus/high`）は最上位／中の静的初期値であり、
-**相談内容が大・最大の予算を要求する場合は**実行時に `opus/xhigh` 以上へ引き上げる。
-frontmatter の `high` を全相談の上限と見なさない。Codex の相談も最上位固定で、
-個別の相談に対して導出した抽象予算を Codex 側の `high`／`xhigh`／`max` などへ写像する。
-
-Codex 既定の5ロールの通常の基準と上限切替時の静的 Claude 設定を以下に示す。
-ここでの「満たす」は**採用した通常基準との比較**だけであり、個々の dispatch が
-追加のリスク引上げを指定した場合は、必ず**その実指定値**で照合し直す。
-
-| Codex 既定ロール | Codex 通常指定（層／予算 ⇒ tier/effort） | Claude frontmatter | 切替時の下限判定 |
+| ロール | Bloom Lv／軸2 | 導出値（層／予算） | 採用値（層／予算） |
 |---|---|---|---|
-| issue-investigator | 中位／大 ⇒ `mid/xhigh` | `sonnet/xhigh` | 通常基準を満たす |
-| test-writer | 中位／大 ⇒ `mid/xhigh` | `sonnet/xhigh` | 通常基準を満たす |
-| issue-implementer | 中位／大 ⇒ `mid/xhigh` | `sonnet/xhigh` | 通常基準を満たす |
-| issue-fixer | 中位／大 ⇒ `mid/xhigh` | `sonnet/xhigh` | 通常基準を満たす |
-| adviser | 最上位／相談ごとの予算 ⇒ `top/<算定結果>` | `opus/high` | 中以下は満たす。大・最大では `opus/xhigh` へ引上げ、不能なら STOP |
+| issue-investigator | Lv4／網羅性 | 中位／大 | 中位／大 |
+| ac-designer | Lv5／判断 | 最上位／中 | 最上位／中 |
+| change-planner | Lv6／判断 | 最上位／大 | 最上位／大 |
+| plan-reviewer | Lv5／判断 | 最上位／中 | 最上位／中 |
+| test-writer | Lv4／網羅性 | 中位／大 | 中位／大 |
+| issue-implementer | Lv3／網羅性 | 中位／中 | 中位／大 |
+| pr-reviewer | Lv5／判断 | 最上位／中 | 最上位／大 |
+| issue-fixer | Lv4／網羅性 | 中位／大 | 中位／大 |
+| adviser | 相談内容ごとに判定 | 該当セルの層／予算 | 最上位／該当セルの予算 |
 
-Claude は「大」と「最大」をともに `xhigh` と表示するが、Codex 側の「最大」は
-`max` であり、**抽象段階は保持したまま**切替を照合する。単に文字列として
-`xhigh` 同士を比べたり、Claude の effort から「大／最大」を逆算したりしない。
-既存の上限切替規範（後述）にある「同じ抽象段階以上」を変更しない。
+adviser の層は最上位固定、予算は相談内容ごとに閾値表から算定する。
+リスク信号による引上げは採用値を下限とし、層・予算を互いに相殺しない。
+Codex から Claude への切替時には、下記の切替規範に従い、
+Codex に**実指定した**抽象層・予算を下回らないようにする。
 
 具体ID/予算は `.ai/model-policy.json` と `model_policy/README.md` の既存resolverで解決し、
 policy/catalog hash、取得surface/方法/日時、resolved ID、実使用ID、確認結果を追跡する。
