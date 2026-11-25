@@ -1,11 +1,14 @@
 """One-shot STOP: scope, replay, owner-question exemption and regression cases."""
+import fcntl
+import io
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from karte_stop_once import decision, state, hook
+from karte_stop_once import decision, hook, state, store
 
 SESSION = "abcd-1234-session"
 
@@ -54,6 +57,50 @@ class OneShotStopTest(unittest.TestCase):
         self.post(status(undecided=["F-513-01"]))
         self.assertIsNone(self.pre("AskUserQuestion"))
         self.assertIsNone(self.pre("Bash"))
+
+    def test_todo_tools_pass_and_keep_the_denial(self):
+        for name in ("TodoWrite", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet"):
+            session = f"todo-pass-{name}"
+            with self.subTest(tool=name):
+                self.assertIsNotNone(self.post(status(undecided=["F-513-01"]), session=session))
+                self.assertIsNone(self.pre(name, session))
+                self.assertIsNotNone(self.pre("Bash", session))
+                self.assertIsNone(self.pre("Bash", session))
+
+    def test_status_is_read_while_the_state_lock_is_held(self):
+        held = []
+
+        def reader(root, issue):
+            path = store.state_file(root, SESSION)
+            fd = os.open(str(path) + ".lock", os.O_RDWR)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                held.append(False)
+            except BlockingIOError:
+                held.append(True)
+            finally:
+                os.close(fd)
+            return status(undecided=["F-513-01"])
+
+        hook.run("post", done(self.command, self.output), root=self.root, status_reader=reader)
+        self.assertEqual(held, [True])
+
+    def test_invalid_state_shape_is_logged_not_raised(self):
+        self.post(status(undecided=["F-513-01"]))
+        path = store.state_file(self.root, SESSION)
+        for text in ('{"events": []}', '{"events": {"513": []}}', '[]',
+                     '{"events": {"513": {"digest": "x", "denied": "0", "followup_tools": []}}}'):
+            with self.subTest(text=text):
+                path.write_text(text, encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    state.attempt(self.root, SESSION, "Bash")
+        path.write_text('{"events": []}', encoding="utf-8")
+        stdin = io.StringIO(json.dumps(tool("Bash")))
+        stderr = io.StringIO()
+        with patch("sys.stdin", stdin), patch("sys.stderr", stderr), \
+                patch.object(hook, "_root", return_value=self.root):
+            self.assertEqual(hook.main(["pre"]), 0)
+        self.assertIn("karte_stop_once:", stderr.getvalue())
 
     def test_new_stop_reason_gets_another_denial(self):
         self.post(status(undecided=["F-513-01"]))

@@ -1,51 +1,11 @@
 """Session-local one-shot latch, protected against parallel PreToolUse calls."""
-import fcntl
-import hashlib
-import json
-import os
-import re
-import tempfile
-from contextlib import contextmanager
 from pathlib import Path
 
+from .store import locked, state_file
+
 DENIALS_PER_EVENT = 1  # Increase only after measured non-compliance.
-_SESSION = re.compile(r"[A-Za-z0-9_-]{8,128}\Z", re.ASCII)
-_SAFE_TOOLS = {"AskUserQuestion", "TodoWrite", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet"}
-
-
-def _file(root: Path, session: str) -> Path | None:
-    if not isinstance(session, str) or not _SESSION.fullmatch(session):
-        return None
-    name = hashlib.sha256(session.encode("ascii")).hexdigest()
-    return root / "tmp" / "_karte" / "stop-once" / (name + ".json")
-
-
-@contextmanager
-def _locked(path: Path, create: bool):
-    if not path.parent.is_dir():
-        if not create:
-            yield None
-            return
-        path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(str(path) + ".lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
-    try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
-        value = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-        if not isinstance(value, dict):
-            raise ValueError("invalid one-shot state")
-        yield value
-        temp = None
-        try:
-            with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent,
-                                             prefix=".stop-", delete=False) as stream:
-                temp = stream.name
-                json.dump(value, stream, ensure_ascii=False)
-            os.replace(temp, path)
-        finally:
-            if temp is not None and os.path.exists(temp):
-                os.unlink(temp)
-    finally:
-        os.close(fd)
+_QUESTION_TOOL = "AskUserQuestion"
+_TODO_TOOLS = {"TodoWrite", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet"}
 
 
 def _events(data: dict) -> dict:
@@ -54,16 +14,25 @@ def _events(data: dict) -> dict:
         previous = data.copy()
         data.clear()
         data.update(events={str(previous["issue"]): previous}, active_issue=str(previous["issue"]))
-    return data.setdefault("events", {})
+    events = data.setdefault("events", {})
+    if not isinstance(events, dict) or not all(_valid_event(v) for v in events.values()):
+        raise ValueError("invalid one-shot state")
+    return events
 
 
-def arm(root: Path, session: str, issue: int, event: dict | None) -> bool:
-    path = _file(root, session)
+def _valid_event(event) -> bool:
+    return (isinstance(event, dict) and isinstance(event.get("digest"), str)
+            and type(event.get("denied")) is int
+            and isinstance(event.get("followup_tools"), list))
+
+
+def arm(root: Path, session: str, issue: int, read_event) -> bool:
+    """Run read_event() under the state lock so a stale reading cannot overwrite a newer arm."""
+    path = state_file(root, session)
     if path is None:
         return False
-    with _locked(path, create=event is not None) as data:
-        if data is None:
-            return False
+    with locked(path, create=True) as data:
+        event = read_event()
         events = _events(data)
         key = str(issue)
         if event is None:
@@ -80,18 +49,20 @@ def arm(root: Path, session: str, issue: int, event: dict | None) -> bool:
 
 
 def attempt(root: Path, session: str, tool: str) -> dict | None:
-    path = _file(root, session)
+    path = state_file(root, session)
     if path is None or not path.is_file():
         return None
-    with _locked(path, create=False) as data:
+    with locked(path, create=False) as data:
         if data is None:
             return None
         event = _events(data).get(data.get("active_issue"))
         if not event or "digest" not in event:
             return None
-        if tool in _SAFE_TOOLS:
-            event["denied"] = DENIALS_PER_EVENT  # Correct next step; no denial.
+        if tool == _QUESTION_TOOL:
+            event["denied"] = DENIALS_PER_EVENT  # Asking the owner uses up this event's denial.
             return None
+        if tool in _TODO_TOOLS:
+            return None  # Allowed; the denial stays available for the next inappropriate tool.
         if event["denied"] < DENIALS_PER_EVENT:
             event["denied"] += 1
             return event.copy()

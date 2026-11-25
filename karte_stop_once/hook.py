@@ -30,11 +30,18 @@ def run(kind, payload, *, root=None, status_reader=None):
         if issue is None:
             return None
         base = _root(root)
-        value = (status_reader or _status)(base, issue)
-        event = decision.evaluate(value)
-        if value["issue"] != issue:
-            raise ValueError("status Issue does not match tool result")
-        if state.arm(base, session, issue, event) and event:
+        armed = []
+
+        def read_event():
+            value = (status_reader or _status)(base, issue)
+            event = decision.evaluate(value)
+            if value["issue"] != issue:
+                raise ValueError("status Issue does not match tool result")
+            armed.append(event)
+            return event
+
+        if state.arm(base, session, issue, read_event):
+            event = armed[0]
             return {"hookSpecificOutput": {"hookEventName": "PostToolUse",
                     "additionalContext": decision.instruction(event)}}
     elif kind == "pre":
@@ -55,8 +62,7 @@ def main(argv=None):
         response = run(kind, json.load(sys.stdin))
         if response:
             print(json.dumps(response, ensure_ascii=False))
-    except (OSError, ValueError, TypeError, KeyError) as exc:
-        # Trial only: cannot turn a hook failure into a session-wide permanent STOP.
+    except Exception as exc:  # A hook failure does not stop the work: log it and exit 0.
         print(f"karte_stop_once: {type(exc).__name__}: {exc}", file=sys.stderr)
     return 0
 
