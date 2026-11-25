@@ -102,6 +102,33 @@ class OneShotStopTest(unittest.TestCase):
             self.assertEqual(hook.main(["pre"]), 0)
         self.assertIn("karte_stop_once:", stderr.getvalue())
 
+    def run_main(self, argv, stdin_text):
+        stderr = io.StringIO()
+        with patch("sys.stdin", io.StringIO(stdin_text)), patch("sys.stderr", stderr), \
+                patch.object(hook, "_root", return_value=self.root):
+            code = hook.main(argv)
+        return code, stderr.getvalue()
+
+    def test_negative_denied_count_is_a_logged_failure(self):
+        self.post(status(undecided=["F-513-01"]))
+        path = store.state_file(self.root, SESSION)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["events"]["513"]["denied"] = -1
+        path.write_text(json.dumps(data), encoding="utf-8")
+        code, log = self.run_main(["pre"], json.dumps(tool("Bash")))
+        self.assertEqual(code, 0)
+        self.assertIn("invalid one-shot state", log)
+
+    def test_load_and_argument_failures_exit_zero_with_log(self):
+        with patch("sys.argv", ["hook"]):
+            code, log = self.run_main([], "{}")
+        self.assertEqual((code, "karte_stop_once:" in log), (0, True))
+        code, log = self.run_main(["pre"], "not json")
+        self.assertEqual((code, "karte_stop_once:" in log), (0, True))
+        with patch.object(hook, "run", side_effect=ImportError("load failed")):
+            code, log = self.run_main(["pre"], "{}")
+        self.assertEqual((code, "load failed" in log), (0, True))
+
     def test_new_stop_reason_gets_another_denial(self):
         self.post(status(undecided=["F-513-01"]))
         self.pre("Bash")

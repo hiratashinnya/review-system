@@ -22,7 +22,7 @@ def _events(data: dict) -> dict:
 
 def _valid_event(event) -> bool:
     return (isinstance(event, dict) and isinstance(event.get("digest"), str)
-            and type(event.get("denied")) is int
+            and type(event.get("denied")) is int and event["denied"] >= 0
             and isinstance(event.get("followup_tools"), list))
 
 

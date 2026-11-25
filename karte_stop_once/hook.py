@@ -4,8 +4,6 @@ import os
 import sys
 from pathlib import Path
 
-from . import decision, state, trigger
-
 
 def _root(root):
     if root is not None:
@@ -22,6 +20,7 @@ def _status(root, issue):
 
 def run(kind, payload, *, root=None, status_reader=None):
     """Pure hook response; invalid/non-target payloads do not arm other sessions."""
+    from . import decision, state, trigger  # Imported here so a load failure is logged by main.
     if not isinstance(payload, dict) or not isinstance(payload.get("session_id"), str):
         return None
     session = payload["session_id"]
@@ -55,10 +54,10 @@ def run(kind, payload, *, root=None, status_reader=None):
 
 
 def main(argv=None):
-    kind = (argv or sys.argv[1:])[0]
-    if kind not in ("pre", "post"):
-        return 2
     try:
+        kind = (argv or sys.argv[1:])[0]
+        if kind not in ("pre", "post"):
+            return 2
         response = run(kind, json.load(sys.stdin))
         if response:
             print(json.dumps(response, ensure_ascii=False))
