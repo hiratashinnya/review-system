@@ -1,8 +1,6 @@
-"""Raw HTML block boundaries for AC snapshots (CommonMark types 1, 3–7).
-
-HTML comments (type 2) are handled by CommentFilter.
-"""
+"""Raw HTML block boundaries for AC snapshots (CommonMark types 1–7)."""
 import re
+from typing import NamedTuple
 
 RAW = re.compile(r"^ {0,3}<(pre|script|style|textarea)(?:[\s>]|$)", re.I)
 BLOCK_TAGS = (
@@ -17,22 +15,33 @@ BLOCK = re.compile(r"^ {0,3}</?(?:" + "|".join(BLOCK_TAGS.split()) + r")(?:\s|/?
 ATTR = r"""(?:[ \t]+[a-zA-Z_:][a-zA-Z0-9_.:-]*(?:[ \t]*=[ \t]*(?:[^ \t"'=<>\x60]+|'[^']*'|"[^"]*"))?)"""
 TAG = re.compile(r"^ {0,3}(?:<[a-zA-Z][a-zA-Z0-9-]*" + ATTR + r"*[ \t]*/?>|</[a-zA-Z][a-zA-Z0-9-]*[ \t]*>)[ \t]*$")
 BLANK = re.compile(r"^[ \t]*$")
+COMMENT = re.compile("-->")
+COMMENT_START = re.compile(r"^ {0,3}<!--")
 
 
-def advance(block, line, active, *, boundary=False, list_indent=None) -> tuple[tuple[re.Pattern, int] | None, bool, int | None]:
-    """Return (remaining HTML block, raw-HTML flag, container indent or None)."""
+class HtmlTransition(NamedTuple):
+    block: tuple[re.Pattern, int] | None
+    raw: bool
+    container: int | None
+    comment: bool
+
+
+def advance(block, line, active, *, boundary=False, list_indent=None) -> HtmlTransition:
+    """Return the remaining block, raw flag, container indent and type-2 flag."""
     if block is not None:
         end, container = block
         if container and line.strip() and not line.startswith(" " * container):
-            block = None
+            block, boundary, list_indent = None, True, None
     if block is None:
         if not active:
-            return None, False, None
+            return HtmlTransition(None, False, None, False)
         container = list_indent if list_indent and line.startswith(" " * list_indent) else 0
         candidate = line[container:]
         match = RAW.match(candidate)
         if match:
             block = re.compile(r"</" + match.group(1) + r">", re.I)
+        elif COMMENT_START.match(candidate):
+            block = COMMENT
         elif re.match(r"^ {0,3}<\?", candidate):
             block = re.compile(r"\?>")
         elif re.match(r"^ {0,3}<!\[CDATA\[", candidate):
@@ -42,9 +51,9 @@ def advance(block, line, active, *, boundary=False, list_indent=None) -> tuple[t
         elif BLOCK.match(candidate) or (boundary and TAG.fullmatch(candidate)):
             block = BLANK
         else:
-            return None, False, None
+            return HtmlTransition(None, False, None, False)
         block = (block, container)
     end, container = block
     if end.search(line):
-        return None, end is not BLANK, container
-    return block, True, container
+        return HtmlTransition(None, end is not BLANK, container, end is COMMENT)
+    return HtmlTransition(block, True, container, end is COMMENT)

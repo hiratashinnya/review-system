@@ -11,6 +11,7 @@ from karte import ac_owner_update, handoff_header, model, owner_cli, paths, revi
 from karte.ac_snapshot import digest, from_issue_body
 from karte.active_pointer import read_active
 from karte.errors import KarteUsageError
+from tests.unit.test_karte_ac_comment_blocks import comment_cases
 
 OPTIONS = dict(run_id="run-html", target_key="pr-846", phase="implementation",
                snapshot_oid="a" * 40, input_digest="b" * 64)
@@ -21,6 +22,7 @@ LAST = "\n- [ ] AC2\n"
 
 
 def cases():
+    yield from comment_cases()
     for fake in ("- [ ] example only", "## Notes"):
         for prefix, opening, closing in (
             (FIRST + "\n", "<div>", "</div>"),

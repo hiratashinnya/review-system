@@ -40,29 +40,42 @@ class ConsecutiveHtmlTest(unittest.TestCase):
 
 
 class HtmlTransitionContractTest(unittest.TestCase):
-    def test_non_html_returns_three_values(self):
+    def test_non_html_returns_complete_transition(self):
         for line in ("## Acceptance criteria", "- [ ] AC1", "", "Description"):
             with self.subTest(line=line):
-                self.assertEqual(advance(None, line, True, boundary=True), (None, False, None))
-        self.assertEqual(advance(None, "<pre>", False), (None, False, None))
+                self.assertEqual(advance(None, line, True, boundary=True), (None, False, None, False))
+        self.assertEqual(advance(None, "<pre>", False), (None, False, None, False))
 
     def test_html_start_continue_end_and_dedent(self):
         for opening, closing in (("<pre>", "</pre>"), ("<?", "?>"),
                                  ("<![CDATA[", "]]>"), ("<!DOCTYPE", ">"),
                                  ("<div>", ""), ("<span>", "")):
             with self.subTest(opening=opening):
-                block, raw, container = advance(None, opening, True, boundary=True)
+                block, raw, container, comment = advance(None, opening, True, boundary=True)
                 self.assertIsNotNone(block)
                 self.assertTrue(raw)
+                self.assertFalse(comment)
                 self.assertEqual(container, 0)
-                self.assertEqual(advance(block, "example", True), (block, True, 0))
-                self.assertEqual(advance(block, closing, True), (None, bool(closing), 0))
-        block, raw, container = advance(None, "  <div>", True, list_indent=2)
+                self.assertEqual(advance(block, "example", True), (block, True, 0, False))
+                self.assertEqual(advance(block, closing, True), (None, bool(closing), 0, False))
+        block, raw, container, comment = advance(None, "  <div>", True, list_indent=2)
         self.assertTrue(raw)
+        self.assertFalse(comment)
         self.assertEqual(container, 2)
-        self.assertEqual(advance(block, "- [ ] AC2", True, list_indent=2), (None, False, None))
-        self.assertEqual(advance(None, "<pre>x</pre>", True), (None, True, 0))
-        self.assertEqual(advance(None, "<span>", True, boundary=False), (None, False, None))
+        self.assertEqual(advance(block, "- [ ] AC2", True, list_indent=2), (None, False, None, False))
+        self.assertEqual(advance(None, "<pre>x</pre>", True), (None, True, 0, False))
+        self.assertEqual(advance(None, "<span>", True, boundary=False), (None, False, None, False))
+
+    def test_type2_is_an_html_block_with_container_and_end(self):
+        self.assertEqual(advance(None, "<!-- note -->", True), (None, True, 0, True))
+        self.assertEqual(advance(None, "text <!-- note -->", True), (None, False, None, False))
+        block, raw, container, comment = advance(None, "  <!--", True, list_indent=2)
+        self.assertEqual((raw, container, comment), (True, 2, True))
+        self.assertEqual(advance(block, "  example", True), (block, True, 2, True))
+        self.assertEqual(advance(block, "  -->", True), (None, True, 2, True))
+        block, raw, container, comment = advance(block, "<span>", True, list_indent=2)
+        self.assertIsNotNone(block)
+        self.assertEqual((raw, container, comment), (True, 0, False))
 
     def test_normal_body_no_ac_and_non_checkbox(self):
         body = "## Acceptance criteria\n- [ ] AC1\n"
