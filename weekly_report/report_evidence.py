@@ -11,7 +11,7 @@ ITEMS = {
     "closed": ("クローズ Issue", "issues_closed_unknown", "issues"),
     "merged": ("マージ PR（全マージ先）", "pulls_merged", "pull"),
     "issue_transitions": ("クローズ・再オープンのイベント証跡", "issues_close_events", "issues"),
-    "issue_transfers": ("期間内の移管イベント証跡", None, "issues"),
+    "issue_transfers": ("期間内の移管イベント証跡", "issues_close_events", "issues"),
     "issues_open_before_cutoff": ("取得対象内で観測上限直前に開いていた Issue（事後復元）",
                                   "issues_open_before_cutoff", "issues"),
     "open_issues": ("オープン Issue", "open_issues", "issues"),
@@ -67,9 +67,11 @@ def evidence_sections(data):
             continue
         rows = evidence[key]
         metric = data["metrics"].get(metric_key, {})
-        reason = metric.get("reason") if rows is None else None
+        reason = evidence.get(f"{key}_reason")
         if reason:
-            reason = display(None, metric.get("status")) + "　" + reason
+            reason = display(None, "not_retrieved") + "　" + reason
+        elif metric.get("reason") and (rows is None or key == "issue_transfers"):
+            reason = display(None, metric.get("status")) + "　" + metric["reason"]
         sections.append(_item_list(label, evidence.get(f"{key}_known", rows), reason, repository, route))
     sections.extend((checklist_section(data), revision_section(data), pull_files_section(data), consistency_section(data)))
     dirty = "作業ツリーに変更あり" if reference["checkout_dirty"] else "作業ツリー変更なし"

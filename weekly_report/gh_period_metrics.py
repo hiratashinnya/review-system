@@ -58,9 +58,16 @@ def lifecycle(period, issues, created_metric, transition_data):
     if known_restored is not None:
         events["issues_open_before_cutoff_known"] = known_restored
     transfers = transition_data.get("transfer_events")
-    events["issue_transfers"] = None if transfers is None else [
-        row for row in transfers if period.contains(row["created_at"])
-    ]
+    known_transfers = [row for row in transfers or [] if period.contains(row["created_at"])]
+    events["issue_transfers"] = known_transfers if count_known and transfers is not None else None
+    if events["issue_transfers"] is None:
+        failures = ", ".join(sorted({detail for detail in transition_data.get("unavailable_issues", {}).values()
+                                     if detail}))
+        events["issue_transfers_reason"] = reason or "移管を確認できる履歴が保存されていません"
+        if failures:
+            events["issue_transfers_reason"] += f"（{failures}）"
+        if known_transfers:
+            events["issue_transfers_known"] = known_transfers
     return metrics, events
 
 
