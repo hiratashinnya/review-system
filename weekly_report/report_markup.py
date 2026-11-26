@@ -65,13 +65,18 @@ def repository_slug(value):
         return None
 
 
+def item_repository(row, fallback=None):
+    if "repository_url" not in row:
+        return fallback
+    source = row["repository_url"]
+    match = _REPOSITORY_URL.fullmatch(source) if isinstance(source, str) else None
+    return repository_slug(match[1]) if match else None
+
+
 def item_text(row, repository, route="issues"):
     number = row.get("number")
     label = f'#{html(number)} {html(row.get("title") or "タイトル未取得")}'
-    if "repository_url" in row:
-        source = row["repository_url"]
-        other = _REPOSITORY_URL.fullmatch(source) if isinstance(source, str) else None
-        repository = repository_slug(other[1]) if other else None
+    repository = item_repository(row, repository)
     if repository and route in ("issues", "pull") and type(number) is int and number > 0:
         return f'<a href="https://github.com/{repository}/{route}/{number}">{label}</a>'
     return label

@@ -1,6 +1,7 @@
 """Measure GitHub merge destinations and observable issue lifecycle changes."""
 
 from .gh_issue_history import event_time
+from .gh_issue_stock import restore_open
 from .quantities import count, measured
 
 CLOSE_TIMING = "最終クローズは Issue の実効時刻、以前のクローズは API の記録時刻"
@@ -49,11 +50,17 @@ def lifecycle(period, issues, created_metric, transition_data):
         status="not_retrieved" if delta is None else "measured",
         created=created, known_reopened=len(groups["reopened"]), known_closed=len(groups["closed"]),
     )
-    metric, restored = _restore_open(period, issues, transition_data)
+    metric, restored, known_restored = restore_open(period, issues, transition_data, CLOSE_TIMING)
     metrics["issues_open_before_cutoff"] = metric
     events = {"issue_transitions": rows if count_known else None, "issues_open_before_cutoff": restored}
     if not count_known:
         events["issue_transitions_known"] = rows
+    if known_restored is not None:
+        events["issues_open_before_cutoff_known"] = known_restored
+    transfers = transition_data.get("transfer_events")
+    events["issue_transfers"] = None if transfers is None else [
+        row for row in transfers if period.contains(row["created_at"])
+    ]
     return metrics, events
 
 
@@ -71,24 +78,3 @@ def _close_reason_metrics(rows, source, reason):
             status="not_retrieved" if reason else "not_measured" if unknown_reason else "measured",
         )
     return metrics
-
-
-def _restore_open(period, issues, transition_data):
-    source = [issues["source"], transition_data["source"]]
-    definition = f"集計上限の直前に開いていた Issue（収集後の状態遷移から復元、{CLOSE_TIMING}）"
-    reason = transition_data["reason"] or issues["reason"]
-    if (transition_data["rows"] is None or issues["rows"] is None
-            or transition_data["history_start"] > period.cutoff):
-        return measured(None, definition, source, reason=reason or "対象時点までの状態履歴がありません",
-                        observation_kind="reconstructed"), None
-    active = {row["number"]: row for row in issues["rows"] if row["created_at"] < period.cutoff}
-    open_numbers = {number for number, row in active.items() if row["state"] == "open"}
-    for row in reversed(transition_data["rows"]):
-        if event_time(row) >= period.cutoff and row["number"] in active:
-            if row["event"] == "closed":
-                open_numbers.add(row["number"])
-            else:
-                open_numbers.discard(row["number"])
-    return measured(len(open_numbers), definition, source, observation_kind="reconstructed"), [
-        {"number": number, "title": active[number]["title"]} for number in sorted(open_numbers)
-    ]

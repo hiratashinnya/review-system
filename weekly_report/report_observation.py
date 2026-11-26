@@ -1,5 +1,6 @@
 """Present the dates and coverage of state observations."""
 
+from .capture_observations import SEQUENTIAL_LIMIT
 from .report_markup import display, html, item_text, repository_slug
 
 _KINDS = {
@@ -14,10 +15,8 @@ def observation_note(data):
     if not point:
         return f'<p>観測上限 {html(data["period"]["observed_until"])}　観測時点 {html(data["observed_at"])}</p>'
     when = point.get("observed_at") or data["observed_at"]
-    status = point.get("period_end_status")
-    details = "期間末の実測あり" if status == "measured" else f'期間末の状態　{display(None, status)}'
-    if point.get("period_end_reason"):
-        details += f'　{point["period_end_reason"]}'
+    reason = point.get("period_end_reason") or SEQUENTIAL_LIMIT
+    details = f'期間末の状態　未計測　{reason}'
     saved_sha = point.get("source_snapshot_sha256")
     saved_reference = point.get("reference") or {}
     saved_checkout = saved_reference.get("checkout_sha")
@@ -26,8 +25,8 @@ def observation_note(data):
         platform = html(saved_reference.get("base_ref") or "ref 未取得")
         save_note += f'<br>保存時の checkout <code>{html(saved_checkout)}</code>（{platform}）'
     return (f'<p>イベント集計の上限 {html(data["period"]["observed_until"])}<br>'
-            f'イベント証跡の収集 {html(point.get("current_collection_at") or "未取得")}<br>'
-            f'{html(_KINDS.get(point.get("kind"), "状態の観測"))} {html(when)}<br>'
+            f'イベント証跡の収集開始 {html(point.get("current_collection_at") or "未取得")}<br>'
+            f'{html(_KINDS.get(point.get("kind"), "状態の観測"))}（収集開始 {html(when)}）<br>'
             f'<small>{html(details)}{save_note}</small></p>')
 
 
@@ -63,7 +62,9 @@ def checklist_section(data):
         return ""
     rows = inventory["issue_acceptance"]
     if rows is None:
-        body = '<p class="missing">未取得</p>'
+        coverage = (inventory.get("state_coverage") or {}).get("issues", {})
+        state = display(None, coverage.get("status", "not_retrieved"))
+        body = f'<p class="missing">{html(state)}　{html(coverage.get("reason", ""))}</p>'
     else:
         repository = repository_slug(data["repository"])
         entries = [_acceptance_row(row, repository) for row in rows.values()

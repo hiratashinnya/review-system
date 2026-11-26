@@ -11,7 +11,9 @@ ITEMS = {
     "closed": ("クローズ Issue", "issues_closed_unknown", "issues"),
     "merged": ("マージ PR（全マージ先）", "pulls_merged", "pull"),
     "issue_transitions": ("クローズ・再オープンのイベント証跡", "issues_close_events", "issues"),
-    "issues_open_before_cutoff": ("観測上限直前のオープン Issue（事後復元）", "issues_open_before_cutoff", "issues"),
+    "issue_transfers": ("期間内の移管イベント証跡", None, "issues"),
+    "issues_open_before_cutoff": ("取得対象内で観測上限直前に開いていた Issue（事後復元）",
+                                  "issues_open_before_cutoff", "issues"),
     "open_issues": ("オープン Issue", "open_issues", "issues"),
     "open_pulls": ("オープン PR", "open_pulls", "pull"),
 }
@@ -20,7 +22,7 @@ ITEMS = {
 def _item_suffix(row):
     tags = []
     if row.get("event"):
-        kind = {"closed": "クローズ", "reopened": "再オープン"}.get(row["event"], row["event"])
+        kind = {"closed": "クローズ", "reopened": "再オープン", "transferred": "移管"}.get(row["event"], row["event"])
         recorded = row["created_at"]
         effective = row.get("effective_at", recorded)
         tags.append(f"{kind} {timestamp(effective)}")

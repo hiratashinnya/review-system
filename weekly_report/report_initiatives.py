@@ -1,6 +1,6 @@
 """Display recorded parent–child progress and dependency paths."""
 
-from .report_markup import display, html, item_text, repository_slug
+from .report_markup import display, html, item_repository, item_text, repository_slug
 
 
 def _at(items, number):
@@ -19,7 +19,7 @@ def _progress(parent):
     return f"<p>{value}</p>"
 
 
-def _membership(change, repository):
+def _membership(change):
     if not change:
         return ""
     if change.get("reason"):
@@ -28,19 +28,24 @@ def _membership(change, repository):
     groups = []
     for key, label in (("added", "追加を観測"), ("removed", "除外を観測")):
         if change.get(key):
-            items = [item_text(row, repository) if isinstance(row, dict) else html(row) for row in change[key]]
+            items = [item_text(row, None) if isinstance(row, dict) else html(row) for row in change[key]]
             groups.append(f"<small>{label}　{', '.join(items)}</small>")
     values = f'分母 {html(display(before))} → {html(display(current))} 件'
     return f'<p>{values}<br>{"<br>".join(groups)}</p>'
 
 
-def _dependencies(rows, blocked_by, repository):
+def _dependencies(parent, children, blocked_by, repository):
     lines = []
-    for row in rows:
+    rows = [(parent, item_repository(parent, repository))]
+    rows.extend((child, item_repository(child)) for child in children)
+    for row, source_repo in rows:
+        source = item_text(row, source_repo)
+        if source_repo is None or source_repo != repository:
+            lines.append(f'<li>{source} <small class="missing">対象外または所属未確認の依存は未取得</small></li>')
+            continue
         dataset = _at(blocked_by, row["number"])
         if not dataset:
             continue
-        source = item_text(row, repository)
         for dependency in dataset.get("rows") or []:
             target = item_text(dependency, repository)
             state = {"open": "オープン", "closed": "クローズ"}.get(dependency.get("state"), "状態不明")
@@ -52,7 +57,7 @@ def _dependencies(rows, blocked_by, repository):
     return f'<p>取得時点の依存経路</p><ul class="dependency-graph">{"".join(lines)}</ul>'
 
 
-def _children_list(rows, repository):
+def _children_list(rows):
     if rows is None:
         return '<p class="missing">子 Issue の詳細は未取得です。</p>'
     if not rows:
@@ -61,7 +66,7 @@ def _children_list(rows, repository):
     for row in rows:
         state = "クローズ" if row.get("state") == "closed" else "オープン"
         reason = f' / {html(row["reason"])}' if row.get("reason") else ""
-        entries.append(f'<li>{item_text(row, repository)} <small>（{state}{reason}）</small></li>')
+        entries.append(f'<li>{item_text(row, None)} <small>（{state}{reason}）</small></li>')
     return "<ul>" + "".join(entries) + "</ul>"
 
 
@@ -72,7 +77,9 @@ def initiatives_section(data):
     progress = inventory["initiative_progress"]
     title = "<h2>主要施策の子 Issue</h2>"
     if progress is None:
-        return title + '<p class="missing">親子関係 未取得</p>'
+        coverage = (inventory.get("state_coverage") or {}).get("issues", {})
+        state = display(None, coverage.get("status", "not_retrieved"))
+        return title + f'<p class="missing">親子関係 {html(state)}　{html(coverage.get("reason", ""))}</p>'
     if not progress:
         return title + "<p>取得範囲には表示対象の親 Issue がありません。</p>"
     repository = repository_slug(data["repository"])
@@ -84,11 +91,10 @@ def initiatives_section(data):
         if parent.get("total") == 0 and not (change or {}).get("removed"):
             continue
         children = parent.get("children")
-        dependencies = _dependencies([parent, *(children or [])], blocked_by, repository)
-        membership = _membership(change, repository)
-        summary = item_text(parent, repository)
-        reports.append(f'<details><summary>{summary}</summary>{_progress(parent)}{membership}'
-                       f'{_children_list(children, repository)}{dependencies}</details>')
+        dependencies = _dependencies(parent, children or [], blocked_by, repository)
+        membership = _membership(change)
+        reports.append(f'<details><summary>{item_text(parent, repository)}</summary>{_progress(parent)}{membership}'
+                       f'{_children_list(children)}{dependencies}</details>')
     if not reports:
         return title + "<p>取得範囲には表示対象の親 Issue がありません。</p>"
     return title + "<p>子 Issue の件数に基づく進捗です。機能の利用可否・リリース到達は分析欄を参照します。</p>" + "".join(reports)

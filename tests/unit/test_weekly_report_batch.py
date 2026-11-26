@@ -84,7 +84,8 @@ class BatchReplayTests(unittest.TestCase):
         inputs["ci"] = github.evidence("actions", [workflow], retrieved_total=1)
         inputs["consistency"] = {kind: {"status": "unchanged", "source": [kind], "reason": None, "changed": []}
                                  for kind in ("issues", "pulls")}
-        inputs["transitions"] = github.evidence("events", [], history_start=parse_jst("2024-03-01"))
+        inputs["transitions"] = github.evidence("events", [], history_start=parse_jst("2024-03-01"),
+                                                transfer_events=[])
         inputs["pull_files"] = {3: github.evidence("pulls/files", [{"filename": "x.py", "status": "modified"}])}
         return inputs
 
@@ -135,7 +136,12 @@ class BatchReplayTests(unittest.TestCase):
         with patch("weekly_report.read_github.collect", return_value=self.evidence()):
             saved = self.collect("saved", *dates) / "snapshot.json"
         value = snapshot.load(saved)
+        self.assertEqual(value["observation"]["period_end_status"], "not_measured")
+        self.assertEqual(value["metrics"]["issues_created"]["value"], 1)
+        self.assertEqual(value["metrics"]["open_issues"]["value"], 2)
         value.pop("replay_inputs")
+        value["observation"]["period_end_status"] = "measured"
+        value["observation"]["period_end_reason"] = None
         saved.write_text(snapshot.dumps(value), encoding="utf-8")
         self.clock.now.return_value = parse_jst(OBSERVED)
         with patch("weekly_report.read_github.collect", return_value=activity_sources([], [])):
@@ -145,7 +151,8 @@ class BatchReplayTests(unittest.TestCase):
         self.assertEqual(recreated["observation"]["kind"], "saved")
         self.assertEqual(recreated["observation"]["current_collection_at"], OBSERVED)
         self.assertEqual(recreated["observed_at"], "2024-03-03T00:00:00+09:00")
-        self.assertEqual(recreated["observation"]["period_end_status"], "measured")
+        self.assertEqual(recreated["observation"]["period_end_status"], "not_measured")
+        self.assertNotIn("期間末の実測あり", (target / "report.html").read_text())
         self.assertEqual(recreated["metrics"]["open_issues"]["value"], 2)
         self.assertEqual(recreated["metrics"]["issues_created"]["value"], 0)
         self.assertEqual(snapshot.load(missed / "snapshot.json")["observation"]["kind"], "retrospective")

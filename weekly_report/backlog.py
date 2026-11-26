@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 
+from .backlog_coverage import apply_consistency
 from .gh_acceptance import acceptance_evidence
 from .gh_initiatives import initiatives
 from .quantities import count, measured
@@ -40,7 +41,7 @@ def measure(observed_at, github):
         status="not_retrieved" if reason else "measured",
         observed_issue_numbers=blocked, unmeasured_issue_numbers=unavailable,
     )
-    return metrics, {
+    inventory = {
         "open_issues": None if issues is None else [public_item(row) for row in issues],
         "open_pulls": None if pulls is None else [public_item(row) for row in pulls],
         "blocked_by": github["blocked_by"],
@@ -50,3 +51,4 @@ def measure(observed_at, github):
             row["number"]: acceptance_evidence(row) for row in github["issues"]["rows"]
         },
     }
+    return apply_consistency(metrics, inventory, github.get("consistency"))

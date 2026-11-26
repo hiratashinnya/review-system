@@ -30,8 +30,15 @@ def measure(period, repository, captured, issue_data, pull_data):
     source = {"definition": "defect_metrics/README.md", "inputs": [issue_data["source"], pull_data["source"]],
               "saved_inputs": "snapshot.json#/evidence/defect_metrics"}
     if captured is None:
-        reason = (NO_OBSERVED_TIME if period.cutoff == period.start else "Issue または PR の全件を取得できません")
-        return measured(None, "defect_metrics の窓内派生 Issue / 窓内マージ PR", source, reason=reason)
+        if period.cutoff == period.start:
+            reason, status = NO_OBSERVED_TIME, "not_measured"
+        else:
+            failures = [f'{label}　{data["reason"] or "一覧が未取得です"}' for label, data
+                        in (("Issue", issue_data), ("PR", pull_data)) if data["rows"] is None]
+            reason = " / ".join(failures) or "派生率の入力を確定できません"
+            status = "not_retrieved" if failures else "not_measured"
+        return measured(None, "defect_metrics の窓内派生 Issue / 窓内マージ PR", source,
+                        reason=reason, status=status)
     result = compute_window_metrics(Window(period.start, period.cutoff), load_issues(captured["issues"]),
                                     load_pulls(captured["pulls"]), repository)
     primary = result.as_dict()["primary"]

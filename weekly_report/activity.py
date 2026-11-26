@@ -16,11 +16,16 @@ def _select(source, predicate):
 
 
 def _lead(rows, field, definition, dataset, reason=None):
-    days = [(row[field] - row["created_at"]).total_seconds() / 86400 for row in rows or []]
-    sample = None if rows is None or reason else len(days)
+    if rows is None:
+        return measured(None, definition, dataset["source"], reason=dataset["reason"] or "対象一覧が未取得です",
+                        n=None, unit="日", status="not_retrieved")
+    if reason or any(row.get(field) is None or row.get("created_at") is None for row in rows):
+        return measured(None, definition, dataset["source"], reason=reason or "リードタイムの時刻が欠損しています",
+                        n=None, unit="日", status="not_measured")
+    days = [(row[field] - row["created_at"]).total_seconds() / 86400 for row in rows]
     return measured(
-        median(days) if sample else None, definition, dataset["source"], n=sample,
-        unit="日", reason=reason or dataset["reason"] or ("対象が0件" if not days else None),
+        median(days) if days else None, definition, dataset["source"], n=len(days),
+        unit="日", reason="対象が0件" if not days else None,
     )
 
 

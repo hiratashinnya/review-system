@@ -7,6 +7,8 @@ from pathlib import Path
 from .capture_stock import archive_inputs
 from .period import COLLECTION_START, parse_jst
 
+SEQUENTIAL_LIMIT = "逐次収集の開始時刻です。期間末の状態を同時に取得した証跡がありません"
+
 
 def load(paths, repository, schema_version):
     results = []
@@ -57,19 +59,18 @@ def describe(period, actual, archive):
     observed = parse_jst(archive["observed_at"]) if archive else actual
     if archive:
         kind = "saved"
-    elif actual > period.cutoff:
+    elif actual >= period.end or actual > period.cutoff:
         kind = "retrospective"
     else:
         kind = "current"
-    at_end = observed == period.end
-    if at_end:
-        reason = None
+    if observed == period.end:
+        reason = SEQUENTIAL_LIMIT
     elif observed <= period.cutoff:
         reason = "対象期間末とは異なる時点の実測です"
     else:
         reason = "後日の取得です。対象期間末の状態を裏付ける実測 snapshot がありません"
     result = {"kind": kind, "observed_at": observed.isoformat(), "current_collection_at": actual.isoformat(),
-              "period_end_status": "measured" if at_end else "not_measured", "period_end_reason": reason}
+              "period_end_status": "not_measured", "period_end_reason": reason}
     if archive:
         result["source_snapshot_sha256"] = archive["sha256"]
     return result

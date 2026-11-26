@@ -17,7 +17,7 @@ LABELS = {
     "issues_close_events_unknown": "理由不明のクローズイベント",
     "issues_reopen_events": "Issue 再オープンイベント",
     "issue_backlog_event_delta": "イベント上の Issue 残数増減",
-    "issues_open_before_cutoff": "観測上限直前の残数（事後復元）",
+    "issues_open_before_cutoff": "取得対象内の観測上限直前の残数（事後復元）",
     "issue_lead_days": "Issue リードタイム",
     "pull_lead_days": "PR リードタイム",
     "defects_per_merge": "派生 Issue / マージ PR",
