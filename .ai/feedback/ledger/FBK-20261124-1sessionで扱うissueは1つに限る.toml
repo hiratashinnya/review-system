@@ -1,0 +1,38 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20261124-1sessionで扱うissueは1つに限る"
+topic = "1sessionで扱うIssueは1つに限る"
+theme = "開発工程"
+occurred_at = 2026-11-24
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "approval"
+confidence_of_inference = "medium"
+recorded_by = "Claude Code (AI)"
+affected_assets = [".ai/skills/issue-pipeline/SKILL.md"]
+supersedes = ""
+
+[[source]]
+issue = 513
+pr = 862
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+PR #862（Issue #513 の STOP 1回 deny 試行）の実機検証で、deny が session 単位で Issue を区別せず、同一 session 内では別 Issue の最初の操作も 1 回 deny されることが分かった（F-2）。主文脈はこれを選択肢つきで提示した。
+'''
+recommendation = '''
+F-2 は現状の挙動を記録に留める（Issue 単位の状態管理は実装しない）。
+'''
+recommendation_reason = '''
+誤停止のコストが 1 回の再実行に限られ、Issue 単位の状態管理は設計の追加を要する。
+'''
+uncertainty = '''
+「同一sessionで複数Issueを扱うこと自体が悪い」が、Issue 運用全般の規則として明文化を求める趣旨か、F-2 の判断理由の説明にとどまるかは、この発言だけでは確定しない。主文脈の推奨（現状維持）はオーナーが採用した。
+'''
+owner_verbatim = '''
+同一sessionで複数Issueを扱うこと自体が悪いから現状でよい。文書整合だけ取ってください。
+'''
+inferred_reason = '''
+推測：1 つの session では 1 つの Issue だけを扱う運用を前提とし、複数 Issue を併走させる使い方は想定しない、と読める。
+'''

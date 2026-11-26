@@ -82,19 +82,20 @@ profileのorigin/main pinは変更せず、未merge profileの拒否を成功dis
 
 #### 既定実行者
 
-実行者は role ごとに次の表で決まる（オーナー決定・2026-11-15・Issue #829）。
+実行者は role ごとに次表を適用する。
+割当ての選定理由・決定経緯は `.ai/rationale/executor-rate-limit-switch-829.md` を参照する。
 
-| ロール | 既定実行者 | 理由 |
-|---|---|---|
-| issue-investigator | Codex | 事実・原因・影響の調査は委譲し、Claude のトークンを節約する |
-| ac-designer | Claude 固定 | 検証設計は設計判断であり Claude で押さえる |
-| change-planner | Claude 固定 | 解決計画と ADR は設計判断であり Claude で押さえる |
-| plan-reviewer | Claude 固定 | 設計の独立レビューは Claude で押さえる |
-| test-writer | Codex | 承認済み VD/CP に沿う Red テストの著作は委譲する |
-| issue-implementer | Codex | 承認済み計画の適用は委譲する |
-| pr-reviewer | Claude 固定 | 2a/2b の独立レビューは Claude で押さえる |
-| issue-fixer | Codex | 診断の範囲に限った是正の編集とテスト実行は委譲する |
-| adviser | Codex | 相談への回答は委譲する |
+| ロール | 既定実行者 |
+|---|---|
+| issue-investigator | Codex |
+| ac-designer | Claude 固定 |
+| change-planner | Claude 固定 |
+| plan-reviewer | Claude 固定 |
+| test-writer | Codex |
+| issue-implementer | Codex |
+| pr-reviewer | Claude 固定 |
+| issue-fixer | Codex |
+| adviser | Codex |
 
 - **Claude 固定の4 role は Codex 実行者を使わない。** 主文脈は Codex 実行者を指定せず、role も起動しない。
 - **Codex 既定の5 role は、主文脈が Codex 実行者を指定して起動する。** 指定の形は role の作業面で分かれ、PF wrapper に従う。
@@ -102,10 +103,8 @@ profileのorigin/main pinは変更せず、未merge profileの拒否を成功dis
   - read-only role（issue-investigator・adviser）：主文脈が read-only の専用入口（下記「read-only の Codex 実行先」）を実行し、その入口が Codex を起動する。この経路では Claude の role サブエージェントを dispatch しない。主文脈が切替またはオーナー判断で Claude の role を dispatch するときは Codex 実行者を指定せず、role は Codex を起動せず自分で調査・回答する。
 - **AI が既定を外してよい例外は、Codex 実行者の上限の証拠による切替（下記）だけである。** それ以外の理由で Codex 既定の role を Claude で実行するには、書込・read-only のどちらの経路でもオーナーの明示判断を要する。
 - 高リスク信号のある実装も Codex 既定の例外にしない。Codex 側の層を引き上げる。
-- test-writer と issue-implementer は同じモデルファミリになる。独立性は、Claude 固定の pr-reviewer が 2a と 2b を別 dispatch で審査することで保つ。
-- read-only の Codex 経路は実 dispatch が未実測である（#652）。実測が済むまでも既定は Codex とし、上限の証拠が無い失敗は切り替えず STOP する。起動 gate の受理や unit の合格を実 dispatch の成功と報告しない。
-- adviser は相談の難度を理由に Claude へ切り替えない。adviser の層は最上位に固定してあり、難しい相談も Codex の最上位で扱う（オーナー決定・2026-11-16）。
-- この表は運用規範であり、機械では強制していない。`codex_worktree_exec` と起動 gate は Claude 固定の role の起動形も受理する。
+- read-only の Codex 経路も既定実行者は Codex とする。上限の証拠が無い失敗は切り替えず STOP する。起動 gate の受理や unit の合格を実 dispatch の成功と報告しない。
+- adviser は相談の難度を理由に Claude へ切り替えない。adviser の層は最上位固定とし、難しい相談も Codex の最上位で扱う。
 
 #### read-only の Codex 実行先
 
@@ -124,19 +123,27 @@ globやdirectory一括許可を使わず、
 
 #### 層と推論予算
 
-| ロール | 主要認知行為・Bloom | 層 / 予算 |
-|---|---|---|
-| issue-investigator | 分析 Lv4 | 中位 / 大 |
-| ac-designer | 評価 Lv5 | 最上位 / 中 |
-| change-planner | 創造 Lv6 | 最上位 / 大 |
-| plan-reviewer | 評価 Lv5 | 最上位 / 中 |
-| test-writer | 境界・反例の分析 Lv4 | 中位 / 中 |
-| issue-implementer | 承認済み計画の適用 Lv3 | 中位 / 中 |
-| pr-reviewer | 評価 Lv5 | 最上位 / 中、既存のrisk signalで引上げ |
-| issue-fixer | レビュー指摘の根本原因の分析 Lv4 | 中位 / 中 |
-| adviser | 相談内容の主要認知行為 | 最上位 / 相談内容で引く |
+各ロールのモデル層・推論予算は次表の**採用値**を使う。導出元は
+`.ai/skills/bloom-model-tier/SKILL.md` の Bloom Lv × 軸2 の閾値表とする。
+採用値と導出値の差異も採用値を優先する。選定理由・例外理由・変更経緯は
+`.ai/rationale/model-tier-alignment-851.md` を参照する。
 
-adviser の層は最上位に固定する（オーナー決定・2026-11-16）。推論予算だけを、主文脈が相談内容の主要認知行為から `.ai/skills/bloom-model-tier/SKILL.md` の閾値表で引く。
+| ロール | Bloom Lv／軸2 | 導出値（層／予算） | 採用値（層／予算） |
+|---|---|---|---|
+| issue-investigator | Lv4／網羅性 | 中位／大 | 中位／大 |
+| ac-designer | Lv5／判断 | 最上位／中 | 最上位／中 |
+| change-planner | Lv6／判断 | 最上位／大 | 最上位／大 |
+| plan-reviewer | Lv5／判断 | 最上位／中 | 最上位／中 |
+| test-writer | Lv4／網羅性 | 中位／大 | 中位／大 |
+| issue-implementer | Lv3／網羅性 | 中位／中 | 中位／大 |
+| pr-reviewer | Lv5／判断 | 最上位／中 | 最上位／大 |
+| issue-fixer | Lv4／網羅性 | 中位／大 | 中位／大 |
+| adviser | 相談内容ごとに判定 | 該当セルの層／予算 | 最上位／該当セルの予算 |
+
+adviser の層は最上位固定、予算は相談内容ごとに閾値表から算定する。
+リスク信号による引上げは採用値を下限とし、層・予算を互いに相殺しない。
+Codex から Claude への切替時には、下記の切替規範に従い、
+Codex に**実指定した**抽象層・予算を下回らないようにする。
 
 具体ID/予算は `.ai/model-policy.json` と `model_policy/README.md` の既存resolverで解決し、
 policy/catalog hash、取得surface/方法/日時、resolved ID、実使用ID、確認結果を追跡する。
