@@ -2,6 +2,9 @@
 import re
 from typing import NamedTuple
 
+from .ac_snapshot_boundary import leaves_container
+from .ac_snapshot_comment import visible_line
+
 RAW = re.compile(r"^ {0,3}<(pre|script|style|textarea)(?:[\s>]|$)", re.I)
 BLOCK_TAGS = (
     "address article aside base basefont blockquote body caption center col colgroup "
@@ -30,7 +33,7 @@ def advance(block, line, active, *, boundary=False, list_indent=None) -> HtmlTra
     """Return the remaining block, raw flag, container indent and type-2 flag."""
     if block is not None:
         end, container = block
-        if container and line.strip() and not line.startswith(" " * container):
+        if leaves_container(line, container):
             block, boundary, list_indent = None, True, None
     if block is None:
         if not active:
@@ -57,3 +60,9 @@ def advance(block, line, active, *, boundary=False, list_indent=None) -> HtmlTra
     if end.search(line):
         return HtmlTransition(None, end is not BLANK, container, end is COMMENT)
     return HtmlTransition(block, True, container, end is COMMENT)
+
+
+def comment_suffix(block, line, container):
+    """Retain a second comment opened after the first comment's closing marker."""
+    suffix, opened, _, _ = visible_line(line.partition("-->")[2], False, 0, (), allow_open=True)
+    return ((COMMENT, container) if opened else block), suffix

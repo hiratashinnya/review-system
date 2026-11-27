@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 import re
 
+from .ac_snapshot_boundary import leaves_container
+
 OPEN = re.compile(r"^( *)(`{3,}|~{3,})(.*)$")
 CLOSE = re.compile(r"^( *)(`{3,}|~{3,})[ \t]*$")
 
@@ -11,10 +13,13 @@ CLOSE = re.compile(r"^( *)(`{3,}|~{3,})[ \t]*$")
 class Fence:
     marker: str
     max_indent: int
+    container: int = 0
 
 
 def advance(fence: Fence | None, line: str, *, list_indent: int | None = None) -> Fence | None:
     """Closing fence uses the opening container's indent, never an arbitrary indent."""
+    if fence is not None and leaves_container(line, fence.container):
+        fence, list_indent = None, None
     if fence is not None:
         closing = CLOSE.fullmatch(line)
         if (closing is not None and len(closing.group(1)) <= fence.max_indent
@@ -28,12 +33,11 @@ def advance(fence: Fence | None, line: str, *, list_indent: int | None = None) -
         return None
     leading, marker, info = opening.groups()
     indent = len(leading)
-    if indent <= 3:
-        max_indent = 3
-    elif list_indent is not None and list_indent <= indent <= list_indent + 3:
-        max_indent = list_indent + 3
+    container = list_indent if list_indent and indent >= list_indent else 0
+    if container <= indent <= container + 3:
+        max_indent = container + 3
     else:
         return None  # Four-space indented code is not a fenced code opener.
     if marker[0] == "`" and "`" in info:
         return None
-    return Fence(marker, max_indent)
+    return Fence(marker, max_indent, container)

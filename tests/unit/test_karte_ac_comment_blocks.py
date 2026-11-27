@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from karte.ac_snapshot import from_issue_body, digest
 from karte.ac_check_update import plan
 from karte.errors import KarteUsageError
+from tests.unit.test_karte_ac_state_boundaries import boundary_cases
 
 FIRST = "## Acceptance criteria\n- [ ] AC1\n"
 
@@ -30,6 +31,7 @@ def comment_cases():
     yield FIRST.rstrip("\n") + " <!-- inline -->\n  <span>\n- [x] AC2\n", ["AC1", "AC2"], "AC2"
     yield FIRST.rstrip("\n") + " <!-- inline\n  example\n  -->\n  <span>\n- [x] AC2\n", ["AC1", "AC2"], "AC2"
     yield FIRST + "<!-- note -->visible text\n- [x] AC2\n", ["AC1", "AC2"], "visible text"
+    yield from boundary_cases()
 
 
 class CommentBlockBoundaryTest(unittest.TestCase):
@@ -39,7 +41,7 @@ class CommentBlockBoundaryTest(unittest.TestCase):
                 items = from_issue_body(body)
                 checks = [i for i in items if i.checked is not None]
                 self.assertEqual([i.text.split()[0] for i in checks], names)
-                self.assertEqual([i.checked for i in checks], [False, body.endswith("- [x] AC2\n")])
+                self.assertEqual([i.checked for i in checks], [False, "- [x] AC2" in body])
                 judgments = [SimpleNamespace(number=i, result="satisfied") for i in range(1, len(items) + 1)]
                 expected = body.replace("- [ ] AC1", "- [x] AC1").replace("- [ ] AC2", "- [x] AC2")
                 self.assertEqual(plan(body, body, judgments)[0], expected)

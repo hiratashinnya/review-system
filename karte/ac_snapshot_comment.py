@@ -1,13 +1,10 @@
 """Hide HTML comments without hiding fenced, indented, or multiline inline code."""
 import re
-
 from .ac_snapshot_fence import advance as advance_fence
 from .ac_snapshot_escape import find_unescaped
-
+from .ac_snapshot_boundary import leaves_container
 _NEW_BLOCK = re.compile(r"^ {0,3}(?:#{1,6}(?:[ \t]|$)|(?:[-*+]|\d{1,9}[.)])[ \t]+|>|\x60{3,}|~{3,})")
 _LIST = re.compile(r"^ {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]+")
-
-
 def _same_block(line, following, indent):
     marker = _LIST.match(line)
     minimum = len(marker.group()) if marker else indent
@@ -15,7 +12,7 @@ def _same_block(line, following, indent):
         if not candidate.strip() or _NEW_BLOCK.match(candidate):
             break
         leading = candidate[:len(candidate) - len(candidate.lstrip(" \t"))]
-        if minimum is not None and ("\t" in leading or len(leading) < minimum):
+        if minimum is not None and ("\t" in leading or leaves_container(candidate, minimum)):
             break
         yield candidate
 
@@ -27,7 +24,7 @@ def _close(line, position, width):
     return None
 
 
-def visible_line(line, in_comment, code_ticks, future_lines):
+def visible_line(line, in_comment, code_ticks, future_lines, *, allow_open=False):
     """Filter HTML comments; preserve matched CommonMark code spans verbatim."""
     parts, pos, hidden = [], 0, in_comment
     while pos < len(line):
@@ -65,6 +62,9 @@ def visible_line(line, in_comment, code_ticks, future_lines):
                 pos = end
             continue
         if opening < 0:
+            parts.append(line[pos:])
+            break
+        if not allow_open and "-->" not in line[opening + 4:] and not any("-->" in rest for rest in future_lines):
             parts.append(line[pos:])
             break
         parts.append(line[pos:opening])

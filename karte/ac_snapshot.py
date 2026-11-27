@@ -5,8 +5,9 @@ import re
 
 from .format_error import KarteFormatError
 from .ac_snapshot_fence import advance as advance_fence
-from .ac_snapshot_html import advance as advance_html
-from .ac_snapshot_comment import CommentFilter, visible_line
+from .ac_snapshot_html import advance as advance_html, comment_suffix
+from .ac_snapshot_comment import CommentFilter
+from .ac_snapshot_boundary import leaves_container
 from .ac_snapshot_model import AC, digest
 from .ac_snapshot_heading import heading_level, remove_setext_title, section_level, block_transition
 
@@ -20,18 +21,18 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
         raise KarteFormatError("Issue本文は文字列であること")
     in_ac, level, found = False, 0, False
     items: list[tuple[list[str], bool | None, int]] = []
-    base_indent = content_indent = None
-    list_context = False
-    fence = None  # 全Issue本文のフェンス状態をAC節の外でも追跡
-    html_block = None
+    base_indent, content_indent, list_context = None, None, False
+    fence, html_block = None, None  # AC節の外でも状態を追跡
     comments = CommentFilter()
-    boundary = True
-    lines = body.splitlines()
+    boundary, lines = True, body.splitlines()
     visible_lines = [""] * len(lines)
     for number, raw_line in enumerate(lines, start=1):
+        if fence is not None and leaves_container(raw_line, fence.container):
+            fence, boundary, list_context = None, True, False
         was_inline_code = comments.code_ticks != 0
         html_block, in_html, html_container, html_comment = advance_html(html_block, raw_line, fence is None and not was_inline_code and not comments.in_comment, boundary=boundary, list_indent=content_indent if in_ac and list_context else None)
-        line, hidden = (visible_line(raw_line.partition("-->")[2], False, 0, ())[0], True) if html_comment else (raw_line, False) if in_html else comments.filter(raw_line, fence, in_ac, list_context, content_indent, lines[number:])
+        html_block, suffix = comment_suffix(html_block, raw_line, html_container) if html_comment else (html_block, "")
+        line, hidden = (suffix, True) if html_comment else (raw_line, False) if in_html else comments.filter(raw_line, fence, in_ac, list_context, content_indent, lines[number:])
         visible_lines[number - 1] = "" if html_comment else line
         if hidden and not line.strip():
             if html_comment:
@@ -51,8 +52,7 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
         next_level = heading_level(visible_lines, number, is_heading)
         if in_ac and not heading and next_level is not None and next_level <= level:
             remove_setext_title(visible_lines, number, items)
-            in_ac = False
-            list_context = False
+            in_ac, list_context = False, False
         if not was_inline_code and not in_html:
             fence = advance_fence(
                 fence, line,
