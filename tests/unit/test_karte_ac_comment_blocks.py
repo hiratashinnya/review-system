@@ -43,7 +43,7 @@ class CommentBlockBoundaryTest(unittest.TestCase):
                 self.assertEqual([i.text.split()[0] for i in checks], names)
                 self.assertEqual([i.checked for i in checks], [False, "- [x] AC2" in body])
                 judgments = [SimpleNamespace(number=i, result="satisfied") for i in range(1, len(items) + 1)]
-                expected = body.replace("- [ ] AC1", "- [x] AC1").replace("- [ ] AC2", "- [x] AC2")
+                expected = body.replace("[ ] AC1", "[x] AC1").replace("[ ] AC2", "[x] AC2")
                 self.assertEqual(plan(body, body, judgments)[0], expected)
                 changed = body.replace(drift, "changed")
                 self.assertNotEqual(digest(items), digest(from_issue_body(changed)))

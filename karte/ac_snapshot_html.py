@@ -2,8 +2,7 @@
 import re
 from typing import NamedTuple
 
-from .ac_snapshot_boundary import leaves_container
-from .ac_snapshot_comment import visible_line
+from .ac_snapshot_boundary import enclosing_indent, leaves_container
 
 RAW = re.compile(r"^ {0,3}<(pre|script|style|textarea)(?:[\s>]|$)", re.I)
 BLOCK_TAGS = (
@@ -38,7 +37,7 @@ def advance(block, line, active, *, boundary=False, list_indent=None) -> HtmlTra
     if block is None:
         if not active:
             return HtmlTransition(None, False, None, False)
-        container = list_indent if list_indent and line.startswith(" " * list_indent) else 0
+        container = enclosing_indent(line, list_indent)
         candidate = line[container:]
         match = RAW.match(candidate)
         if match:
@@ -60,9 +59,3 @@ def advance(block, line, active, *, boundary=False, list_indent=None) -> HtmlTra
     if end.search(line):
         return HtmlTransition(None, end is not BLANK, container, end is COMMENT)
     return HtmlTransition(block, True, container, end is COMMENT)
-
-
-def comment_suffix(block, line, container):
-    """Retain a second comment opened after the first comment's closing marker."""
-    suffix, opened, _, _ = visible_line(line.partition("-->")[2], False, 0, (), allow_open=True)
-    return ((COMMENT, container) if opened else block), suffix

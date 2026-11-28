@@ -25,7 +25,7 @@ def section_level(lines: list[str], number: int, allowed: bool) -> int | None:
 
 
 ATX_GENERIC = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+|$)")
-LIST_LINE = re.compile(r"^ {0,3}(?:[-*+]|[0-9]+[.)])[ \t]+")
+LIST_LINE = re.compile(r"^ {0,3}(?:[-*+]|[0-9]{1,9}[.)])[ \t]+")
 FENCE_MARKER = re.compile(r"^ {0,3}(?:`{3,}|~{3,})[ \t]*$")
 THEMATIC_BREAK = re.compile(r"^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})$")
 

@@ -2,19 +2,9 @@
 import re
 from .ac_snapshot_fence import advance as advance_fence
 from .ac_snapshot_escape import find_unescaped
-from .ac_snapshot_boundary import leaves_container
-_NEW_BLOCK = re.compile(r"^ {0,3}(?:#{1,6}(?:[ \t]|$)|(?:[-*+]|\d{1,9}[.)])[ \t]+|>|\x60{3,}|~{3,})")
-_LIST = re.compile(r"^ {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]+")
-def _same_block(line, following, indent):
-    marker = _LIST.match(line)
-    minimum = len(marker.group()) if marker else indent
-    for candidate in following:
-        if not candidate.strip() or _NEW_BLOCK.match(candidate):
-            break
-        leading = candidate[:len(candidate) - len(candidate.lstrip(" \t"))]
-        if minimum is not None and ("\t" in leading or leaves_container(candidate, minimum)):
-            break
-        yield candidate
+from .ac_snapshot_html import COMMENT
+from .ac_snapshot_inline_boundary import inline_continuation
+
 
 def _close(line, position, width):
     """End of first closing backtick run with exactly this width."""
@@ -71,28 +61,36 @@ def visible_line(line, in_comment, code_ticks, future_lines, *, allow_open=False
         pos, in_comment, hidden = opening + 4, True, True
     return "".join(parts), in_comment, code_ticks, hidden
 
+def comment_suffix(block, line, container):
+    """Retain a second comment opened after the first comment's closing marker."""
+    suffix, opened, _, _ = visible_line(line.partition("-->")[2], False, 0, (), allow_open=True)
+    return ((COMMENT, container) if opened else block), suffix
+
+
 class CommentFilter:
     def __init__(self):
         self.in_comment = False
         self.code_ticks = 0
 
-    def filter(self, raw_line, fence, in_ac, list_context, content_indent, future_lines):
+    def filter(self, raw_line, fence, content_indent, future_lines):
+        if not (self.in_comment or self.code_ticks or "<!--" in raw_line or "`" in raw_line):
+            return raw_line, False
         leading = raw_line[:len(raw_line) - len(raw_line.lstrip(" \t"))]
         indent = len(leading)
         content_code = (indent >= 4 or "\t" in leading) and not (
-            in_ac and list_context and content_indent is not None
+            content_indent is not None
             and content_indent <= indent <= content_indent + 3)
         opening_fence = (fence is None and not self.in_comment and not self.code_ticks
                          and advance_fence(
                              None, raw_line,
-                             list_indent=(content_indent if in_ac and list_context else None),
+                             list_indent=content_indent,
                          ) is not None)
         if not self.code_ticks and (
             fence is not None or opening_fence or (content_code and not self.in_comment)
         ):
             return raw_line, False
-        following = tuple(_same_block(
-            raw_line, future_lines, content_indent if in_ac and list_context else None,
+        following = tuple(inline_continuation(
+            raw_line, future_lines, content_indent,
         ))
         line, self.in_comment, self.code_ticks, hidden = visible_line(
             raw_line, self.in_comment, self.code_ticks, following,

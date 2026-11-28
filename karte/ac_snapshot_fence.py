@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 import re
 
-from .ac_snapshot_boundary import leaves_container
+from .ac_snapshot_boundary import enclosing_indent, leaves_container
 
 OPEN = re.compile(r"^( *)(`{3,}|~{3,})(.*)$")
 CLOSE = re.compile(r"^( *)(`{3,}|~{3,})[ \t]*$")
@@ -33,7 +33,7 @@ def advance(fence: Fence | None, line: str, *, list_indent: int | None = None) -
         return None
     leading, marker, info = opening.groups()
     indent = len(leading)
-    container = list_indent if list_indent and indent >= list_indent else 0
+    container = enclosing_indent(line, list_indent)
     if container <= indent <= container + 3:
         max_indent = container + 3
     else:

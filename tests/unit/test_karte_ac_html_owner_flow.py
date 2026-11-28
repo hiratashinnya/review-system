@@ -93,4 +93,4 @@ class HtmlOwnerFlowTest(unittest.TestCase):
                     changed = ac_owner_update.perform(root, 801, 1, frozen["source"], ORIGIN["repository"], remote=remote)
                     self.assertEqual(changed, [n for n, ac in enumerate(criteria, 1) if ac.checked is False])
                     self.assertEqual(calls, [False, False, True, False])
-                    self.assertEqual(live[0], body.replace("- [ ] AC1", "- [x] AC1").replace("- [ ] AC2", "- [x] AC2"))
+                    self.assertEqual(live[0], body.replace("[ ] AC1", "[x] AC1").replace("[ ] AC2", "[x] AC2"))
