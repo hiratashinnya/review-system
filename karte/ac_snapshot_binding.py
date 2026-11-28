@@ -6,24 +6,7 @@ from . import ac_repository, paths
 from .ac_snapshot import digest, from_issue_body
 from .ac_snapshot_archive import path_for_stage, path_for_record
 from .errors import KarteUsageError
-
-
-def _is_test_design(expected):
-    return isinstance(expected, dict) and expected.get("phase") == "test_design"
-
-
-def allows_finding_only(expected, legacy=False):
-    """2aの従来形式と明示された移行用形式はAC snapshotを必要としない。"""
-    return _is_test_design(expected) or (isinstance(expected, dict) and legacy is True)
-
-
-def require_snapshot_phase(expected):
-    """AC snapshot付きの2aは起動・取り込みの両方で停止する。"""
-    if _is_test_design(expected):
-        raise KarteUsageError(
-            "2a（test_design）ではAC snapshotを指定できない。AC snapshot付きで待機中なら"
-            "karte activate --issue <N> で待機を解除し、新しい--run-idで再dispatchする"
-        )
+from .review_expectation import allows_finding_only, require_snapshot_phase
 
 
 def stage(repo_root, issue, round_no, source):
