@@ -8,7 +8,7 @@
 :mod:`karte.owner_cli`。
 """
 
-from . import ac_snapshot_binding, handoff_header, handoff_path, ingest_review, paths, pointer_completion, review_expectation
+from . import ac_snapshot_binding, handoff_header, handoff_path, ingest_review, paths, pointer_completion, review_expectation, review_summary
 from .errors import KarteUsageError
 from .reviewer_policy import ReviewerIngestPolicy
 from .verb_boundary import fail_close
@@ -24,7 +24,7 @@ def cmd_ingest_reviewer(args, repo_root) -> int:
     if "ac_snapshot" in active and "legacy_finding_only" not in active:
         ac_snapshot_binding.validate(repo_root, issue, round_no, report)
     elif "ac_snapshot" not in active and ac_snapshot_binding.allows_finding_only(expected, active.get("legacy_finding_only")):
-        if "## Review Summary" in report or "<!-- review-complete -->" in report:
+        if review_summary.has_summary_controls(report):
             raise KarteUsageError("finding-only経路ではAC Summaryや0件完了を受理しない")
     else:
         raise KarteUsageError("AC snapshotが無いreview envelopeの取り込みを拒否")

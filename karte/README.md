@@ -76,6 +76,9 @@ finding_refs: [new@1]
   main以外のロールはIssueチェック編集禁止。owner報告時の更新案生成には `karte.ac_check_update.plan`、更新後には `verify_written` を用いる。
 - **移行状態・既知の制約**：旧来の指摘ありレポートはSummaryなしでも受理する。
   2bのreview envelopeにはAC snapshotが必須。2a（`test_design`）は従来のreview envelopeと構造化findingを用いる。
+  2aで `--ac-snapshot-file` を指定すると拒否する。従前のAC snapshot付き2aが待機中なら、主文脈は
+  `karte activate --issue <N>` でいったん待機を解除し、新しい `--run-id` で2aを始める。
+  受理済みの原本・レシートは保持し、ACチェック更新の根拠には受理原本のphaseが `implementation` のroundだけを使う。
   2bの旧finding-only経路は `activate --legacy-finding-only` の明示指定を要する。AC snapshotを使わない経路ではSummaryや0件完了を受理しない。
   owner reportのACチェック更新は `python3 -m karte.ac_owner_update --issue N --round R --repository owner/repo --snapshot-source <activateで保存したsource>` の専用入口のみを使用し、一般の `gh issue edit` によるAC自動チェック更新は禁止する。`--dry-run` は書込なし。
   Review Roundの受理時にAC原本sourceとorigin(host/repository)をレシートへ保存する。owner AC更新は指定sourceと受理済みroundのsource/originを照合し、取消済みの旧原本をAPI呼出し前に拒否する。originが無い環境でもレビュー取り込みは可能だがAC自動更新は拒否する。

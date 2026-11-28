@@ -8,9 +8,22 @@ from .ac_snapshot_archive import path_for_stage, path_for_record
 from .errors import KarteUsageError
 
 
+def _is_test_design(expected):
+    return isinstance(expected, dict) and expected.get("phase") == "test_design"
+
+
 def allows_finding_only(expected, legacy=False):
     """2aの従来形式と明示された移行用形式はAC snapshotを必要としない。"""
-    return isinstance(expected, dict) and (expected.get("phase") == "test_design" or legacy is True)
+    return _is_test_design(expected) or (isinstance(expected, dict) and legacy is True)
+
+
+def require_snapshot_phase(expected):
+    """AC snapshot付きの2aは起動・取り込みの両方で停止する。"""
+    if _is_test_design(expected):
+        raise KarteUsageError(
+            "2a（test_design）ではAC snapshotを指定できない。AC snapshot付きで待機中なら"
+            "karte activate --issue <N> で待機を解除し、新しい--run-idで再dispatchする"
+        )
 
 
 def stage(repo_root, issue, round_no, source):
@@ -47,6 +60,7 @@ def read_for_dispatch(repo_root, issue, round_no):
         if allows_finding_only(active["review_expect"], active.get("legacy_finding_only")):
             return None
         raise KarteUsageError("AC snapshot無しのreview envelopeは受理しない")
+    require_snapshot_phase(active["review_expect"])
     record = active["ac_snapshot"]
     if not isinstance(record, dict) or set(record) not in (
             {"digest", "count", "source"}, {"digest", "count", "source", "host", "repository"}):
@@ -68,7 +82,9 @@ def validate(repo_root, issue, round_no, report):
     from .active_pointer import read_active
     from .review_summary import parse_summary
 
-    record = read_active(repo_root, required=True).get("ac_snapshot")
+    active = read_active(repo_root, required=True)
+    require_snapshot_phase(active.get("review_expect"))
+    record = active.get("ac_snapshot")
     if not isinstance(record, dict) or set(record) not in (
             {"digest", "count", "source"}, {"digest", "count", "source", "host", "repository"}):
         raise KarteUsageError("mainによるAC snapshotの期待値が無い")

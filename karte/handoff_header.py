@@ -62,18 +62,23 @@ def _fields(tokens) -> dict:
     return fields
 
 
+def read_header(report_text) -> dict:
+    """一意のhandoffヘッダを分解する。束縛の検査は呼出側が行う。"""
+    found = _declared(report_text)
+    if not found:
+        raise KarteUsageError(f"handoff にヘッダが無い（{FORMAT_HINT}）")
+    if len(found) > 1:
+        raise KarteUsageError("handoff のヘッダ `<!-- handoff ... -->` が重複している")
+    return _fields(found[0])
+
+
 def check_header(report_text, issue: int, round_no: int, expected: dict) -> None:
     """ヘッダが無い・重複・値が取り込み先／期待値と食い違うなら拒否する。
 
     ``expected`` は主文脈が記録した共通 envelope の期待値。issue と round は取り込み先、
     それ以外（run_id・target_key・input_digest・snapshot_oid・phase 等）は期待値と完全一致を要求する。
     """
-    found = _declared(report_text)
-    if not found:
-        raise KarteUsageError(f"handoff にヘッダが無い（{FORMAT_HINT}）")
-    if len(found) > 1:
-        raise KarteUsageError("handoff のヘッダ `<!-- handoff ... -->` が重複している")
-    fields = _fields(found[0])
+    fields = read_header(report_text)
     if "issue" not in fields or "round" not in fields:
         raise KarteUsageError(f"handoff のヘッダに issue と round が必要（{FORMAT_HINT}）")
     for key, expected_value in (("issue", issue), ("round", round_no)):

@@ -6,12 +6,25 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from karte import ac_owner_update, ac_snapshot_binding, ingest_receipt, model, paths
+from karte import ac_owner_update, ac_snapshot_binding, handoff_header, ingest_receipt, model, paths, review_envelope
 from karte.ac_snapshot import digest, from_issue_body
 from karte.active_pointer import write_active
 from karte.errors import KarteUsageError
 
 BODY = "## Acceptance criteria\n- [ ] AC1\n- [x] AC2\n\n## Notes\nleave this alone\n"
+
+
+def review_report(round_no, phase):
+    expected = review_envelope.expected_of(
+        issue=801, phase=phase, run_id=f"run-{round_no}", target_key="801",
+        input_digest="b" * 64, snapshot_oid="a" * 40,
+    )
+    return (handoff_header.render_header(round_no, expected) +
+            "\n## Review Summary\n\n### Summary\nfinding_count: 0\nac_count: 2\n"
+            f"ac_snapshot_digest: {digest(from_issue_body(BODY))}\n\n"
+            "### AC 1\nresult: satisfied\nevidence: tested\nfinding_refs: []\n\n"
+            "### AC 2\nresult: satisfied\nevidence: tested\nfinding_refs: []\n"
+            "<!-- review-complete -->\n")
 
 
 class Remote:
@@ -46,13 +59,8 @@ class OwnerWriteGateTest(unittest.TestCase):
         source.write_text(BODY, encoding="utf-8")
         frozen = ac_snapshot_binding.stage(self.root, 801, 1, source)
         self.snapshot = frozen["source"]
-        report = ("## Review Summary\n\n### Summary\nfinding_count: 0\nac_count: 2\n"
-                  f"ac_snapshot_digest: {digest(from_issue_body(BODY))}\n\n"
-                  "### AC 1\nresult: satisfied\nevidence: tested\nfinding_refs: []\n\n"
-                  "### AC 2\nresult: satisfied\nevidence: tested\nfinding_refs: []\n"
-                  "<!-- review-complete -->\n")
         ledger = model.new_karte(801)
-        ingest_receipt.record(ledger, 1, report, self.root, 801, ac_snapshot=frozen)
+        ingest_receipt.record(ledger, 1, review_report(1, "implementation"), self.root, 801, ac_snapshot=frozen)
         paths.write_text_atomic(paths.karte_path(801, self.root), model.dumps(ledger))
         write_active(self.root, 801, 1)
 
@@ -164,6 +172,24 @@ class OwnerWriteGateTest(unittest.TestCase):
         with self.assertRaises(KarteUsageError):
             self.run_update(remote)
         self.assertEqual((0, 0), (remote.reads, remote.writes))
+
+    def test_prior_test_design_ac_receipt_is_retained_and_cannot_write(self):
+        ledger_path = paths.karte_path(801, self.root)
+        ledger = model.parse(paths.read_text(ledger_path))
+        frozen = ac_snapshot_binding.stage(self.root, 801, 2, self.root / self.snapshot)
+        report = review_report(2, "test_design")
+        ingest_receipt.record(ledger, 2, report, self.root, 801, ac_snapshot=frozen)
+        paths.write_text_atomic(ledger_path, model.dumps(ledger))
+        write_active(self.root, 801, 2)
+        original = ingest_receipt.original_path(self.root, 801, 2)
+        before = ledger_path.read_bytes()
+        remote = Remote()
+        with self.assertRaisesRegex(KarteUsageError, "2b"):
+            ac_owner_update.perform(self.root, 801, 2, frozen["source"],
+                                    "hiratashinnya/review-system", dry_run=True, remote=remote)
+        self.assertEqual((0, 0), (remote.reads, remote.writes))
+        self.assertEqual(before, ledger_path.read_bytes())
+        self.assertEqual(report, original.read_text(encoding="utf-8"))
 
     def test_wrong_round_or_tampered_snapshot_or_receipt_fails_closed(self):
         remote = Remote()

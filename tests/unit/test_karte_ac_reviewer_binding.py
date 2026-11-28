@@ -7,8 +7,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from karte import handoff_header, model, owner_cli, paths, review_envelope, reviewer_cli
+from karte import ac_snapshot_binding, handoff_header, model, owner_cli, paths, review_envelope, reviewer_cli
 from karte.ac_snapshot import digest, from_issue_body
+from karte.active_pointer import write_active
+from karte.errors import KarteUsageError
 from karte.exit_codes import EXIT_ERROR, EXIT_OK
 
 OPTIONS = dict(run_id="run-801", target_key="pr-846", phase="implementation",
@@ -48,8 +50,8 @@ class ACReviewerBindingTest(unittest.TestCase):
             result += "<!-- review-complete -->\n"
         return result
 
-    def ingest(self, report, name="pr-reviewer--review801.md"):
-        expected = review_envelope.expected_of(issue=801, **OPTIONS)
+    def ingest(self, report, name="pr-reviewer--review801.md", *, options=OPTIONS):
+        expected = review_envelope.expected_of(issue=801, **options)
         source = self.root / "tmp" / "_handoff" / name
         source.write_text(handoff_header.render_header(1, expected) + "\n" + report, encoding="utf-8")
         return self.run_cli(reviewer_cli.cmd_ingest_reviewer, source=str(source), issue=None, round=None)
@@ -67,6 +69,54 @@ class ACReviewerBindingTest(unittest.TestCase):
         self.assertEqual(code, EXIT_OK, err)
         self.assertEqual(self.ingest(self.make_report())[0], EXIT_ERROR)
         self.assertFalse(paths.karte_path(801, self.root).exists())
+
+    def test_test_design_cannot_start_with_a_frozen_ac_snapshot(self):
+        options = {**OPTIONS, "phase": "test_design"}
+        code, _, err = self.run_cli(owner_cli.cmd_activate, issue="801", ac_snapshot_file=str(self.source),
+                                    repair_declared_scope=False, **options)
+        self.assertEqual(EXIT_ERROR, code)
+        self.assertIn("test_design", err)
+        karte_dir = self.root / "tmp" / "_karte"
+        self.assertFalse((karte_dir / "active.json").exists())
+        self.assertFalse(list(karte_dir.glob("issue-801-ac-round-*")))
+
+    def test_waiting_test_design_snapshot_requires_fresh_dispatch(self):
+        options = {**OPTIONS, "phase": "test_design"}
+        expected = review_envelope.expected_of(issue=801, **options)
+        frozen = ac_snapshot_binding.stage(self.root, 801, 1, self.source)
+        write_active(self.root, 801, 0, expected, ac_snapshot=frozen)
+        pointer = self.root / "tmp" / "_karte" / "active.json"
+        before = pointer.read_bytes()
+
+        with self.assertRaisesRegex(KarteUsageError, "test_design"):
+            ac_snapshot_binding.read_for_dispatch(self.root, 801, 1)
+        code, _, err = self.ingest(self.make_report(), options=options)
+        self.assertEqual(EXIT_ERROR, code)
+        self.assertIn("test_design", err)
+        self.assertEqual(before, pointer.read_bytes())
+        self.assertFalse(paths.karte_path(801, self.root).exists())
+
+        code, _, err = self.run_cli(owner_cli.cmd_activate, issue="801", repair_declared_scope=False)
+        self.assertEqual(EXIT_OK, code, err)
+        code, _, err = self.run_cli(owner_cli.cmd_activate, issue="801", repair_declared_scope=False, **options)
+        self.assertEqual(EXIT_ERROR, code)
+        self.assertIn("再使用不可", err)
+        fresh = {**options, "run_id": "test-design-after-cancel"}
+        code, _, err = self.run_cli(owner_cli.cmd_activate, issue="801", repair_declared_scope=False, **fresh)
+        self.assertEqual(EXIT_OK, code, err)
+        self.assertIsNone(ac_snapshot_binding.read_for_dispatch(self.root, 801, 1))
+        self.assertEqual(BODY, (self.root / frozen["source"]).read_text(encoding="utf-8"))
+
+    def test_test_design_does_not_accept_structural_summary_controls(self):
+        options = {**OPTIONS, "phase": "test_design"}
+        code, _, err = self.run_cli(owner_cli.cmd_activate, issue="801", repair_declared_scope=False, **options)
+        self.assertEqual(EXIT_OK, code, err)
+        for report in ("<!-- review-complete -->\n", self.make_report(), "##   Review Summary\n"):
+            with self.subTest(report=report):
+                code, _, err = self.ingest(report, options=options)
+                self.assertEqual(EXIT_ERROR, code)
+                self.assertIn("finding-only経路", err)
+                self.assertFalse(paths.karte_path(801, self.root).exists())
 
     def test_gfm_task_list_rejects_missing_ac_and_preserves_checked_regression(self):
         from karte.ac_check_update import plan

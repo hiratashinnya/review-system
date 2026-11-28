@@ -2,7 +2,7 @@
 from hashlib import sha256
 from pathlib import Path
 
-from . import ac_repository, ingest_receipt, karte_rounds, paths
+from . import ac_repository, handoff_header, ingest_receipt, karte_rounds, paths
 from .ac_snapshot import digest, from_issue_body
 from .ac_snapshot_archive import path_for_record
 from .active_pointer import read_active
@@ -36,6 +36,8 @@ def require_trusted_round(repo_root, issue, round_no, snapshot_source):
     report = paths.read_text(original)
     if sha256(report.encode("utf-8")).hexdigest() != rounds[0].digest:
         raise KarteUsageError("review原本のSHA-256が受理レシートと不一致")
+    if handoff_header.read_header(report).get("phase") != "implementation":
+        raise KarteUsageError("AC更新には2b（implementation）の受理済みreviewが必要")
     summary = parse_summary(report, issue)
     if summary is None:
         raise KarteUsageError("受理済みReview Summaryが存在しない")

@@ -32,12 +32,21 @@ def _integer(block, key):
     return number
 
 
+def has_summary_controls(text: str) -> bool:
+    """フィールド値に含まれる文字列を除き、独立したSummary見出し・完了行を探す。"""
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line == FINISH_MARKER or (line.startswith("## ") and line[3:].strip() == SECTION):
+            return True
+    return False
+
+
 def parse_summary(text: str, issue: int) -> ReviewSummary | None:
     """Summary 無しは旧フォーマットとして None。Summary があれば全項目 fail-close。"""
     blocks = parse_blocks(text, allow_preamble=True)
     items = [block for block in blocks if block.section == SECTION]
     if not items:
-        if FINISH_MARKER in text or any(line.strip() == "## Review Summary" for line in text.splitlines()):
+        if has_summary_controls(text):
             raise KarteFormatError("review-complete マーカーだけで Review Summary がない")
         return None
     if text.rstrip().splitlines()[-1].strip() != FINISH_MARKER:
