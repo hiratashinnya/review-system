@@ -42,9 +42,17 @@ def boundary_cases():
             end = "    ```\n" if example.endswith("markdown\n") else "    </pre>\n"
             usage = "- Usage\n" + example + "  ## Acceptance criteria\n  - [ ] example only\n" + end
             yield usage + "\n" + FIRST + "\n" + last, ["AC1", "AC2"], "AC2"
-
-
+        for separator in ("> quotation", "- - -", "Description"):
+            body = "## Intro\n- Item\n\n" + separator + "\n\n  " + FIRST.replace("\n", "\n  ")
+            yield body + "\n  " + last, ["AC1", "AC2"], "AC2"
+        for block in ("  - Detail\n      ```\n    <!-- literal -->\n      ```\n",
+                      "  - ```\n    <!-- literal -->\n    ```\n"):
+            yield FIRST + "\n" + block + last, ["AC1", "AC2"], "literal"
 class StateBoundaryTest(unittest.TestCase):
+    def test_indented_description_retains_list_ownership(self):
+        body = "## Intro\n- Item\n\n  Description\n\n  ## Acceptance criteria\n  - [ ] example only\n"
+        self.assertEqual(from_issue_body(body), ())
+
     def test_heading_under_padded_list_indent_ends_section(self):
         body = "## Acceptance criteria\n-   Plain AC1\n  ## Notes\n- [ ] Unrelated\n"
         self.assertEqual([(i.text, i.checked) for i in from_issue_body(body)], [("Plain AC1", None)])

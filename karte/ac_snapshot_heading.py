@@ -2,6 +2,8 @@
 
 import re
 
+from .ac_snapshot_boundary import BLOCKQUOTE, LIST_LINE, THEMATIC_BREAK
+
 ATX = re.compile(r"^(#{1,6})[ \t]+(Acceptance criteria|受け入れ基準)(?:[ \t]+#+)?[ \t]*$", re.I)
 SETEXT = re.compile(r"^ {0,3}(=+|-+)[ \t]*$")
 LABELS = frozenset(("acceptance criteria", "受け入れ基準"))
@@ -25,9 +27,7 @@ def section_level(lines: list[str], number: int, allowed: bool) -> int | None:
 
 
 ATX_GENERIC = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+|$)")
-LIST_LINE = re.compile(r"^ {0,3}(?:[-*+]|[0-9]{1,9}[.)])[ \t]+")
 FENCE_MARKER = re.compile(r"^ {0,3}(?:`{3,}|~{3,})[ \t]*$")
-THEMATIC_BREAK = re.compile(r"^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})$")
 
 
 def heading_level(lines: list[str], number: int, allowed: bool) -> int | None:
@@ -63,18 +63,11 @@ def remove_setext_title(lines: list[str], number: int, items: list) -> None:
         items[-1][0].pop()
 
 
-def block_transition(line, next_level, was_fenced, fence, in_html, was_inline_code, child, list_context, html_block, html_container):
+def block_transition(line, next_level, was_fenced, fence, in_html, was_inline_code, html_block):
     """Track boundaries from recognized blocks, not raw previous-line guesses."""
-    if next_level is not None:
-        list_context = False
-    if html_container == 0:
-        list_context = False
     if in_html:
-        return html_block is None, list_context
+        return html_block is None
     if was_inline_code:
-        return False, list_context
-    thematic = bool(THEMATIC_BREAK.fullmatch(line))
-    boundary = not line.strip() or next_level is not None or (was_fenced and fence is None) or thematic
-    if (next_level is not None or (not was_fenced and fence is not None) or thematic) and not child:
-        list_context = False
-    return boundary, list_context
+        return False
+    return (not line.strip() or next_level is not None or (was_fenced and fence is None)
+            or bool(THEMATIC_BREAK.fullmatch(line) or BLOCKQUOTE.match(line)))

@@ -1,6 +1,5 @@
 """Hide HTML comments without hiding fenced, indented, or multiline inline code."""
 import re
-from .ac_snapshot_fence import advance as advance_fence
 from .ac_snapshot_escape import find_unescaped
 from .ac_snapshot_html import COMMENT
 from .ac_snapshot_inline_boundary import inline_continuation
@@ -72,26 +71,17 @@ class CommentFilter:
         self.in_comment = False
         self.code_ticks = 0
 
-    def filter(self, raw_line, fence, content_indent, future_lines):
+    def filter(self, raw_line, fenced, content_indent, future_lines, indents):
         if not (self.in_comment or self.code_ticks or "<!--" in raw_line or "`" in raw_line):
             return raw_line, False
         leading = raw_line[:len(raw_line) - len(raw_line.lstrip(" \t"))]
         indent = len(leading)
-        content_code = (indent >= 4 or "\t" in leading) and not (
-            content_indent is not None
-            and content_indent <= indent <= content_indent + 3)
-        opening_fence = (fence is None and not self.in_comment and not self.code_ticks
-                         and advance_fence(
-                             None, raw_line,
-                             list_indent=content_indent,
-                         ) is not None)
+        content_code = indent >= content_indent + 4 or "\t" in leading
         if not self.code_ticks and (
-            fence is not None or opening_fence or (content_code and not self.in_comment)
+            fenced or (content_code and not self.in_comment)
         ):
             return raw_line, False
-        following = tuple(inline_continuation(
-            raw_line, future_lines, content_indent,
-        ))
+        following = tuple(inline_continuation(future_lines, indents))
         line, self.in_comment, self.code_ticks, hidden = visible_line(
             raw_line, self.in_comment, self.code_ticks, following,
         )
