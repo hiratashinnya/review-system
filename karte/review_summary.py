@@ -40,8 +40,8 @@ def parse_summary(text: str, issue: int) -> ReviewSummary | None:
         if FINISH_MARKER in text or any(line.strip() == "## Review Summary" for line in text.splitlines()):
             raise KarteFormatError("review-complete マーカーだけで Review Summary がない")
         return None
-    if not text.rstrip().endswith(FINISH_MARKER):
-        raise KarteFormatError("Review Summary の末尾に review-complete が必要")
+    if text.rstrip().splitlines()[-1].strip() != FINISH_MARKER:
+        raise KarteFormatError("Review Summary の最終非空行に独立した review-complete が必要")
     if blocks[-1].section != SECTION or items[0].title != "Summary":
         raise KarteFormatError("Review Summary は最後のセクション、最初のブロックは Summary")
     header = items[0]

@@ -129,6 +129,25 @@ class ACReviewerBindingTest(unittest.TestCase):
                 self.assertEqual(code, EXIT_ERROR)
                 self.assertFalse(paths.karte_path(801, self.root).exists())
 
+    def test_embedded_completion_marker_cannot_end_a_review(self):
+        self.assertEqual(self.activate()[0], EXIT_OK)
+        pointer = self.root / "tmp" / "_karte" / "active.json"
+        before = pointer.read_bytes()
+        report = self.make_report(complete=False)
+        header, _, _ = report.rpartition("evidence: 実行済み\nfinding_refs: []\n")
+        partial = header + "finding_refs: []\nevidence: 実行済み <!-- review-complete -->\n"
+
+        code, _, err = self.ingest(partial, "pr-reviewer--embedded-marker.md")
+        self.assertEqual(EXIT_ERROR, code)
+        self.assertIn("review-complete", err)
+        self.assertFalse(paths.karte_path(801, self.root).exists())
+        self.assertEqual(before, pointer.read_bytes())
+
+        code, _, err = self.ingest(partial + "<!-- review-complete -->\n\n", "pr-reviewer--full-marker.md")
+        self.assertEqual(EXIT_OK, code, err)
+        ledger = model.parse(paths.karte_path(801, self.root).read_text(encoding="utf-8"))
+        self.assertEqual([1], [receipt.number for receipt in ledger.review_rounds])
+
     def make_unmet_report(self, *, result="unverified", status="open"):
         status_line = "" if status is None else f"status: {status}\n"
         return (
