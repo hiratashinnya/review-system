@@ -63,5 +63,5 @@ class ReviewerIngestPolicy:
 
     def persist(self, round_no) -> None:
         if self.record_declarations:
-            scope_ledger.arm(self.issue, self.repo_root)  # 取り込み後は保護モードにする（実経路は 1 件以上の申告のみ・F-375-16/24）
+            scope_ledger.arm(self.issue, self.repo_root)  # Summary付きclean 0件でも原本作成・保護モードへ移行（#801）
             scope_ledger.record_declared(self.issue, self.repo_root, round_no, self.declared_now, records=self.records)

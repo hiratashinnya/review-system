@@ -49,8 +49,9 @@ def arm(issue, repo_root) -> None:
     原本の有無が保護モードの条件。作るのはレビューア本人の取り込みが検証を通った後だけ
     （``activate`` は作らない。待機取消後に取り消せない保護を残さないため・Issue #375 F-375-10/16）。
 
-    単体では空の原本を作るが、実経路（``ingest_locked``）では finding ブロックが 0 件のレポートは
-    ``persist`` より前に拒否されるため、空の原本は作られない（この直後に申告が追記される・F-375-24）。
+    実経路（``ingest_locked``）は正しい Review Summary 付き0件レビューも受理し、
+    空行のみの原本を作って保護モードへ移行する。Summaryなしの0件旧形式は
+    ``persist`` より前に拒否され、原本は新規作成されない（Issue #801）。
     """
     if not exists(issue, repo_root):
         scope_records.append_lines(issue, repo_root, [])

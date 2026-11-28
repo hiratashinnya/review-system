@@ -263,8 +263,15 @@ class TestModelBehaviourIsUnchangedBySplit(unittest.TestCase):
     def test_every_recorded_outcome_is_reproduced(self):
         current = build_outcomes()
         self.assertEqual(sorted(current), sorted(self.golden["outcomes"]))
-        diffs = [key for key in current if current[key] != self.golden["outcomes"][key]]
+        # Issue #801: Review Rounds の追加により許可セクション一覧が意図的に変わる。
+        # 旧書式の互換性を残しつつ、この一例だけ明示的に検証する。
+        intentional = {"parse/unknown-section"}
+        diffs = [key for key in current
+                 if current[key] != self.golden["outcomes"][key] and key not in intentional]
         self.assertEqual(diffs, [], f"分割前と結果が違う入力: {diffs[:10]}")
+        error = run(view_karte, dict(karte_extras())["unknown-section"])
+        self.assertIn("未知のセクション", error["err"])
+        self.assertIn("Review Rounds", error["err"])
 
     def test_golden_covers_both_acceptance_and_rejection(self):
         values = list(self.golden["outcomes"].values())

@@ -109,6 +109,8 @@ class ReadOnlyWorkspaceTests(unittest.TestCase):
                 with self.subTest(role=role), contextlib.redirect_stdout(io.StringIO()), patch("issue_start.readonly_workspace.execute",
                         side_effect=lambda a, cwd: execute(a, cwd=cwd,
                             environ=clean_environ(CODEX_HOME=str(home)), codex=str(fake))), \
+                        patch("codex_worktree_exec.cli.append_ac_snapshot",
+                              side_effect=lambda body, *_: body), \
                         patch("codex_worktree_exec.cli.ingest_codex_output",
                               return_value="Codex pr-reviewer 結果を取り込み済み: tmp/_handoff/test.md"):
                     self.assertEqual(main(args), 0)

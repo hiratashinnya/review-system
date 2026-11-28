@@ -17,6 +17,7 @@
 - サブエージェント（Issue 運用・`/issue-pipeline` のファンアウト先）：
   - `issue-investigator` は必要時の事実・原因・影響調査、`ac-designer` は全Issue必須の1a VD著作、`change-planner` は1a合格後の1b CP/ADR著作を担う。
   - `plan-reviewer` は1a単独と1b整合を無条件に別dispatchで審査し、`test-writer` は2a UT-TD/UT-TCのRed著作、`pr-reviewer` は2a単独と2b PRを別dispatchで審査する。
+  - 2aでは構造化findingを、2bでは元IssueのAC全件判定を伴うReview Summary（finding 0件を含む）と構造化findingを取り込む。書式と照合の正本は `karte/README.md`「Review Summary」。
   - `adviser` はread-only相談役で、編集・push・台帳変更・承認・STOP解除を行わない。新rolesのctx tool付与は行わず、許可されたBash入口だけを使う。
   - `issue-implementer` は承認済み単一work unitをGreen化しcommit/push/draft PRまでを担い、新規テスト著作・mergeを行わない。
   - `issue-fixer` はレビュー指摘を受けた是正ラウンド専任で、push はできるが merge はしない。**Step 1 の診断（`karte render`→`karte append`）を経ずに Edit/Write しない**契約で（例外は PR base 取り込みの衝突解消だけ＝`.ai/agents/issue-fixer.md`「取り込みとカルテ手順の順序」）、`python3 -m karte` の診断・記録用 verb を許可される。ただし `ingest-review` は是正当事者に許さず、主文脈が実行する。fixerは `gitgate adopt-branch` で既存PRブランチへ束縛し、implementerは承認済みphase入口から成果物branchを引き継ぐ。fixerにはカルテのパスを渡さず、`--issue`/`--round` でCLI経由に触れさせる。

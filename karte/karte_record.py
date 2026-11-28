@@ -14,6 +14,7 @@ class Karte:
     findings: list = field(default_factory=list)
     attempts: list = field(default_factory=list)
     results: list = field(default_factory=list)
+    review_rounds: list = field(default_factory=list)
 
     # --- 参照 ---
     def finding(self, finding_id: str):

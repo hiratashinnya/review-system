@@ -1,10 +1,11 @@
 """主文脈専用の verb ``activate`` / ``decide``。"""
 
-from . import handoff_header, karte_rounds, model, owner_decision, override_gate, paths, review_expectation, scope_ledger, scope_ledger_repair
+from . import ac_snapshot_binding, handoff_header, karte_rounds, model, owner_decision, override_gate, paths, review_attempt_history, review_expectation, scope_ledger, scope_ledger_repair
 from .active_pointer import write_active
 from .errors import KarteNotFound, KarteUsageError
 from .exit_codes import EXIT_OK
 from .int_args import require_ascii_int
+from .owner_cli_parser import register as _register_parser
 from .karte_loader import load_karte
 from .pointer_completion import resolve_issue
 from .verb_boundary import fail_close
@@ -29,11 +30,33 @@ def cmd_activate(args, repo_root) -> int:
     except KarteNotFound:
         last = 0
     next_number = require_ascii_int(last + 1, KarteUsageError("次の round が桁数の上限を超える"))
-    write_active(repo_root, issue, last, expected)  # 原本は作らない（取り消せない保護モードを残さない・F-375-10）
+    snapshot_file = getattr(args, "ac_snapshot_file", None)
+    legacy = bool(getattr(args, "legacy_finding_only", False))
+    if snapshot_file and expected is None:
+        raise KarteUsageError("--ac-snapshot-file は review envelope 期待値と同時指定する")
+    if legacy and (expected is None or snapshot_file):
+        raise KarteUsageError("--legacy-finding-only はreview envelopeのみ・AC snapshotとの併用禁止")
+    if snapshot_file:
+        review_expectation.require_snapshot_phase(expected)
+    if expected is not None and not snapshot_file and not review_expectation.allows_finding_only(expected, legacy):
+        raise KarteUsageError("implementationのreview envelopeにはAC snapshot必須（旧形式は--legacy-finding-onlyを明示）")
+    snapshot = ac_snapshot_binding.stage(repo_root, issue, next_number, snapshot_file) if snapshot_file else None
+    revoked = review_attempt_history.for_activation(repo_root, issue, last, expected, snapshot, legacy)
+    if snapshot is not None:
+        write_active(repo_root, issue, last, expected, ac_snapshot=snapshot,
+                     revoked_review_expectations=revoked)
+    elif legacy:
+        write_active(repo_root, issue, last, expected, legacy_finding_only=True,
+                     revoked_review_expectations=revoked)
+    else:
+        write_active(repo_root, issue, last, expected,
+                     revoked_review_expectations=revoked)  # envelope無しの主文脈経路
     print(f"=== activate: issue-{issue} round {last}（次の ingest-reviewer は round {next_number}）===")
     if expected is not None:
         print(f"  review envelope の期待値を記録（run_id={expected['run_id']} phase={expected['phase']}・"
               "取り込み成功で消える・待機中は主文脈の ingest-review を拒否）")
+        if snapshot is not None:
+            print(f"  AC snapshot: {snapshot['source']} count={snapshot['count']} sha256={snapshot['digest']}")
         print("  レビューアの handoff 先頭へそのまま置くヘッダ（dispatch prompt に渡す）:")
         print("  " + handoff_header.render_header(next_number, expected))
     return EXIT_OK
@@ -69,29 +92,6 @@ def cmd_decide(args, repo_root) -> int:
     return EXIT_OK
 
 
+
 def register(subparsers, add_issue) -> None:
-    activate = subparsers.add_parser("activate", help="進行ポインタを Issue に向ける（主文脈専用）")
-    activate.add_argument("--issue", required=True, help="Issue 番号")
-    activate.add_argument(
-        "--repair-declared-scope", action="store_true",
-        help="壊れた申告 scope の原本の行を除いて復旧する（元は .bak* に世代を分けて残す）",
-    )
-    for flag, text in (
-        ("run-id", "review run の識別子"), ("target-key", "review 対象の識別子"),
-        ("snapshot-oid", "レビュー対象の snapshot（40桁 OID）"),
-        ("input-digest", "レビュー入力の sha256（64桁 hex）"), ("phase", "test_design | implementation"),
-    ):
-        activate.add_argument(f"--{flag}", help=f"review envelope の期待値: {text}（5 項目を同時に指定）")
-    activate.set_defaults(func=cmd_activate)
-    decide = subparsers.add_parser("decide", help="オーナー決定を台帳へ記録する（主文脈専用）")
-    add_issue(decide)
-    decide.add_argument("--finding", required=True, help="対象の finding ID")
-    decide.add_argument("--disposition", choices=list(model.DISPOSITIONS))
-    decide.add_argument("--deferred-to")
-    decide.add_argument("--waived-by")
-    decide.add_argument("--waived-reason")
-    decide.add_argument("--scope", help="オーナーが覆した scope（in|out）")
-    decide.add_argument("--override-ref", help="実在する owner 判断台帳 FBK-... の参照")
-    decide.add_argument("--diagnosis-owner", choices=DIAGNOSIS_OWNERS,
-                        help="fix-here の診断担当（fixer|main。主文脈専用）")
-    decide.set_defaults(func=cmd_decide)
+    _register_parser(subparsers, add_issue, cmd_activate, cmd_decide)

@@ -6,8 +6,9 @@ from .attempt_record import Attempt, Result
 from .finding_handoff_ledger import emit_lines
 from .finding_record import Finding
 from .karte_record import Karte
+from .review_round_record import render_round
 from .value_codec import format_value
-from .vocabulary import FORMAT_VERSION, SECTION_ATTEMPTS, SECTION_FINDINGS
+from .vocabulary import FORMAT_VERSION, SECTION_ATTEMPTS, SECTION_FINDINGS, SECTION_REVIEW_ROUNDS
 
 
 def _emit(lines: list, key: str, value) -> None:
@@ -76,6 +77,10 @@ def dumps(karte: Karte) -> str:
     ]
     for finding in sorted(karte.findings, key=lambda item: item.seq):
         parts.append("\n" + render_finding(finding))
+    if karte.review_rounds:
+        parts.append(f"\n## {SECTION_REVIEW_ROUNDS}\n")
+        for receipt in sorted(karte.review_rounds, key=lambda item: item.number):
+            parts.append("\n" + render_round(receipt))
     parts.append(f"\n## {SECTION_ATTEMPTS}\n")
     blocks = [(item.number, 0, render_attempt(item)) for item in karte.attempts]
     blocks += [(item.attempt, 1, render_result(item)) for item in karte.results]

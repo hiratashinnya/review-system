@@ -55,7 +55,7 @@ class CodexReviewerHandoffTests(unittest.TestCase):
         write_trust(self.home, self.primary)
         (self.primary / "tmp" / "_karte").mkdir(parents=True)
         (self.primary / "tmp" / "_karte" / "active.json").write_text(
-            json.dumps({"issue": 375, "round": 0}), encoding="utf-8"
+            json.dumps({"issue": 375, "round": 0, "legacy_finding_only": True}), encoding="utf-8"
         )
         (self.worktree / "tmp").mkdir()
         (self.worktree / "tmp" / "prompt.md").write_text("Review the assigned change.", encoding="utf-8")
@@ -69,8 +69,12 @@ class CodexReviewerHandoffTests(unittest.TestCase):
             issue=375, phase="implementation", run_id="run-375", target_key="pr-697",
             input_digest="b" * 64, snapshot_oid="a" * 40,
         )
+        (self.primary / "tmp" / "_karte" / "active.json").write_text(
+            json.dumps({"issue": 375, "round": 0, "legacy_finding_only": True,
+                        "review_expect": self.envelope}), encoding="utf-8"
+        )
         self.activate_argv = ["--run-id", "run-375", "--target-key", "pr-697", "--phase", "implementation",
-                              "--snapshot-oid", "a" * 40, "--input-digest", "b" * 64]
+                              "--snapshot-oid", "a" * 40, "--input-digest", "b" * 64, "--legacy-finding-only"]
         self.output = self.worktree / "tmp" / "result.md"
         self.codex = self.directory / "fake-codex"
         self.ingest = patch(
@@ -161,6 +165,30 @@ class CodexReviewerHandoffTests(unittest.TestCase):
         self.assertEqual((), warnings)
         karte_path = paths.karte_path(375, self.primary)
         self.assertEqual("F-375-01", model.parse(karte_path.read_text()).findings[0].id)
+
+    def test_test_design_uses_existing_finding_only_path_without_ac_snapshot(self):
+        binding_path = self.worktree / "tmp" / "binding.json"
+        binding = json.loads(binding_path.read_text(encoding="utf-8"))
+        binding["expected"]["artifact_type"] = "TestDesign"
+        binding_path.write_text(json.dumps(binding), encoding="utf-8")
+        argv = self.activate_argv[:-1]
+        argv[argv.index("--phase") + 1] = "test_design"
+        activated = subprocess.run(
+            [sys.executable, "-m", "karte", "activate", "--issue", "375", *argv],
+            cwd=self.primary, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(0, activated.returncode, activated.stderr)
+        active = self.primary / "tmp" / "_karte" / "active.json"
+        pointer = json.loads(active.read_text(encoding="utf-8"))
+        self.assertNotIn("ac_snapshot", pointer)
+        self.assertNotIn("legacy_finding_only", pointer)
+        self.ingest.stop()
+        report = REPORT.replace("source.py:1 を確認した", "文言「## Review Summary」「<!-- review-complete -->」を確認した")
+        code, out, err = self.run_main(content=report)
+        self.assertEqual(0, code, err)
+        self.assertIn("取り込み済み", out)
+        ledger = paths.karte_path(375, self.primary).read_text(encoding="utf-8")
+        self.assertEqual("F-375-01", model.parse(ledger).findings[0].id)
 
     def test_ingest_collects_warning_emitted_only_on_stderr(self):
         from types import SimpleNamespace

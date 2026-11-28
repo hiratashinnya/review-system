@@ -15,6 +15,20 @@ EXPECT_KEY = "review_expect"
 ENVELOPE_ARGS = ("run_id", "target_key", "snapshot_oid", "input_digest", "phase")
 
 
+def allows_finding_only(expected, legacy=False):
+    """2aの従来形式と明示された移行用形式はAC snapshotを必要としない。"""
+    return isinstance(expected, dict) and (expected.get("phase") == "test_design" or legacy is True)
+
+
+def require_snapshot_phase(expected):
+    """AC snapshot付きの2aは起動・取り込みの両方で停止する。"""
+    if allows_finding_only(expected):
+        raise KarteUsageError(
+            "2a（test_design）ではAC snapshotを指定できない。AC snapshot付きで待機中なら"
+            "karte activate --issue <N> で待機を解除し、新しい--run-idで再dispatchする"
+        )
+
+
 def from_args(args, issue: int):
     """``activate`` の引数から期待値を作る。1 つも無ければ None、一部だけなら拒否する。"""
     given = {key: getattr(args, key, None) for key in ENVELOPE_ARGS}
