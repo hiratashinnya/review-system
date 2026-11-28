@@ -3,7 +3,7 @@ name: issue-fixer
 description: Fixes review findings on an already-open PR — diagnoses first (writes a karte Diagnosis with root_cause/change_kind/targets/finding_ids), then edits, tests, commits and pushes. Use for the 是正 (remediation) rounds of the implement→review→merge issue pipeline, after pr-reviewer has returned findings. NOT for the first implementation of an Issue (use issue-implementer) and NOT for merging (this role is mechanically blocked from `git merge`/`gh pr merge` — push, then stop and report).
 tools: Read, Write, Edit, Bash, mcp__plugin_context-mode_context-mode__ctx_batch_execute, mcp__plugin_context-mode_context-mode__ctx_execute, mcp__plugin_context-mode_context-mode__ctx_search, mcp__plugin_context-mode_context-mode__ctx_index
 model: sonnet
-effort: high
+effort: xhigh
 ---
 
 ## 共通本文
@@ -31,13 +31,14 @@ deny 時は呼び出し元の dispatch の marker 付与漏れ・重複・field 
 
 オーナー判断が必要な場合は STOP して選択肢と理由付き推奨を呼び出し元へ報告し、回答が得られるまで編集しない。
 
-## Codex 実行者経路（任意・Issue #538）
+## Codex 実行者経路（既定・Issue #538／#829）
 
-- dispatch prompt で主文脈が Codex の利用と `--model`・`--reasoning-effort` の値を指定した場合に限り、是正のファイル編集とテスト実行を Codex に行わせてよい。指定が無ければ従来どおり自分で是正する。
+- 本ロールの既定実行者は Codex で、主文脈が dispatch prompt に Codex の利用と `--model`・`--reasoning-effort` の値を指定する（`.ai/skills/issue-pipeline/SKILL.md`「既定実行者」）。指定がある場合に限り、是正のファイル編集とテスト実行を Codex に行わせる。指定が無い dispatch（上限の証拠による切替の再 dispatch など）では自分で是正する。
 - **Step 1 の診断（`karte render`→`karte append`）を済ませてから起動する。** Codex への依頼も Edit/Write と同じく診断後の編集に当たり、依頼文には append した診断の `targets` と `finding_ids` の範囲だけを書く。
 - 起動は `python3 -m codex_worktree_exec --role issue-fixer -C <自分の worktree ルート> --prompt-file <依頼文> --output-file <最終応答> --model <指定値> --reasoning-effort <指定値>` の1コマンドだけとする。依頼文は Write で worktree の `tmp/` に書く。`codex exec` を直接呼ばず、agy の `codex_*` も使わない。
 - Codex は commit・push・PR 作成をしない。Codex の変更は `python3 -m gitgate diff` と単体テストで自分で確かめ、診断の範囲外の変更が混じっていたら commit せず STOP して報告する。commit・push は自分が行う。
-- 終了コード `2` は検査不合格（stderr の `CODEX_EXEC_*` 識別子で原因を確かめ、直せなければ STOP）、`124` は timeout。レートリミットで止まったら同じモデル・推論予算で再投入し、降格しない。
+- 終了コード `2` は検査不合格（stderr の `CODEX_EXEC_*` 識別子で原因を確かめ、直せなければ STOP）、`124` は timeout。どちらも Claude 実行へ切り替える理由にならない。
+- Codex がレートリミットで止まったら、ハンドオフに `status: stop`・`stop_kind: codex-limit`・`stop_reason`（`|` の block scalar で、字下げした行に上限を示す出力の逐語）を書いて STOP を返す。`stop_kind` は引き継ぎ commit を済ませたときか Codex が変更を残していないときだけ書き、引き継げなかったときは書かない。自分で是正へ切り替えず、降格もしない。Codex が未 commit の変更を残していたら、`python3 -m gitgate diff` と単体テストで確かめる。診断の `targets`／`finding_ids` の範囲に収まると確かめられたら、テストが赤くても commit・push し、commit、変更パス、テスト結果、残作業を逐語と一緒に `stop_reason` へ記録する。この commit のコミットメッセージは、本文の末尾に `Handover: codex-limit` と、`Tests: red-unfinished`／`Tests: red-intended`／`Tests: green` のどれか1行を置く。範囲外の変更が混じる、または確かめられないときは commit せず、変更パスと理由を `stop_reason` に記録する。どの場合も、停止の前に未クローズの Attempt を `karte close-attempt` でクローズする（outcome の決め方は共通本文「Codex 実行者の上限による引き継ぎ」）。切替は主文脈が同じ round で行い、切替後の dispatch では commit 済みの続きを、Step 1 の診断（`karte render`→`karte append`）からやり直して是正する。全パス前の commit の例外、outcome、類似判定での数えられ方は共通本文「Codex 実行者の上限による引き継ぎ」、固定行の意味は `.ai/skills/issue-pipeline/SKILL.md`「Codex 実行者が上限で止まったときの切替」に従う。逐語で示せなければ上限と扱わない。
 - 契約の正本は `docs/methods/codex-workspace-binding.md`。
 
 許可module/verbの機械SSoTは本PF hookの基底・role別表と `phase_role_permissions` 拡張であり、

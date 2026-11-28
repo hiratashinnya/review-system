@@ -1,0 +1,39 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20261124-現状維持は理由が問題なしなら仕様と書く"
+topic = "現状維持は理由が問題なしなら仕様と書く"
+theme = "記録管理"
+occurred_at = 2026-11-24
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "medium"
+recorded_by = "Claude Code (AI)"
+affected_assets = [".ai/guidance/common.md"]
+supersedes = ""
+
+[[source]]
+issue = 513
+pr = 862
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+PR #862（Issue #513 の STOP 1回 deny 試行）の実機検証で、ToolSearch が武装後に deny される挙動（F-1）と、同一 session では別 Issue の最初の操作も 1 回 deny される挙動（F-2）が見つかった。オーナーはどちらも現状維持を選んだ。主文脈は現状維持と決まった両者を、Issue と PR コメントで「試行版の限界として記録」と書いた。
+'''
+recommendation = '''
+現状維持と決まった挙動は、「試行版の限界」として記録する。
+'''
+recommendation_reason = '''
+今は直さないが、将来の強化の余地があることを読み手に示すため。
+'''
+uncertainty = '''
+オーナーは「現状維持と判断した理由次第」と述べ、書き分けの基準が理由にあることを示した。理由が「問題がない・想定外の使い方」の場合は仕様、理由が「コストや優先度の都合で今は直さない」の場合は限界・残課題と書く、という対応を主文脈は読み取ったが、後者の書き方についてオーナーは具体的に述べていない。F-1 は理由が「todo 更新は不要」、F-2 は「同一 session で複数 Issue を扱うこと自体が悪い」で、どちらも前者に当たる。
+'''
+owner_verbatim = '''
+試行板というか、変える気ないけど？
+現状維持と判断した理由次第では？
+'''
+inferred_reason = '''
+推測：現状維持の挙動をどう書くかは、現状維持の理由で決まる。問題がないと判断した挙動は、いずれ直す前提の「試行版の限界」ではなく、意図した仕様として書くべきだ、と読める。
+'''

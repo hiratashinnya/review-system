@@ -12,6 +12,8 @@ def evaluate(policy: object, finding: object, approval: object = None,
               "auto_applicable": False, "reason_codes": list(suggestion["reason_codes"])}
     if candidate == "owner-review":
         return result
+    if finding["phase"] not in policy["enabled_phases"]:
+        result["reason_codes"].append("phase-not-auto-enabled")  # proposal-only phase
     if policy["status"] != "approved" or not policy["auto_apply_enabled"]:
         result["reason_codes"].append("policy-not-enabled")
     if not policy["feature_flags"][candidate]:
@@ -45,6 +47,7 @@ def _approved(approval: object, policy: dict, candidate: str, phase: str) -> boo
             and isinstance(approval["allowed_dispositions"], list)
             and candidate in approval["allowed_dispositions"]
             and isinstance(approval["allowed_phases"], list)
+            and all(item in policy["enabled_phases"] for item in approval["allowed_phases"])
             and phase in approval["allowed_phases"])
 
 
