@@ -71,6 +71,17 @@ def layout_cases():
         yield body, ["AC1", "AC2"], "Plain requirement", checks
     literal = FIRST + "\n\n      <!-- literal code -->\n Plain requirement\n" + last
     yield literal, ["AC1", "AC2"], "literal code", [False, None, False]
+    for prefix in ("    ", "\t", " \t", "  \t"):
+        body = FIRST + "\n\n" + prefix + "more details\n Plain requirement\n" + last
+        yield body, ["AC1", "AC2"], "Plain requirement", [False, False]
+    for marker, end in (("```markdown", "```"), ("<pre>", "</pre>")):
+        block = f"\t{marker}\n \t- [ ] example only\n  \t<!-- literal code -->\n\t{end}\n"
+        yield FIRST + "\n" + block + last, ["AC1", "AC2"], "literal code", [False, False]
+    for block in ("  \t~~~\n  \tinside\n  \t~~~\n", "  \t<!-- hidden -->\n"):
+        body = FIRST + "\n\n" + block + " Plain requirement\n" + last
+        yield body, ["AC1", "AC2"], "Plain requirement", [False, None, False]
+    root_code = "\t## Acceptance criteria\n\t- [ ] example only\n\n"
+    yield root_code + FIRST + "\n" + last, ["AC1", "AC2"], "AC2", [False, False]
     nested = "  - - Detail\n        ```\n      <!-- visible literal -->\n        ```\n"
     yield FIRST + "\n" + nested + last, ["AC1", "AC2"], "visible literal", [False, False]
     for block in ("<pre>\nraw content\n</pre>\n", " ```\nraw content\n ```\n"):
@@ -78,6 +89,12 @@ def layout_cases():
 
 
 class StateBoundaryTest(unittest.TestCase):
+    def test_tab_layout_keeps_original_indent_and_literal_text(self):
+        body = FIRST + "\n\n\tmore details\n Plain requirement\n- [ ] AC2\n"
+        acs = from_issue_body(body)
+        self.assertEqual(acs[0].text, "AC1\n\n\tmore details\n Plain requirement")
+        self.assertNotEqual(digest(acs), digest(from_issue_body(body.replace("\t", "    "))))
+
     def test_indented_description_retains_list_ownership(self):
         body = "## Intro\n- Item\n\n  Description\n\n  ## Acceptance criteria\n  - [ ] example only\n"
         self.assertEqual(from_issue_body(body), ())

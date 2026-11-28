@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 import re
 
-from .ac_snapshot_boundary import enclosing_indent, leaves_container
+from .ac_snapshot_boundary import enclosing_indent, expand_indent, leaves_container
 
 OPEN = re.compile(r"^( *)(`{3,}|~{3,})(.*)$")
 CLOSE = re.compile(r"^( *)(`{3,}|~{3,})[ \t]*$")
@@ -18,6 +18,7 @@ class Fence:
 
 def advance(fence: Fence | None, line: str, *, list_indent: int | None = None) -> Fence | None:
     """Closing fence uses the opening container's indent, never an arbitrary indent."""
+    line = expand_indent(line)
     if fence is not None and leaves_container(line, fence.container):
         fence, list_indent = None, None
     if fence is not None:

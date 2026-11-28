@@ -2,7 +2,7 @@
 import re
 from typing import NamedTuple
 
-from .ac_snapshot_boundary import enclosing_indent, leaves_container
+from .ac_snapshot_boundary import enclosing_indent, expand_indent, leaves_container
 
 RAW = re.compile(r"^ {0,3}<(pre|script|style|textarea)(?:[\s>]|$)", re.I)
 BLOCK_TAGS = (
@@ -38,7 +38,7 @@ def advance(block, line, active, *, boundary=False, list_indent=None) -> HtmlTra
         if not active:
             return HtmlTransition(None, False, None, False)
         container = enclosing_indent(line, list_indent)
-        candidate = line[container:]
+        candidate = expand_indent(line)[container:]
         match = RAW.match(candidate)
         if match:
             block = re.compile(r"</" + match.group(1) + r">", re.I)

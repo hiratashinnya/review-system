@@ -7,7 +7,7 @@ from .format_error import KarteFormatError
 from .ac_snapshot_fence import advance as advance_fence
 from .ac_snapshot_html import advance as advance_html
 from .ac_snapshot_comment import CommentFilter, comment_suffix
-from .ac_snapshot_boundary import containing_indent, finish_inner_lists, has_code_indent, leaves_container, list_items, start_list_items
+from .ac_snapshot_boundary import containing_indent, expand_indent, finish_inner_lists, has_code_indent, leaves_container, list_items, start_list_items
 from .ac_snapshot_model import AC, digest
 from .ac_snapshot_heading import heading_level, remove_setext_title, section_level, block_transition
 
@@ -56,9 +56,9 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
                 boundary = html_block is None
             continue  # A comment-only line must not create an AC or heading.
         stripped = line.strip()
-        leading = line[:len(line) - len(line.lstrip(" \t"))]
-        indent = len(leading)
-        root_markup = not fenced and not was_inline_code and not in_html and not active_indent and indent <= 3 and "\t" not in leading
+        layout = expand_indent(line)
+        root_indent = not has_code_indent(layout, 0)
+        root_markup = not fenced and not was_inline_code and not in_html and not active_indent and root_indent
         heading = section_level(visible_lines, number, root_markup)
         if heading:
             if found:
@@ -68,7 +68,7 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
         if in_ac and not heading and next_level is not None and next_level <= level:
             remove_setext_title(visible_lines, number, items)
             in_ac = False
-        boundary = block_transition(line[active_indent:], next_level, was_fenced, fence, in_html, was_inline_code, html_block, indented_code=indented_code)
+        boundary = block_transition(layout[active_indent:], next_level, was_fenced, fence, in_html, was_inline_code, html_block, indented_code=indented_code)
         if stripped and (boundary or fenced) and item is None:
             finish_inner_lists(list_indents, active_indent)
         if heading or not in_ac:
@@ -85,7 +85,7 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
                 items.append(([line], None, number))
             else:
                 items[-1][0].append(line)
-        elif stripped and indent <= 3 and "\t" not in leading:
+        elif stripped and root_indent:
             items.append(([line], None, number))
     result = tuple(AC("\n".join(parts).rstrip("\n"), checked, first)
                    for parts, checked, first in items)

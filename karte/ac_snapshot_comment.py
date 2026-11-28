@@ -1,5 +1,6 @@
 """Hide HTML comments without hiding fenced, indented, or multiline inline code."""
 import re
+from .ac_snapshot_boundary import has_code_indent
 from .ac_snapshot_escape import find_unescaped
 from .ac_snapshot_html import COMMENT
 from .ac_snapshot_inline_boundary import inline_continuation
@@ -74,9 +75,7 @@ class CommentFilter:
     def filter(self, raw_line, fenced, content_indent, future_lines, indents):
         if not (self.in_comment or self.code_ticks or "<!--" in raw_line or "`" in raw_line):
             return raw_line, False
-        leading = raw_line[:len(raw_line) - len(raw_line.lstrip(" \t"))]
-        indent = len(leading)
-        content_code = indent >= content_indent + 4 or "\t" in leading
+        content_code = has_code_indent(raw_line, content_indent)
         if not self.code_ticks and (
             fenced or (content_code and not self.in_comment)
         ):
