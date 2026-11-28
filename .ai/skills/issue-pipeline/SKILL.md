@@ -19,8 +19,27 @@
    - **分割漏れ**：1つの Issue が独立して完了判定できる複数の成果を抱えていないか。抱えているなら `type:tracking` ＋ sub-issues へ展開してから着手する。
    - **集約漏れ**：1つの設計判断に効く検討材料が複数の Issue に散っていないか。散っているなら検討を1箇所へ寄せてから着手する。
    検出しても Issue の分割・統合を自分で実行しない。`.ai/skills/gh-create-issue/SKILL.md` §1 の write 境界に従い、分割漏れ・集約漏れそれぞれについて、原案・比較・理由付き推奨を添えてオーナー判断を仰ぐ（PR7 の様式）。
+   各 Issue の確認結果には、下記「AC の PR 割り当てと closure 宣言」の対応表と、必要な分割案を含める。
 3. 依存を有向グラフ化し、順序必須と並列可を分け、ブロッカーを先に置く。
 4. 依存グラフ要約、推奨順、並列可否、リスク見立て、根拠、メリット／デメリットに加え、構成の妥当性の判定結果（分割漏れ・集約漏れの有無と、あれば是正の推奨）を提示してから、オーナーの承認または修正を得る。承認前に処置を始めない。
+
+### AC の PR 割り当てと closure 宣言
+
+根拠: `.ai/feedback/ledger/FBK-20261110-acは1prで満たし大きいissueは着手時に分割する.toml`。実装 Issue は全 AC を一つの PR で満たす。ベースラインリファクタリングに対する既存の例外は同 FBK の範囲に限り、新たな例外を作らない。tracking Issue は自身の実装 PR を持たず、子 Issue ごとに適用する。
+
+主文脈は①-2で、Issue 本文の AC 節の全 checkbox（チェック済みも含む）を文書順に1から採番し、実装 dispatch 前に次の対応表をチャットへ提示する。1a/1bを経る場合は1b整合レビュー済みのCP案と照合し、owner plan/split承認時に提示する。どの work unit がどの PR に含まれるかを明記する。
+
+| AC 番号・文言 | 割り当て先 work unit（PR） | 今回の PR で満たすか（Yes/No） | No の場合の分割案参照 |
+|---|---|---|---|
+
+1 AC を1行とし、既達成 AC は検証根拠を併記して今回の PR の新規達成と混同しない。Yes/No は担当範囲の予定であって合格・AC チェック更新ではない。複数 PR が必要な場合、未割り当て AC や今回の PR で満たせない未達 AC が1件でもある場合は、子 Issue 起票案（title・移す AC・依存）を原案・比較・理由付き推奨とともに提示し、オーナー判断と必要な分割の確定まで実装に着手しない。AI はこの提案を根拠に自分で起票・AC 更新・close 承認を行わない。主文脈は承認済みの対象と内容を確認し、既存の write 境界に従う。
+
+PR 作成担当は作成前に対象 Issue ごとの `Closes #N`（close 承認取得済みの場合のみ）または `Refs #N`（非 closing）と、機械可読の closure 宣言を PR 本文に置く。記法の定義元は [Issue #874 の「closure 宣言の書式（初期案）」](https://github.com/hiratashinnya/review-system/issues/874) を参照する。独自の語彙・書式を追加しない。Refs の理由は PR 本文の説明で次を区別し、併存すれば両方を書く。
+
+- PR が満たさない未達 AC が残る場合: 対象 AC と、承認済み分割先の実在する子 Issue 番号、依存・残りの閉じ方を記録する。分割せずに部分実装を始める許可ではない。
+- close 承認が未取得の場合: ②-d に従い `Refs #N` を用い、承認待ちと明記する。全未達 AC を対象とし分割不要なら、その旨を記し、架空の子 Issue や承認記録を作らない。
+
+宣言を理由に AC の合格、close 承認、merge 可否を推定しない。指示資産だけでは遵守や AC 粒度を機械保証できない。
 
 ## ② 1 Issue を完結
 
@@ -50,6 +69,7 @@ commit/pushし、CP/VDをtmp handoffへ転載しない。作業完了receiptはa
 1a/1bのPlanReviewではACの機械判定可能性・曖昧さ・測定可能閾値・既存決定との矛盾を
 項目ごとに検査する。1a単独→1b整合→ownerによるplan/split/decision承認の順を維持する。
 2a合格後に2bが着手する。実装者は新規テストを著作せず、計画外判断なら上流へSTOPする。
+主文脈は「AC の PR 割り当てと closure 宣言」の全 AC 対応表・必要な分割案を owner plan/split承認に含め、未割り当てや未確定の分割がある間は実装 dispatch しない。既存の工程順と承認境界は維持する。
 
 1a/1b/2a/2bのreviewは同一Issueのkarteへ連番roundで取り込む。reviewerは対象成果物の編集・pushをせず、
 PlanReviewをcommitted envelopeにしない。capture本体は #375、karteの機械配線は #310、
@@ -82,19 +102,20 @@ profileのorigin/main pinは変更せず、未merge profileの拒否を成功dis
 
 #### 既定実行者
 
-実行者は role ごとに次の表で決まる（オーナー決定・2026-11-15・Issue #829）。
+実行者は role ごとに次表を適用する。
+割当ての選定理由・決定経緯は `.ai/rationale/executor-rate-limit-switch-829.md` を参照する。
 
-| ロール | 既定実行者 | 理由 |
-|---|---|---|
-| issue-investigator | Codex | 事実・原因・影響の調査は委譲し、Claude のトークンを節約する |
-| ac-designer | Claude 固定 | 検証設計は設計判断であり Claude で押さえる |
-| change-planner | Claude 固定 | 解決計画と ADR は設計判断であり Claude で押さえる |
-| plan-reviewer | Claude 固定 | 設計の独立レビューは Claude で押さえる |
-| test-writer | Codex | 承認済み VD/CP に沿う Red テストの著作は委譲する |
-| issue-implementer | Codex | 承認済み計画の適用は委譲する |
-| pr-reviewer | Claude 固定 | 2a/2b の独立レビューは Claude で押さえる |
-| issue-fixer | Codex | 診断の範囲に限った是正の編集とテスト実行は委譲する |
-| adviser | Codex | 相談への回答は委譲する |
+| ロール | 既定実行者 |
+|---|---|
+| issue-investigator | Codex |
+| ac-designer | Claude 固定 |
+| change-planner | Claude 固定 |
+| plan-reviewer | Claude 固定 |
+| test-writer | Codex |
+| issue-implementer | Codex |
+| pr-reviewer | Claude 固定 |
+| issue-fixer | Codex |
+| adviser | Codex |
 
 - **Claude 固定の4 role は Codex 実行者を使わない。** 主文脈は Codex 実行者を指定せず、role も起動しない。
 - **Codex 既定の5 role は、主文脈が Codex 実行者を指定して起動する。** 指定の形は role の作業面で分かれ、PF wrapper に従う。
@@ -102,10 +123,8 @@ profileのorigin/main pinは変更せず、未merge profileの拒否を成功dis
   - read-only role（issue-investigator・adviser）：主文脈が read-only の専用入口（下記「read-only の Codex 実行先」）を実行し、その入口が Codex を起動する。この経路では Claude の role サブエージェントを dispatch しない。主文脈が切替またはオーナー判断で Claude の role を dispatch するときは Codex 実行者を指定せず、role は Codex を起動せず自分で調査・回答する。
 - **AI が既定を外してよい例外は、Codex 実行者の上限の証拠による切替（下記）だけである。** それ以外の理由で Codex 既定の role を Claude で実行するには、書込・read-only のどちらの経路でもオーナーの明示判断を要する。
 - 高リスク信号のある実装も Codex 既定の例外にしない。Codex 側の層を引き上げる。
-- test-writer と issue-implementer は同じモデルファミリになる。独立性は、Claude 固定の pr-reviewer が 2a と 2b を別 dispatch で審査することで保つ。
-- read-only の Codex 経路は実 dispatch が未実測である（#652）。実測が済むまでも既定は Codex とし、上限の証拠が無い失敗は切り替えず STOP する。起動 gate の受理や unit の合格を実 dispatch の成功と報告しない。
-- adviser は相談の難度を理由に Claude へ切り替えない。adviser の層は最上位に固定してあり、難しい相談も Codex の最上位で扱う（オーナー決定・2026-11-16）。
-- この表は運用規範であり、機械では強制していない。`codex_worktree_exec` と起動 gate は Claude 固定の role の起動形も受理する。
+- read-only の Codex 経路も既定実行者は Codex とする。上限の証拠が無い失敗は切り替えず STOP する。起動 gate の受理や unit の合格を実 dispatch の成功と報告しない。
+- adviser は相談の難度を理由に Claude へ切り替えない。adviser の層は最上位固定とし、難しい相談も Codex の最上位で扱う。
 
 #### read-only の Codex 実行先
 
@@ -124,19 +143,27 @@ globやdirectory一括許可を使わず、
 
 #### 層と推論予算
 
-| ロール | 主要認知行為・Bloom | 層 / 予算 |
-|---|---|---|
-| issue-investigator | 分析 Lv4 | 中位 / 大 |
-| ac-designer | 評価 Lv5 | 最上位 / 中 |
-| change-planner | 創造 Lv6 | 最上位 / 大 |
-| plan-reviewer | 評価 Lv5 | 最上位 / 中 |
-| test-writer | 境界・反例の分析 Lv4 | 中位 / 中 |
-| issue-implementer | 承認済み計画の適用 Lv3 | 中位 / 中 |
-| pr-reviewer | 評価 Lv5 | 最上位 / 中、既存のrisk signalで引上げ |
-| issue-fixer | レビュー指摘の根本原因の分析 Lv4 | 中位 / 中 |
-| adviser | 相談内容の主要認知行為 | 最上位 / 相談内容で引く |
+各ロールのモデル層・推論予算は次表の**採用値**を使う。導出元は
+`.ai/skills/bloom-model-tier/SKILL.md` の Bloom Lv × 軸2 の閾値表とする。
+採用値と導出値の差異も採用値を優先する。選定理由・例外理由・変更経緯は
+`.ai/rationale/model-tier-alignment-851.md` を参照する。
 
-adviser の層は最上位に固定する（オーナー決定・2026-11-16）。推論予算だけを、主文脈が相談内容の主要認知行為から `.ai/skills/bloom-model-tier/SKILL.md` の閾値表で引く。
+| ロール | Bloom Lv／軸2 | 導出値（層／予算） | 採用値（層／予算） |
+|---|---|---|---|
+| issue-investigator | Lv4／網羅性 | 中位／大 | 中位／大 |
+| ac-designer | Lv5／判断 | 最上位／中 | 最上位／中 |
+| change-planner | Lv6／判断 | 最上位／大 | 最上位／大 |
+| plan-reviewer | Lv5／判断 | 最上位／中 | 最上位／中 |
+| test-writer | Lv4／網羅性 | 中位／大 | 中位／大 |
+| issue-implementer | Lv3／網羅性 | 中位／中 | 中位／大 |
+| pr-reviewer | Lv5／判断 | 最上位／中 | 最上位／大 |
+| issue-fixer | Lv4／網羅性 | 中位／大 | 中位／大 |
+| adviser | 相談内容ごとに判定 | 該当セルの層／予算 | 最上位／該当セルの予算 |
+
+adviser の層は最上位固定、予算は相談内容ごとに閾値表から算定する。
+リスク信号による引上げは採用値を下限とし、層・予算を互いに相殺しない。
+Codex から Claude への切替時には、下記の切替規範に従い、
+Codex に**実指定した**抽象層・予算を下回らないようにする。
 
 具体ID/予算は `.ai/model-policy.json` と `model_policy/README.md` の既存resolverで解決し、
 policy/catalog hash、取得surface/方法/日時、resolved ID、実使用ID、確認結果を追跡する。
@@ -292,6 +319,7 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 - report は取得時点の blocker evidence であり、オーナーの手動操作との間の状態変化を防がない。オーナーは結果を確認してから手動 merge を判断する。
 - PR の merge は PR をクローズするため、オーナーの merge 判断に先立ち対象 PR と結果を示して確認する。対象と内容が一致する明示指示・承認が既にあれば再質問しない。
 - Issue をクローズする前に対象と内容をオーナーへ確認する。`Closes #N` 等による merge 時の自動クローズも同様に事前確認を要し、承認がなければ自動クローズしない参照を使う。対象と内容が一致する明示指示・承認が既にあれば再質問しない。merge 後に Issue が閉じていなければ次へ進まず、オーナーへ確認する。
+- PR 作成時は「AC の PR 割り当てと closure 宣言」を適用し、close 承認待ちの Refs と未達 AC が残る Refs を区別する。宣言の変更で close 承認を代替しない。
 
 ## スコープ・先送り・矛盾
 

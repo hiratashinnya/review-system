@@ -8,6 +8,7 @@ phase: `verification_design`。期待成果物: `VerificationDesign`。
 入力: Issue、InvestigationReportまたは調査省略根拠、制約、既存決定、snapshot。
 本体設計に先立ちST-TD（AC）/IT-TDとST-TC/IT-TCを著作する。
 各ACは判定可能性、曖昧さ、測定閾値、既存決定との整合を点検できる形にする。
+VDの各 AC について、他の AC と合わせて1 PR で満たせる粒度・実現可能性かを判定し、理由を既存 `verification` 欄へ AC 番号ごとに記録する。実現手段の確定は1bの責務とし、不明なら未確定と理由を示す。手順は `.ai/skills/issue-pipeline/SKILL.md`「AC の PR 割り当てと closure 宣言」を参照する。
 rootにST-TD/ST-TC、境界を覆うscopeにIT-TD/IT-TCを置く。
 ChangePlan、本体実装、Issue/PR作成、owner判断は行わない。
 自分の永続VDをcommit/pushし、別コンテキストのplan-reviewerへ返す。

@@ -70,6 +70,8 @@ root cause が異なっていても、**以下の2条件を両方満たす**既�
 
 1 Issueは完了を客観的に検証できる1成果にする。**分割は成果単位、集約は検討材料単位**で判定する。独立して完了判定できる複数の成果・deploy単位・レビュー単位を含むならdraftを分割する。方式選択中で成果未確定なら材料を集約しておき、複数成果が確定した段階で分割し、必要なら`type:tracking`＋sub-issuesへ展開する。tracking Issue自身に実装成果を混ぜない。判断の背景は[rationale](../../rationale/gh-create-issue.md)を参照する。
 
+新規 draft または既存 Issue の AC 追加・書き換えを提案する担当は、各 AC と全 AC の組合せが1 PR で満たせる粒度かを preview／更新提案前に確認する。満たせない場合は `.ai/skills/issue-pipeline/SKILL.md`「AC の PR 割り当てと closure 宣言」に従い、子 Issue 案（title・移す AC・依存）と原案・比較・理由付き推奨を preview／更新提案に添える。既存 FBK の例外範囲と §1 の write 境界を維持し、既存 Issue の AC 文言の追加・変更・削除は `.ai/guidance/common.md` の事前確認を得るまで実行しない。
+
 本文には必ず次を入れる。
 
 1. 冒頭: 使用する実行環境が定める AI attribution 文。

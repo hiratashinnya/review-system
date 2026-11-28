@@ -468,7 +468,6 @@ disposition をどう決めるか」という論点・比較・推奨である�
 `karte status` を使い、その実行は既読管理の対象外なので毎回全件が出る。判定の再要約を禁じた根拠は
 本ファイル「karte 判定の再要約を禁止した発端」に記録している。
 
-
 ## 2026-10-30 linked worktree のhook実測と未完検証（旧Claude Skillから移設）
 
 2026-10-30の実測では、作業面を作り `python3 -m gitgate adopt-branch` でbranchを取ってから
@@ -476,3 +475,13 @@ disposition をどう決めるか」という論点・比較・推奨である�
 
 この手順による実dispatchの完走は未実測で、#652等の実dispatchで確かめる。
 
+## AC の PR 割り当てと closure 宣言の設計判断（Issue #872）
+
+根拠となるオーナー判断は `.ai/feedback/ledger/FBK-20261110-acは1prで満たし大きいissueは着手時に分割する.toml`。発端と分担は [親 Issue #869](https://github.com/hiratashinnya/review-system/issues/869) と [Issue #872](https://github.com/hiratashinnya/review-system/issues/872) を参照する。
+
+- 対応表の列は issue-pipeline の該当節に集約した。主文脈・設計者・レビュー担当・起票担当が同じ表を使い、PF 固有 wrapper にも定義を複製しないことで、列や意味の不一致を避ける。
+- closure 記法の定義元については、[Issue #874](https://github.com/hiratashinnya/review-system/issues/874) が判定器 README を正本とし、子1が先行する場合は同 Issue 本文の初期案を暫定参照する設計を明記している。#872 ではその先行形態を採用した。README が確定した時点で参照を切り替える作業は #874 の既存記載で追跡する。別の記法や未実装 README へのリンクを先に作る案は、定義の二重管理・リンク不成立を招くため採用しなかった。
+- 実際の closing keyword から closing の有無を判定する構成とし、宣言にその種別を重複して持たせない。部分実装で未達 AC が残る場合と、全未達 AC を対象とするが close 承認待ちの場合は異なる。後者に実在しない分割先を要求する案や Refs を一律禁止する案は、既存②-d と整合しないため採用しなかった。
+- #872 の実装時点の `issue_envelope/schema.py` は VD の `verification` が文字列リスト、CP の `selected_solution` がテキスト、`work_units[].ac_refs` が AC 参照である。粒度判定・割り当て表案・分割案を既存欄に載せる方式を採用したのは、本 Issue が指示資産の変更であって schema 拡張を担わないためである。新規 schema field を設けなかったという今回の設計判断は、後続 #873 の schema 検討を禁止する恒常規範ではない。
+- 機械検査の実装分担は #874（PR 時点）、#871（merge 前）、#873（ChangePlan 検査）で追跡する。#872 の指示資産だけでは運用での遵守や AC 粒度の妥当性を機械保証できない。
+- PR #878 のレビューで、issue-implementer の直接契約には commit 側だけの closing 参照を選べる旧記述が残っていたことが判明した。PR 本文を検査対象とする設計との不整合を解消するため、直接契約から issue-pipeline の宣言手順を参照させた。既存の close 承認と全スコープ充足の条件は維持した。
