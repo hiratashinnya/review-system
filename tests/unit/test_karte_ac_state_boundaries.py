@@ -48,6 +48,26 @@ def boundary_cases():
         for block in ("  - Detail\n      ```\n    <!-- literal -->\n      ```\n",
                       "  - ```\n    <!-- literal -->\n    ```\n"):
             yield FIRST + "\n" + block + last, ["AC1", "AC2"], "literal"
+
+
+def layout_cases():
+    last = "- [ ] AC2\n"
+    heading = "## Acceptance criteria\n"
+    for gap, indent, separate in (("\n\n", 1, True), ("\n", 1, False), ("\n\n", 2, False)):
+        body = FIRST + gap + " " * indent + "Plain requirement\n" + last
+        yield body, ["AC1", "AC2"], "Plain requirement", [False, None, False] if separate else [False, False]
+    for padding in (" ", "  ", "   ", "    ", "\t"):
+        body = heading + "-" + padding + "[ ] AC1\n" + last
+        yield body, ["AC1", "AC2"], "AC1", [False, False]
+    for padding in ("     ", "\t  "):
+        body = heading + "-" + padding + "[ ] example only\n" + last
+        yield body, ["AC2"], "example only", [None, False]
+    nested = "  - - Detail\n        ```\n      <!-- visible literal -->\n        ```\n"
+    yield FIRST + "\n" + nested + last, ["AC1", "AC2"], "visible literal", [False, False]
+    for block in ("<pre>\nraw content\n</pre>\n", " ```\nraw content\n ```\n"):
+        yield FIRST + "\n\n" + block + last, ["AC1", "AC2"], "raw content", [False, False]
+
+
 class StateBoundaryTest(unittest.TestCase):
     def test_indented_description_retains_list_ownership(self):
         body = "## Intro\n- Item\n\n  Description\n\n  ## Acceptance criteria\n  - [ ] example only\n"

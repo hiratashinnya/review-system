@@ -1,19 +1,43 @@
 """Shared container boundary for raw blocks and inline lookahead."""
 
 import re
+from typing import NamedTuple
 
-LIST_LINE = re.compile(r"^ {0,3}(?:[-*+]|[0-9]{1,9}[.)])[ \t]+")
+LIST_LINE = re.compile(r"^( {0,3}(?:[-*+]|[0-9]{1,9}[.)]))([ \t]+)")
 THEMATIC_BREAK = re.compile(r"^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})$")
 BLOCKQUOTE = re.compile(r"^ {0,3}>")
 
 
-def list_item_indent(line: str, parent: int) -> int | None:
-    """Return the list item's content column when a marker starts a block."""
-    relative = line[parent:]
-    marker = LIST_LINE.match(relative)
-    if marker is None or not relative[marker.end():].strip() or THEMATIC_BREAK.fullmatch(relative):
+class ListItem(NamedTuple):
+    content_index: int
+    indent: int
+    indented_code: bool
+
+
+def list_items(line: str, parent: int):
+    """Recognize successive list markers and determine their content columns."""
+    index = column = parent
+    while marker := LIST_LINE.match(line[index:]):
+        if THEMATIC_BREAK.fullmatch(line[index:]) or not line[index + marker.end():].strip():
+            break
+        marker_end = column + marker.end(1)
+        actual = len((" " * column + marker.group()).expandtabs(4))
+        index += marker.end()
+        indented_code = actual - marker_end > 4
+        column = marker_end + 1 if indented_code else actual
+        yield ListItem(index, column, indented_code)
+        if indented_code:
+            break
+
+
+def start_list_items(line: str, parent: int, indents: list[int]) -> ListItem | None:
+    """Remember the item containers that begin on this physical line."""
+    items = tuple(list_items(line, parent))
+    if not items:
         return None
-    return parent + marker.end()
+    finish_inner_lists(indents, parent)
+    indents.extend(item.indent for item in items)
+    return items[-1]
 
 
 def containing_indent(line: str, indents: list[int]) -> int:

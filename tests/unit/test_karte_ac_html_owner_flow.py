@@ -4,6 +4,7 @@ import contextlib
 import io
 import tempfile
 import unittest
+from itertools import chain
 from pathlib import Path
 from unittest.mock import patch
 
@@ -12,6 +13,7 @@ from karte.ac_snapshot import digest, from_issue_body
 from karte.active_pointer import read_active
 from karte.errors import KarteUsageError
 from tests.unit.test_karte_ac_comment_blocks import comment_cases
+from tests.unit.test_karte_ac_state_boundaries import layout_cases
 
 OPTIONS = dict(run_id="run-html", target_key="pr-846", phase="implementation",
                snapshot_oid="a" * 40, input_digest="b" * 64)
@@ -62,7 +64,7 @@ class HtmlOwnerFlowTest(unittest.TestCase):
         return self.call(reviewer_cli.cmd_ingest_reviewer, root, source=str(handoff), issue=None, round=None)
 
     def test_regressions_through_real_cli_and_mock_remote(self):
-        for body, expected, drift in cases():
+        for body, expected, drift, checks in chain(((*case, None) for case in cases()), layout_cases()):
             with self.subTest(body=body), tempfile.TemporaryDirectory() as folder:
                 root = Path(folder)
                 (root / "tmp" / "_handoff").mkdir(parents=True)
@@ -70,6 +72,8 @@ class HtmlOwnerFlowTest(unittest.TestCase):
                 source.write_text(body, encoding="utf-8")
                 criteria = from_issue_body(body)
                 self.assertEqual([i.text.split()[0] for i in criteria if i.checked is not None], expected)
+                if checks is not None:
+                    self.assertEqual([i.checked for i in criteria], checks)
                 with patch("karte.ac_repository.checkout_origin", return_value=ORIGIN):
                     self.assertEqual(0, self.call(owner_cli.cmd_activate, root, issue="801",
                                      ac_snapshot_file=str(source), repair_declared_scope=False, **OPTIONS))
