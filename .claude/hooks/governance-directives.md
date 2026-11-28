@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@6f3d9e01bfdb -->
+<!-- synced-from: CLAUDE.md@261b0ef9039b -->
 <!--
   Issue #812 (2026-11-16): .claude/rules/05-skills-agents.md の gh-create-issue
   allowlist説明をエージェント定義への参照に変更。配送本文の中核規範は変えず、
@@ -285,7 +285,7 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
    （`.claude/hooks/codex-hook-trust-check.sh` を含む）・`agy-delegate`/`agy_delegate`等の外部委譲補助・
    `blocker_gate`/`pr_merge_gate`/`issue_start`/`branch_source`/`project_status_sync`/`guidance_sync`/
    `defect_metrics`・`asset_parity`/`time_fixture_lint`/`codex_hook_trust`・
-   `karte`・`jev_hooks`（TC=`tests/jev_hooks/`、TD/TR/ログ=`jev_hooks/verify/`）・CI 定義）
+   `karte`・`karte_stop_once`（起動口 `karte-stop-once.sh`）・`jev_hooks`（TC=`tests/jev_hooks/`、TD/TR/ログ=`jev_hooks/verify/`）・CI 定義）
    ＝**ノード起票もダッシュボード更新もせず `/gh-create-issue` で Issue 化**
    （`area:harness`）。`.claude/` 全体を対象外扱いしない。**新しい汎用ハーネスを追加したときは
    同一 PR でこの判定表も更新する**。**上記1〜3（PR7・起票必須・独断禁止）は起票先が変わっても弱まらない**。

@@ -48,7 +48,7 @@ FR-17／傘 SPEC-61／PROMPT-8〜20）。**`.claude/` 全体をハーネス＝�
   - Issue 運用パイプライン：`issue-pipeline`/`issue-implementer`/`issue-fixer`/`pr-reviewer`/`gitgate`
   - 実行環境の面倒を見るフック：`on-rate-limit.sh`/`resume-watcher.sh`/`install_pkgs`/
     `inject-governance.sh`/`check-governance-drift.sh`/`orchestrator-context.sh`/`agent-command-gate.sh`/
-    `codex-hook-trust-check.sh`/`issue-start-gate.sh`/`phase-tool-gate.sh`（後2者は列挙済みの
+    `codex-hook-trust-check.sh`/`karte-stop-once.sh`（`karte_stop_once` の起動口）/`issue-start-gate.sh`/`phase-tool-gate.sh`（後2者は列挙済みの
     `issue_start` の gate を起動する薄い起動口）、
     `.claude/settings.json`
   - 外部委譲・モデル選定・横展・Issue 起票の補助：`agy-delegate`/`agy_delegate`（直接実行・許可検査 CLI）/`codex-review`/`silent-failure-diagnosis`/
@@ -63,7 +63,9 @@ FR-17／傘 SPEC-61／PROMPT-8〜20）。**`.claude/` 全体をハーネス＝�
     read-only 監査。`maintainability_lint` は Issue #539 の保守性原則を review_system 本体と
     含有されない汎用ハーネスへ横断適用する baseline-ratchet であり、特定システムの生産機構ではない。
     `time_fixture_lint` の区分根拠も本表から引けるよう、`.claude/rules/04-test-data.md` だけに分散させない）
-  - 是正ループ用ツール：`karte`
+  - 是正ループ用ツール：`karte`・`karte_stop_once`（STOP 事象ごとに1回だけ次の不適切な tool を deny し
+    強い停止指示を注入する Claude Code 向けの行動介入試行。Issue #513／#867。`karte` の判定を読むだけで
+    verdict・権限ゲート・merge 判定は変更しない。どちらのシステムの仕様グラフが記述する対象でもない）
   - 外部意味評価を使うフック判定器：`jev_hooks`（Claude Code向け汎用開発ハーネス。
     どちらのシステムの仕様グラフが記述する対象でもない。TCは`tests/jev_hooks/`、
     TD/TR/ログは`jev_hooks/verify/`へ置く）
