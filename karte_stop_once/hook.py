@@ -1,0 +1,70 @@
+"""Claude PostToolUse arms one STOP event; next wrong tool is denied once."""
+import json
+import os
+import sys
+from pathlib import Path
+
+
+def _root(root):
+    if root is not None:
+        return Path(root)
+    from karte.paths import main_worktree_root
+    return main_worktree_root(os.environ["CLAUDE_PROJECT_DIR"])
+
+
+def _status(root, issue):
+    from karte.karte_loader import load_karte
+    from karte.status_payload import status_payload
+    return status_payload(load_karte(root, issue)[1], root)
+
+
+def run(kind, payload, *, root=None, status_reader=None):
+    """Pure hook response; invalid/non-target payloads do not arm other sessions."""
+    from . import decision, state, trigger  # Imported here so a load failure is logged by main.
+    if not isinstance(payload, dict) or not isinstance(payload.get("session_id"), str):
+        return None
+    session = payload["session_id"]
+    if kind == "post":
+        issue = trigger.issue_from_result(payload)
+        if issue is None:
+            return None
+        base = _root(root)
+        armed = []
+
+        def read_event():
+            value = (status_reader or _status)(base, issue)
+            event = decision.evaluate(value)
+            if value["issue"] != issue:
+                raise ValueError("status Issue does not match tool result")
+            armed.append(event)
+            return event
+
+        if state.arm(base, session, issue, read_event):
+            event = armed[0]
+            return {"hookSpecificOutput": {"hookEventName": "PostToolUse",
+                    "additionalContext": decision.instruction(event)}}
+    elif kind == "pre":
+        base = _root(root)
+        event = state.attempt(base, session, payload.get("tool_name", ""))
+        if event:
+            return {"hookSpecificOutput": {"hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": decision.instruction(event)}}
+    return None
+
+
+def main(argv=None):
+    try:
+        kind = (argv or sys.argv[1:])[0]
+        if kind not in ("pre", "post"):
+            return 2
+        response = run(kind, json.load(sys.stdin))
+        if response:
+            print(json.dumps(response, ensure_ascii=False))
+    except Exception as exc:  # A hook failure does not stop the work: log it and exit 0.
+        print(f"karte_stop_once: {type(exc).__name__}: {exc}", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
