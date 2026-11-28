@@ -66,5 +66,3 @@ def judgment(block, issue, existing, finding_state):
                 f"{block.lineno} 行目: 未充足/未検証ACのfindingは status: open が必要: {ref}"
             )
     return ACJudgment(number, result, evidence, tuple(refs))
-
-
