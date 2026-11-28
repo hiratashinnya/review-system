@@ -45,6 +45,12 @@ def containing_indent(line: str, indents: list[int]) -> int:
     return next((indent for indent in reversed(indents) if enclosing_indent(line, indent)), 0)
 
 
+def has_code_indent(line: str, parent: int) -> bool:
+    """Determine whether the remaining indentation can start an indented code block."""
+    leading = line[:len(line) - len(line.lstrip(" \t"))]
+    return len(leading.expandtabs(4)) >= parent + 4
+
+
 def finish_inner_lists(indents: list[int], parent: int) -> None:
     """Remove deeper list items when a new sibling or enclosing block begins."""
     while indents and indents[-1] > parent:

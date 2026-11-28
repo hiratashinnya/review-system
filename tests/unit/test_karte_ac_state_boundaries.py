@@ -62,6 +62,15 @@ def layout_cases():
     for padding in ("     ", "\t  "):
         body = heading + "-" + padding + "[ ] example only\n" + last
         yield body, ["AC2"], "example only", [None, False]
+    for continuation in ("", "      another literal\n"):
+        for indent, checks in ((" ", [None, None, False]), ("  ", [None, False])):
+            body = heading + "-     [ ] example only\n" + continuation + indent + "Plain requirement\n" + last
+            yield body, ["AC2"], "Plain requirement", checks
+    for width, checks in ((4, [False, False]), (6, [False, None, False])):
+        body = FIRST + "\n\n" + " " * width + "example prose\n Plain requirement\n" + last
+        yield body, ["AC1", "AC2"], "Plain requirement", checks
+    literal = FIRST + "\n\n      <!-- literal code -->\n Plain requirement\n" + last
+    yield literal, ["AC1", "AC2"], "literal code", [False, None, False]
     nested = "  - - Detail\n        ```\n      <!-- visible literal -->\n        ```\n"
     yield FIRST + "\n" + nested + last, ["AC1", "AC2"], "visible literal", [False, False]
     for block in ("<pre>\nraw content\n</pre>\n", " ```\nraw content\n ```\n"):

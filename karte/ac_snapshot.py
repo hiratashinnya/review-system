@@ -7,7 +7,7 @@ from .format_error import KarteFormatError
 from .ac_snapshot_fence import advance as advance_fence
 from .ac_snapshot_html import advance as advance_html
 from .ac_snapshot_comment import CommentFilter, comment_suffix
-from .ac_snapshot_boundary import containing_indent, finish_inner_lists, leaves_container, list_items, start_list_items
+from .ac_snapshot_boundary import containing_indent, finish_inner_lists, has_code_indent, leaves_container, list_items, start_list_items
 from .ac_snapshot_model import AC, digest
 from .ac_snapshot_heading import heading_level, remove_setext_title, section_level, block_transition
 
@@ -41,7 +41,9 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
             finish_inner_lists(list_indents, html_container)
         item = start_list_items(raw_line, active_indent, list_indents) if block_active and not in_html else None
         was_fenced = fence is not None
-        indented_code = item is not None and item.indented_code
+        indented_code = item.indented_code if item is not None else (
+            block_active and not in_html and starts_block and has_code_indent(raw_line, active_indent)
+        )
         if not was_inline_code and not in_html and not comments.in_comment and not indented_code:
             block_line = raw_line if item is None else " " * item.indent + raw_line[item.content_index:]
             fence = advance_fence(fence, block_line, list_indent=item.indent if item else active_indent)
@@ -66,7 +68,7 @@ def from_issue_body(body: str) -> tuple[AC, ...]:
         if in_ac and not heading and next_level is not None and next_level <= level:
             remove_setext_title(visible_lines, number, items)
             in_ac = False
-        boundary = block_transition(line[active_indent:], next_level, was_fenced, fence, in_html, was_inline_code, html_block)
+        boundary = block_transition(line[active_indent:], next_level, was_fenced, fence, in_html, was_inline_code, html_block, indented_code=indented_code)
         if stripped and (boundary or fenced) and item is None:
             finish_inner_lists(list_indents, active_indent)
         if heading or not in_ac:
