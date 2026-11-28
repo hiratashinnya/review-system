@@ -36,8 +36,8 @@ def cmd_activate(args, repo_root) -> int:
         raise KarteUsageError("--ac-snapshot-file は review envelope 期待値と同時指定する")
     if legacy and (expected is None or snapshot_file):
         raise KarteUsageError("--legacy-finding-only はreview envelopeのみ・AC snapshotとの併用禁止")
-    if expected is not None and not snapshot_file and not legacy:
-        raise KarteUsageError("review envelopeにはAC snapshot必須（旧形式は--legacy-finding-onlyを明示）")
+    if expected is not None and not snapshot_file and not ac_snapshot_binding.allows_finding_only(expected, legacy):
+        raise KarteUsageError("implementationのreview envelopeにはAC snapshot必須（旧形式は--legacy-finding-onlyを明示）")
     snapshot = ac_snapshot_binding.stage(repo_root, issue, next_number, snapshot_file) if snapshot_file else None
     revoked = review_attempt_history.for_activation(repo_root, issue, last, expected, snapshot, legacy)
     if snapshot is not None:

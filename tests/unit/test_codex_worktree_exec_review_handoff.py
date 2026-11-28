@@ -166,6 +166,29 @@ class CodexReviewerHandoffTests(unittest.TestCase):
         karte_path = paths.karte_path(375, self.primary)
         self.assertEqual("F-375-01", model.parse(karte_path.read_text()).findings[0].id)
 
+    def test_test_design_uses_existing_finding_only_path_without_ac_snapshot(self):
+        binding_path = self.worktree / "tmp" / "binding.json"
+        binding = json.loads(binding_path.read_text(encoding="utf-8"))
+        binding["expected"]["artifact_type"] = "TestDesign"
+        binding_path.write_text(json.dumps(binding), encoding="utf-8")
+        argv = self.activate_argv[:-1]
+        argv[argv.index("--phase") + 1] = "test_design"
+        activated = subprocess.run(
+            [sys.executable, "-m", "karte", "activate", "--issue", "375", *argv],
+            cwd=self.primary, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(0, activated.returncode, activated.stderr)
+        active = self.primary / "tmp" / "_karte" / "active.json"
+        pointer = json.loads(active.read_text(encoding="utf-8"))
+        self.assertNotIn("ac_snapshot", pointer)
+        self.assertNotIn("legacy_finding_only", pointer)
+        self.ingest.stop()
+        code, out, err = self.run_main()
+        self.assertEqual(0, code, err)
+        self.assertIn("取り込み済み", out)
+        ledger = paths.karte_path(375, self.primary).read_text(encoding="utf-8")
+        self.assertEqual("F-375-01", model.parse(ledger).findings[0].id)
+
     def test_ingest_collects_warning_emitted_only_on_stderr(self):
         from types import SimpleNamespace
         warning = "警告: stderr-only diagnostic"

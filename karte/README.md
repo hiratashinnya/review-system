@@ -11,7 +11,7 @@ docstring を正本とする。本 README は `close-attempt` の**既定値の�
 
 ## Review Summary（Issue #801）
 
-Review Summary は finding 0 件・1 件以上で共通のレビュー原本形式。既存 finding の
+2b（`implementation`）の Review Summary は finding 0 件・1 件以上で共通のレビュー原本形式。既存 finding の
 9項目や status/disposition の権限境界は変更しない。検証は
 `karte/review_summary.py` が担当し、取り込み成功 round の SHA-256 レシートを
 カルテの `## Review Rounds` に保存する。失敗入力は台帳／進行ポインタを更新しない。
@@ -66,7 +66,7 @@ finding_refs: [new@1]
 - 新しい Summary 付きroundでは原本を `tmp/_karte/issue-<N>-review-round-<R>.md` に保管し、
   台帳の `source` と `digest`（SHA-256）を記録する。保存先はカルテと同じ `tmp/_karte` で、
   **tmp の消去・別環境への転送後までの永続性は保証しない**。原本を保管する前に台帳を更新しない。
-- 主文脈はレビューdispatch時にGitHub元Issueの本文を凍結し、`karte activate ... --ac-snapshot-file <保存したUTF-8本文>` を実行する。
+- 主文脈は2bのレビューdispatch時にGitHub元Issueの本文を凍結し、`karte activate ... --phase implementation --ac-snapshot-file <保存したUTF-8本文>` を実行する。
   `ingest-reviewer` はこのtrusted snapshotの `ac_count` / `ac_snapshot_digest` とSummaryを照合し、食い違いを拒否する。AC解析ではHTMLコメント内の見出し・checkboxを無視する（フェンス内の文字列は維持）。
   保存先は `tmp/_karte/issue-N-ac-round-R-<Issue本文SHA256>.md`（旧保存名も読み取り可）、
   Codexには同じ凍結済み本文とAC digestをtrusted callerがpromptへ含める。
@@ -75,8 +75,8 @@ finding_refs: [new@1]
   不変snapshotとして保存する。再開後は新しいenvelopeのみ受理し、旧handoffを拒否する。
   main以外のロールはIssueチェック編集禁止。owner報告時の更新案生成には `karte.ac_check_update.plan`、更新後には `verify_written` を用いる。
 - **移行状態・既知の制約**：旧来の指摘ありレポートはSummaryなしでも受理する。
-  review envelopeにAC snapshotが必須で、無しの起動・取り込み・Codex起動は拒否する。
-  旧finding-only経路は `activate --legacy-finding-only` の明示指定を要し、0件Review Summaryとしての受理を禁止する。
+  2bのreview envelopeにはAC snapshotが必須。2a（`test_design`）は従来のreview envelopeと構造化findingを用いる。
+  2bの旧finding-only経路は `activate --legacy-finding-only` の明示指定を要する。AC snapshotを使わない経路ではSummaryや0件完了を受理しない。
   owner reportのACチェック更新は `python3 -m karte.ac_owner_update --issue N --round R --repository owner/repo --snapshot-source <activateで保存したsource>` の専用入口のみを使用し、一般の `gh issue edit` によるAC自動チェック更新は禁止する。`--dry-run` は書込なし。
   Review Roundの受理時にAC原本sourceとorigin(host/repository)をレシートへ保存する。owner AC更新は指定sourceと受理済みroundのsource/originを照合し、取消済みの旧原本をAPI呼出し前に拒否する。originが無い環境でもレビュー取り込みは可能だがAC自動更新は拒否する。
   この入口は受理済みreview原本のdigest・最新round・clean判定・AC原本を照合し、live本文を再取得して必要なcheckboxだけを更新し、再取得で完全一致を確認する。GitHub APIの競合（2回目の読取とPATCHの間）と、別の任意GitHub書込入口の存在は完全には排除しない。経緯・方式選択の理由は
@@ -210,12 +210,13 @@ verdict は動かず、未解消が実害なしだけなら `no-harm-only` と�
       同一 round 許可（`allow_same_round`）を通って成功しうる**が、同じ round の再取り込みは台帳の状態遷移を
       壊しうるので回復手段として選ばない。
     - **回復はいずれの場合も再実行を使わない。** 主文脈が `python3 -m karte render --issue <N>` で
-      当該 round が台帳に入っていることを確かめ、`activate --issue <N>`（次のレビューなら期待値の 5 引数つき）で
+      当該 round が台帳に入っていることを確かめ、`activate --issue <N>`（次のレビューなら下記のフェーズ別引数。2bでは凍結AC原本も指定）で
       ポインタを台帳の最新 round へ向け直す。この回復はポインタと期待値だけを直し、台帳の finding は変えない。
-- **`activate --issue <N> [--run-id R --target-key K --snapshot-oid OID --input-digest D --phase P]`**
+- **`activate --issue <N> [--run-id R --target-key K --snapshot-oid OID --input-digest D --phase test_design]`**
   （主文脈専用）：進行ポインタを対象 Issue へ向ける（round は取り込み済みの最新、台帳が無ければ 0）。
   初回の `ingest-reviewer` の前に実行する。5 つの envelope 引数は**全部同時に**与え、review handoff の期待値として
-  ポインタへ記録する（下記「review handoff の共通 envelope」）。1 つも与えなければ期待値なし（レビューア待ちの解除）。
+  ポインタへ記録する（下記「review handoff の共通 envelope」）。2bの末尾は `--phase implementation --ac-snapshot-file <保存したUTF-8本文>` とする。
+  envelope 引数を省略するとレビューア待ちを解除する。
   `--repair-declared-scope` は envelope 引数のいずれとも同時指定できず、一部だけの指定も拒否する。
   **`activate` はどちらの形でも申告 scope の原本を作らない**。原本を作るのは検証を通ったレビューア本人の
   取り込み（`ingest-reviewer`）だけ。trusted AC snapshot と完了マーカー付きの **Review Summary は finding 0 件でも受理**し、

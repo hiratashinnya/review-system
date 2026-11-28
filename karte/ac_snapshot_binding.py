@@ -8,6 +8,11 @@ from .ac_snapshot_archive import path_for_stage, path_for_record
 from .errors import KarteUsageError
 
 
+def allows_finding_only(expected, legacy=False):
+    """2aの従来形式と明示された移行用形式はAC snapshotを必要としない。"""
+    return isinstance(expected, dict) and (expected.get("phase") == "test_design" or legacy is True)
+
+
 def stage(repo_root, issue, round_no, source):
     """信頼済みcallerのIssue本文を保存し、roundとの照合期待値を発行。"""
     candidate = paths.resolve_within_repo(source, repo_root)
@@ -38,11 +43,11 @@ def read_for_dispatch(repo_root, issue, round_no):
         raise KarteUsageError("review dispatchのAC snapshotと進行ポインタが不一致")
     if "review_expect" not in active:
         raise KarteUsageError("review envelopeの期待値が無い。主文脈の再activateが必要")
-    record = active.get("ac_snapshot")
-    if record is None:
-        if active.get("legacy_finding_only") is True:
-            return None  # 明示した既存findingのみの互換経路。AC判定を保証しない。
+    if "ac_snapshot" not in active:
+        if allows_finding_only(active["review_expect"], active.get("legacy_finding_only")):
+            return None
         raise KarteUsageError("AC snapshot無しのreview envelopeは受理しない")
+    record = active["ac_snapshot"]
     if not isinstance(record, dict) or set(record) not in (
             {"digest", "count", "source"}, {"digest", "count", "source", "host", "repository"}):
         raise KarteUsageError("AC snapshotの期待値が不正")

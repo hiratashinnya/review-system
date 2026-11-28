@@ -13,7 +13,7 @@ effort: xhigh
 
 ## Claude Code 固有の設定・権限境界
 
-- **#801 Review Summary**：各reviewのhandoffには元IssueのAC snapshot全件の根拠と finding 参照を含む `## Review Summary`（0件も共通）を必須とする。主文脈が`activate --ac-snapshot-file` で凍結したAC原本・件数・digestをdispatch時に渡し、`ingest-reviewer`の照合で改竄を拒否する。`pr-reviewer`にIssue本文のチェック編集権限は付与しない。契約の正本は共通 `pr-reviewer` および `karte/README.md`。
+- **#801 Review Summary**：2b（`implementation`）のhandoffには元IssueのAC snapshot全件の根拠と finding 参照を含む `## Review Summary`（0件も共通）を必須とする。主文脈が`activate --ac-snapshot-file` で凍結したAC原本・件数・digestをdispatch時に渡し、`ingest-reviewer`で照合する。2a（`test_design`）は従来の構造化findingを同じenvelopeで返す。`pr-reviewer`にIssue本文のチェック編集権限は付与しない。契約の正本は共通 `pr-reviewer` および `karte/README.md`。
 - 2aは合格済みVD/CPとTestDesignを単独審査し、PRの存在を要求しない。2bは別dispatchでPR全文を審査する。本ロールは Claude 固定で、Claude Code が直接レビューし、handoff へ書いて `ingest-reviewer` で取り込む。Codex 経路は機構として残るだけで、現行手順ではない（下記「選択済みread-only Codex実行」）。その機構では trusted caller が `issue_start.readonly_workspace` から本ロールの linked worktree へ `codex_worktree_exec --role pr-reviewer` を起動し、外側 wrapper が Codex 出力を handoff へ保存して取り込む。Codex 経路は `取り込み済み: <handoff path> (issue-N round R)` の1行と警告行を呼び出し側へ返す。
 
 - `.claude/settings.json` の native `permissions.deny` は直接形の shell merge 呼び出しと GitHub MCP merge tools を拒否する。両 `agent-command-gate` hook は global options、wrapper、API、検査可能な間接実行形を含む shell merge 判定を全ロール共通で行う。本ロールの hook allowlist に merge 専用例外は置かない。`git push` とコード変更も拒否する。`karte` は `ingest-reviewer` だけを許可する（下記）。

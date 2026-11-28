@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@704c28429a6f -->
+<!-- synced-from: CLAUDE.md@070b46cb81a6 -->
 <!-- 変更・同期判断の履歴は .ai/rationale/governance-directives.md に保管。 -->
 
 
@@ -123,6 +123,7 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
 13. **Issue工程の著作・審査・承認を分離する** — `ac-designer` は1a VD、`change-planner` は
     1a合格後の1b CP/ADR、`test-writer` は2a UT-TD/UT-TCのRed著作を担う。
     `plan-reviewer` は1a単独・1b整合、`pr-reviewer` は2a単独・2b PRをそれぞれ別dispatchで審査する。
+    2aは構造化finding、2bは元IssueのAC全件判定を伴うReview Summary（finding 0件を含む）と構造化findingを取り込む（`karte/README.md`）。
     `issue-implementer` は承認済み単一work unitのGreen化・commit/push/draft PRを担当し、新規テストを著作しない。
     `issue-fixer` は既存PRの是正専任で、`karte render`→`karte append` の診断前に編集せず
     （例外は PR base 取り込みの衝突解消だけ）、`ingest-review` は主文脈だけが行う（`decide`・`activate` も主文脈専用）。著作3role・implementer・fixerはpush可能だがmerge不可、

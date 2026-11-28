@@ -12,7 +12,7 @@ worktree／handoff の回復手順は [issue-pipeline の troubleshooting](../..
 ## Claude Code 固有の dispatch 契約
 
 - **Issue #523 捕捉**：dispatch 前後のオーナー判断で AI 推奨を覆したら、主文脈がその場で逐語・推奨・差分・根拠を `feedback_ledger new-entry` へ保存する。`waived` / reviewer scope の覆しは実在する FBK ID を `karte decide --override-ref` に渡す。レビュー/実装ロールへ台帳の著作を委譲しない。処置順・STOP・merge 等の機械非可視判断は主文脈の記録契約（fail-open）とする。詳細・復旧は共有 SKILL ②-c と `karte/README.md` を参照。
-- **#801 AC契約**：主文脈は2bのreviewer起動前に元IssueのAC全文をsnapshotとして凍結し `karte activate ... --ac-snapshot-file` に与える。Claude reviewerはAC全件のSummaryとfindingをhandoffへ記入し、Codex reviewerはネットワークに頼らずwrapperが注入した同一snapshotを審査する。受理後は共通本文「レビュー受理後のAC後退確認」に従う。clean後のACcheckbox更新は**主文脈のみ**が本文再取得・snapshot照合・更新後read-backを行う。文言変更やチェック取り外しは自動実施しない。
+- **#801 AC契約**：主文脈は2bのreviewer起動前に元IssueのAC全文をsnapshotとして凍結し `karte activate ... --phase implementation --ac-snapshot-file <ファイル>` に与える。Claude reviewerはAC全件のSummaryとfindingをhandoffへ記入し、Codex reviewerはwrapperが注入した同一snapshotを審査する。2bの受理後は共通本文「レビュー受理後のAC後退確認」に従う。2aの `karte activate ... --phase test_design` と構造化findingの取り込みは従来どおり。clean後のACcheckbox更新は**主文脈のみ**が本文再取得・snapshot照合・更新後read-backを行う。文言変更やチェック取り外しは自動実施しない。
 
 
 - 主文脈だけが `AskUserQuestion` を持ち、これを使ってオーナーの判断を仰ぐ。処置順の確定・先送り可否・スコープ拡張の起票要否・`scope` の覆し・`disposition` の決定はいずれもオーナーが決めるのであって主文脈が決めるのではない（`.ai/skills/issue-pipeline/SKILL.md`「役割分担」）。主文脈が担うのは原案の作成、`AskUserQuestion` での伺い、得られた決定の記録と実行である。`issue-implementer`、`issue-fixer`、`pr-reviewer` は `AskUserQuestion` を持たず、非対話で STOP 報告する。

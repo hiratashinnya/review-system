@@ -23,9 +23,9 @@ def cmd_ingest_reviewer(args, repo_root) -> int:
     active = read_active(repo_root, required=True)
     if "ac_snapshot" in active and "legacy_finding_only" not in active:
         ac_snapshot_binding.validate(repo_root, issue, round_no, report)
-    elif active.get("legacy_finding_only") is True and "ac_snapshot" not in active:
+    elif "ac_snapshot" not in active and ac_snapshot_binding.allows_finding_only(expected, active.get("legacy_finding_only")):
         if "## Review Summary" in report or "<!-- review-complete -->" in report:
-            raise KarteUsageError("legacy finding-only経路ではAC Summaryや0件完了を受理しない")
+            raise KarteUsageError("finding-only経路ではAC Summaryや0件完了を受理しない")
     else:
         raise KarteUsageError("AC snapshotが無いreview envelopeの取り込みを拒否")
     policy = ReviewerIngestPolicy(repo_root, issue, round_no)

@@ -263,18 +263,18 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 
 ### ②-b 初回レビュー
 
-- **AC snapshotとReview Summary（#801）**：主文脈は対象Issue本文（ACが子Issueに移っているtracking Issueでは対象の子Issue本文）をレビューdispatch時にGitHubから取得し、UTF-8ファイルとして凍結する。レビューアへそのAC全件（文言・既存チェック状態・順序）と `karte/ac_snapshot.digest` 相当のdigestを渡す。レビューはPR差分だけでなく元IssueのAC全件を審査し、findingが0件でも1件以上でも `## Review Summary` に全AC判定・根拠・関連finding IDと `<!-- review-complete -->` を必ず書く。未充足・未検証のACは `harm: real` findingに関連付ける。非checkboxのACも判定するがチェック付与はしない。オーナー判断前にdeferred/waivedを決定しない。本文仕様は `karte/README.md`「Review Summary」を参照する。
+- **2bのAC snapshotとReview Summary（#801）**：主文脈は対象Issue本文（ACが子Issueに移っているtracking Issueでは対象の子Issue本文）をレビューdispatch時にGitHubから取得し、UTF-8ファイルとして凍結する。レビューアへそのAC全件（文言・既存チェック状態・順序）と `karte/ac_snapshot.digest` 相当のdigestを渡す。レビューはPR差分だけでなく元IssueのAC全件を審査し、findingが0件でも1件以上でも `## Review Summary` に全AC判定・根拠・関連finding IDと `<!-- review-complete -->` を必ず書く。未充足・未検証のACは `harm: real` findingに関連付ける。非checkboxのACも判定するがチェック付与はしない。オーナー判断前にdeferred/waivedを決定しない。本文仕様は `karte/README.md`「Review Summary」を参照する。
 
 
 - 初回レビューのモデル層／推論予算はリスク信号で選ぶ。共有資産、広域変更、前例のない判断、権限境界、曖昧な仕様があれば判断ボトルネックとして高い側を選び、根拠を1行残す。具体的な設定キーと写像は各 PF wrapper に置く。
 - レビュー担当は各 finding の実害、根拠、期待値、再確認方法を構造化して返す（Claude Code の pr-reviewer は handoff へ書いて本人が取り込む。全文はチャットに返さない。手順は②-c。Codex の外側 wrapper による自動取り込みは機構として残るが、既定では使わない）。構造化 finding は `harm`/`harm_detail`/`severity`/`scope`/`locus`/`summary`/`evidence`/`expected`/`recheck`/`status` をキーとして返す。レビューコメントには AI 対応であることと具体的な変更・根拠を残す。
 - **スコープ外の指摘も同じ finding の列に入れる**。別のセクション・チャットでの列挙へ逃がさない。スコープ内外は `scope: in | out` の申告として記録するだけで、`harm` の判定・記録台帳・clean 判定のいずれの免除にもならない。レビュー担当の `scope` は申告であって確定ではなく、これを覆せるのはオーナーだけである。
 - **レビュー結果（初回・再レビューとも）は主文脈が当該 PR へ AI 帰属明記で記録する。** 依頼内の通常操作についての確認・報告と権限境界は `.ai/guidance/common.md`「作業分離・判断境界」に従う。
-- 下記「レビュー受理後のAC後退確認」を行ってから分岐する。承認・却下・clean を偽らない。未解消 finding があれば処置ループへ進む。
+- 2bの受理後は下記「レビュー受理後のAC後退確認」を行ってから分岐する。承認・却下・clean を偽らない。未解消 finding があれば処置ループへ進む。
 
 #### レビュー受理後のAC後退確認
 
-初回・再レビューとも、主文脈は受理後に clean／是正の分岐を選ぶ前に、当該roundの台帳レシートとレビュー原本の `source`・SHA-256を照合する。dispatch時に凍結したAC snapshotの文言・順序・チェック状態と、受理済み `Review Summary` のAC判定を照合する。
+2b（`implementation`）の初回・再レビューとも、主文脈は受理後に clean／是正の分岐を選ぶ前に、当該roundの台帳レシートとレビュー原本の `source`・SHA-256を照合する。dispatch時に凍結したAC snapshotの文言・順序・チェック状態と、受理済み `Review Summary` のAC判定を照合する。2a（`test_design`）は構造化findingに従って分岐する。
 
 凍結時点でチェック済みのACが `not_met` または `unverified` なら、主文脈は当該IssueのACチェック更新をすべて止め、既存チェックを維持する。オーナーにはチャットでIssue・round・AC番号と文言・判定根拠・関連findingを示し、更新を停止したことを報告する。cleanの成立は報告の前提にしない。取り込んだレビュー結果・原本・findingの記録は保持し、findingの処置は②-cに従う。オーナーの `deferred` / `waived` でfindingがcleanになっても、そのroundのACチェック更新は停止したままとする。
 
@@ -284,8 +284,8 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 - **レビュー結果を記録するとき、実装担当・是正担当のハンドオフに載った `out_of_scope_findings` も同じ finding の列へ写して記録する**。記録の実行は主文脈が行う（当事者ロールには行わせない）。
 - **将来の finding-triager（#691）の分離・実装契約**：実装時には `.ai/skills/review-harm/SKILL.md` の全文をコンテキストへ供給して同一の実害基準を適用する。レビュー原本と triage 判断成果物を別に保持し、処置方針と scope のオーナー権限は変更しない。現時点で triager は未実装である。
 - **オーナーが決めた `disposition` と、オーナーが覆した `scope` は、主文脈が台帳へ記録する。主文脈はこれらを決めない。** 手順は次のとおり。
-  1a. **#801 のAC凍結（承認④⑤）**：主文脈がレビュー開始前に `gh issue view <元Issue> --json body` 等の信頼済みGitHub APIから本文を取得し、レビュー対象として確定したIssueのUTF-8本文をリポジトリ内の一意なファイルに保存する。工程レビューの `karte activate` には上記の5引数に加えて `--ac-snapshot-file <ファイル>` を指定する。これにより `activate` 出力の `AC snapshot: <source> count=... sha256=...` が示すハッシュ付き原本（`tmp/_karte/issue-N-ac-round-R-<Issue本文SHA256>.md`）へ本文が凍結され、AC件数・digestがレビュー期待値へ保存される。主文脈はこの `source`・count・digest・roundをdispatch時に記録し、取り込み後にactive pointerから消えても保持する。待機を取り消して再dispatchするときは旧envelopeを再利用せず、新しい `run_id` を発行する。レビューアは同一snapshotだけを参照し、`ingest-reviewer` はAC件数・digestとSummaryの一致を確認し不一致なら拒否する。Codexはnetwork無効なので、trusted callerは凍結ファイルからAC全文とdigestを読み込み、レビューpromptに組み込んで `--prompt-file` へ渡す。Codex自身にGitHubへのアクセスやIssue変更権限を付けない。元Issueが非checkbox形式、ACなし、tracking型ならそれぞれ非checkboxの判定のみ／0件／対象子Issueでの処理とする。snapshotの作成元をレビューアの自己申告から補わない。
-  1. 各レビューの前（初回ラウンドを含む）に主文脈が `python3 -m karte activate --issue <N> --run-id <run_id> --target-key <target_key> --snapshot-oid <レビュー対象の40桁OID> --input-digest <レビュー入力のsha256> --phase <test_design|implementation>` で進行ポインタを向け、review handoff の共通 envelope（#371）の期待値を記録する。5 つの envelope 引数は同時に指定する。期待値は取り込み成功で消える1回限りで、残っている間は主文脈の `ingest-review` が拒否される（レビューアの申告原本を迂回させない）。`activate` 自体は申告 scope の原本を作らない（原本はレビューア本人の `ingest-reviewer` が検証を通ったときに作り、以後その Issue は保護モードになる。待ちの間は上記の拒否が round 1 でも迂回を防ぐ）。`run_id` と `target_key` はヘッダへ往復できる値（英数字で始まる 128 文字以内の英数字と `. _ : / @ + # -`）に限り、空白や `-->` を含む値は `activate` が拒否する。出力されるヘッダ行（`<!-- handoff issue=… round=… -->`）を dispatch prompt へそのまま渡す。レビューアを使わず主文脈が取り込む場合は、envelope 引数なしの `activate` で待ちを解除する。レビューア取り込み前の待ち取消なら原本が無く、主文脈の `ingest-review` は従来動作に戻る。レビューアが既に取り込んで原本がある Issue では、待ちを取り消しても原本は消えず保護モード（追記専用）が残る。失敗・未完了時は次の窓を区別する。
+  1a. **2b（`implementation`）のAC凍結（#801、承認④⑤）**：主文脈がレビュー開始前に `gh issue view <元Issue> --json body` 等の信頼済みGitHub APIから本文を取得し、レビュー対象として確定したIssueのUTF-8本文をリポジトリ内の一意なファイルに保存する。手順1の `karte activate` の末尾を `--phase implementation --ac-snapshot-file <ファイル>` とする。これにより `activate` 出力の `AC snapshot: <source> count=... sha256=...` が示すハッシュ付き原本（`tmp/_karte/issue-N-ac-round-R-<Issue本文SHA256>.md`）へ本文が凍結され、AC件数・digestがレビュー期待値へ保存される。主文脈はこの `source`・count・digest・roundをdispatch時に記録し、取り込み後にactive pointerから消えても保持する。レビューアは同一snapshotだけを参照し、`ingest-reviewer` はAC件数・digestとSummaryの一致を確認し不一致なら拒否する。Codexはnetwork無効なので、trusted callerは凍結ファイルからAC全文とdigestを読み込み、レビューpromptに組み込んで `--prompt-file` へ渡す。Codex自身にGitHubへのアクセスやIssue変更権限を付けない。元Issueが非checkbox形式、ACなし、tracking型ならそれぞれ非checkboxの判定のみ／0件／対象子Issueでの処理とする。snapshotの作成元をレビューアの自己申告から補わない。
+  1. 各レビューの前（初回ラウンドを含む）に主文脈が `python3 -m karte activate --issue <N> --run-id <run_id> --target-key <target_key> --snapshot-oid <レビュー対象の40桁OID> --input-digest <レビュー入力のsha256> --phase test_design` で進行ポインタを向け、review handoff の共通 envelope（#371）の期待値を記録する。このコマンドは2a用で、2bでは末尾を手順1aの `--phase implementation --ac-snapshot-file <ファイル>` とする。5 つの envelope 引数は両方で同時に指定する。待機を取り消して再dispatchするときは新しい `run_id` を発行する。期待値は取り込み成功で消える1回限りで、残っている間は主文脈の `ingest-review` が拒否される（レビューアの申告原本を迂回させない）。`activate` 自体は申告 scope の原本を作らない（原本はレビューア本人の `ingest-reviewer` が検証を通ったときに作り、以後その Issue は保護モードになる。待ちの間は上記の拒否が round 1 でも迂回を防ぐ）。`run_id` と `target_key` はヘッダへ往復できる値（英数字で始まる 128 文字以内の英数字と `. _ : / @ + # -`）に限り、空白や `-->` を含む値は `activate` が拒否する。出力されるヘッダ行（`<!-- handoff issue=… round=… -->`）を dispatch prompt へそのまま渡す。レビューアを使わず主文脈が取り込む場合は、envelope 引数なしの `activate` で待ちを解除する。レビューア取り込み前の待ち取消なら原本が無く、主文脈の `ingest-review` は従来動作に戻る。レビューアが既に取り込んで原本がある Issue では、待ちを取り消しても原本は消えず保護モード（追記専用）が残る。失敗・未完了時は次の窓を区別する。
       - **台帳の書込み失敗（F-375-22）**：台帳に当該 round が無く（原本だけ残りうる）、ポインタは進まず期待値も残る。
         **同じ handoff で `ingest-reviewer` を再実行する**。台帳の最新 round は進んでいないので同じ round として受理される。
         原本が残った Issue は待ち取消でも保護モードが残りうる。回復手順は `karte/README.md`「台帳の書込みが失敗した窓」。
@@ -294,7 +294,7 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
         台帳の最新 round を明示しても、`### new` で台帳に入った未解消 finding と同一の指摘を再発番すれば
         「ID 再発番を検出」で拒否される。既存 ID の再掲だけなら成功しうるが、同じ round の再取り込みは状態遷移を壊しうる。
         主文脈が `python3 -m karte render --issue <N>` で当該 round が台帳に入っていることを確かめ、
-        `activate --issue <N>`（次のレビューなら期待値の 5 引数つき）でポインタを台帳の最新 round へ向け直す。
+        `activate --issue <N>`（次のレビューなら手順1のフェーズ別コマンド。2bでは凍結AC原本も指定）でポインタを台帳の最新 round へ向け直す。
         台帳の finding は変えない。詳細は `karte/README.md`「進行ポインタの書込みが台帳より後に失敗した窓」。
       - **INCOMPLETE（終了コード 5）**：台帳に round は記録済みで期待値も消費済み。**同じ handoff を再取り込みしない**。
         手順 2 のとおり `activate` で期待値を記録し直して再レビューし、次のレビューで未再掲 finding を再掲させる。
@@ -311,7 +311,7 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
   - 実装・是正担当の `out_of_scope_findings` は主文脈が finding レポートに写し、`python3 -m karte ingest-review --issue <N> --round <最新R> --from <path>` で追記する。申告原本がある Issue では保護モードとなり、主文脈 `ingest-review` は新規 finding の追記専用である。既存 ID の再掲は全件拒否し、未再掲の open finding は引き継いで警告する。専権キーは無視して警告する。主文脈による追加は申告原本に記録しない。 最初の書き手は `karte.scope_origin.first_writers`、レビューア申告は `reviewer_declarations` で区別し、未記録・unknown を reviewer 申告や覆しなしと扱わない（`karte/README.md`「scope の出所」）。最新 round の明示でレビュー round を進めず、次の `ingest-reviewer` は進行ポインタの次 round を使う。ポインタが遅れて省略 round が台帳最新値と一致した場合、主文脈経路は同じ round へ追記する。
   - `decide` / `activate` / `ingest-review` / `handoff-preview` / `handoff-post` / `handoff-recheck` は主文脈専用で、是正当事者ロールは実行できない。Codex 側 gate は `pr-reviewer` に karte verb を許可しない。Codex の取り込みは外側 wrapper が行う。
 - **是正担当が `integrate-base-abort` の後に STOP したら**、主文脈は報告をオーナーへ打ち上げたうえで、返された退避 tar から必要な内容を取り出し、是正担当を再 dispatch するときに渡す。主文脈は衝突解消の適用・確定を行わない。詳細の正本は `docs/tools/gitgate-base-integration.md`「中止と回復」で、ここへ複製しない。
-- 再レビューは既定のレビュー設定で行う。受理後は「レビュー受理後のAC後退確認」を行う。ラウンド上限で打ち切らず、実害と無進捗を基準に続行・停止を判定する。
+- 再レビューは既定のレビュー設定で行う。2bの受理後は「レビュー受理後のAC後退確認」を行う。ラウンド上限で打ち切らず、実害と無進捗を基準に続行・停止を判定する。
 - **clean の条件は「未解消 finding が0件」ではなく「clean を妨げる未解消 finding が0件」**である（次節）。clean ならマージ経路へ進む。残る finding が実害なしだけでも握りつぶさず、起票案＋理由付き推奨を添えてオーナー判断を仰ぐ。
 
 ### ②-d オーナーによるマージ → クローズ

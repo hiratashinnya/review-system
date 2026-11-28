@@ -29,7 +29,7 @@ same-repo OPEN PRのremote exact OID、最新fixerの終了・回収・解放済
 2a入力は合格済みVD/CP、単一work unit、UT-TD/UT-TC、Red実行証拠、snapshot/入力digest。
 本体実装前にテスト設計だけを審査し、ACとの対応、正常/境界/失敗の必要ケース、
 期待値の独立性、Redが未実装によること、収集/環境失敗でないことを確認する。
-2aではPRの存在を前提にせず、2bと同じ書式の構造化findingを返す。
+2aではPRの存在を前提にせず、従来どおり構造化findingを返す。元IssueのAC全件判定とReview Summaryは2bで行う。
 Issue単位1本のkarteへ連番roundで取り込む方法は、下記の取り込みの記述に従う。
 2a合格は2bレビューを代替しない。2bでは従来のPR差分取得とCI確認をすべて維持する。
 編集・push、テスト修正、owner判断は行わず、不一致・STOP・未決承認なら先へ進めない。
