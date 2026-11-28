@@ -270,7 +270,13 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 - レビュー担当は各 finding の実害、根拠、期待値、再確認方法を構造化して返す（Claude Code の pr-reviewer は handoff へ書いて本人が取り込む。全文はチャットに返さない。手順は②-c。Codex の外側 wrapper による自動取り込みは機構として残るが、既定では使わない）。構造化 finding は `harm`/`harm_detail`/`severity`/`scope`/`locus`/`summary`/`evidence`/`expected`/`recheck`/`status` をキーとして返す。レビューコメントには AI 対応であることと具体的な変更・根拠を残す。
 - **スコープ外の指摘も同じ finding の列に入れる**。別のセクション・チャットでの列挙へ逃がさない。スコープ内外は `scope: in | out` の申告として記録するだけで、`harm` の判定・記録台帳・clean 判定のいずれの免除にもならない。レビュー担当の `scope` は申告であって確定ではなく、これを覆せるのはオーナーだけである。
 - **レビュー結果（初回・再レビューとも）は主文脈が当該 PR へ AI 帰属明記で記録する。** 依頼内の通常操作についての確認・報告と権限境界は `.ai/guidance/common.md`「作業分離・判断境界」に従う。
-- 承認・却下・clean を偽らない。未解消 finding があれば処置ループへ進む。
+- 下記「レビュー受理後のAC後退確認」を行ってから分岐する。承認・却下・clean を偽らない。未解消 finding があれば処置ループへ進む。
+
+#### レビュー受理後のAC後退確認
+
+初回・再レビューとも、主文脈は受理後に clean／是正の分岐を選ぶ前に、当該roundの台帳レシートとレビュー原本の `source`・SHA-256を照合する。dispatch時に凍結したAC snapshotの文言・順序・チェック状態と、受理済み `Review Summary` のAC判定を照合する。
+
+凍結時点でチェック済みのACが `not_met` または `unverified` なら、主文脈は当該IssueのACチェック更新をすべて止め、既存チェックを維持する。オーナーにはチャットでIssue・round・AC番号と文言・判定根拠・関連findingを示し、更新を停止したことを報告する。cleanの成立は報告の前提にしない。取り込んだレビュー結果・原本・findingの記録は保持し、findingの処置は②-cに従う。オーナーの `deferred` / `waived` でfindingがcleanになっても、そのroundのACチェック更新は停止したままとする。
 
 ### ②-c 是正 → 再レビュー
 
@@ -305,12 +311,12 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
   - 実装・是正担当の `out_of_scope_findings` は主文脈が finding レポートに写し、`python3 -m karte ingest-review --issue <N> --round <最新R> --from <path>` で追記する。申告原本がある Issue では保護モードとなり、主文脈 `ingest-review` は新規 finding の追記専用である。既存 ID の再掲は全件拒否し、未再掲の open finding は引き継いで警告する。専権キーは無視して警告する。主文脈による追加は申告原本に記録しない。 最初の書き手は `karte.scope_origin.first_writers`、レビューア申告は `reviewer_declarations` で区別し、未記録・unknown を reviewer 申告や覆しなしと扱わない（`karte/README.md`「scope の出所」）。最新 round の明示でレビュー round を進めず、次の `ingest-reviewer` は進行ポインタの次 round を使う。ポインタが遅れて省略 round が台帳最新値と一致した場合、主文脈経路は同じ round へ追記する。
   - `decide` / `activate` / `ingest-review` / `handoff-preview` / `handoff-post` / `handoff-recheck` は主文脈専用で、是正当事者ロールは実行できない。Codex 側 gate は `pr-reviewer` に karte verb を許可しない。Codex の取り込みは外側 wrapper が行う。
 - **是正担当が `integrate-base-abort` の後に STOP したら**、主文脈は報告をオーナーへ打ち上げたうえで、返された退避 tar から必要な内容を取り出し、是正担当を再 dispatch するときに渡す。主文脈は衝突解消の適用・確定を行わない。詳細の正本は `docs/tools/gitgate-base-integration.md`「中止と回復」で、ここへ複製しない。
-- 再レビューは既定のレビュー設定で行う。ラウンド上限で打ち切らず、実害と無進捗を基準に続行・停止を判定する。
+- 再レビューは既定のレビュー設定で行う。受理後は「レビュー受理後のAC後退確認」を行う。ラウンド上限で打ち切らず、実害と無進捗を基準に続行・停止を判定する。
 - **clean の条件は「未解消 finding が0件」ではなく「clean を妨げる未解消 finding が0件」**である（次節）。clean ならマージ経路へ進む。残る finding が実害なしだけでも握りつぶさず、起票案＋理由付き推奨を添えてオーナー判断を仰ぐ。
 
 ### ②-d オーナーによるマージ → クローズ
 
-- **AC checkboxの事後更新（#801）**：reviewが clean となり、主文脈がカルテの最新roundのレビュー原本 `source` をdigest照合して読み取り、`Review Summary` のAC全件判定を確認する。dispatch時に記録したハッシュ付きAC原本 `source`（`tmp/_karte/issue-N-ac-round-R-<Issue本文SHA256>.md`）を保存時のdigest・roundと照合して読み、レビュー開始時のcheckout `origin` に由来する凍結した **GitHubホストとrepositoryの組**（`.md.repository.json`）を検証し、CLIの `--repository` を照合する。不一致・未束縛の場合はGitHub API呼出し前に停止する。`gh api --hostname <凍結host>` を読取・書込・read-backの全操作で明示し、`GH_HOST` 等の実行環境には更新先ホストを決めさせない。その後GitHubの最新Issue本文と比較し、AC文言・順序・チェック状態にdriftがある場合は書込みせずオーナーへ報告する。driftが無い場合に限り、主文脈は `python3 -m karte.ac_owner_update --issue <N> --round <R> --repository <owner/repo> --snapshot-source <activate出力のsource>` を実行する。この専用入口は受理済み最新roundの原本SHA-256・clean verdict・**受理roundに保存されたAC原本sourceとorigin(host/repository)**・AC digest/件数・凍結原本・live本文を機械照合し、取消済み原本指定は拒否し、`satisfied` の未チェックcheckboxだけをGitHub IssueへPATCHし、read-backで本文全体を照合する。事前確認は `--dry-run` で書込なしに実行できる。**ACチェックの自動更新に直接の `gh issue edit` / `gh api PATCH` を使用しない。**変更対象AC・根拠・read-back結果を事後報告する。レビューア／是正担当はIssue本文を編集しない。未充足・未検証ACは `deferred` / `waived` によりfinding側がcleanでもチェックしない。既存チェック済みACの後退時は自動で取り外さずオーナー判断へ停止する（未決③）。GitHub APIのread/write間の競合を完全には閉じられないことは既知の限界とする。
+- **AC checkboxの事後更新（#801）**：reviewが clean となり、「レビュー受理後のAC後退確認」で更新停止の対象とならない場合に進む。主文脈がカルテの最新roundのレビュー原本 `source` をdigest照合して読み取り、`Review Summary` のAC全件判定を確認する。dispatch時に記録したハッシュ付きAC原本 `source`（`tmp/_karte/issue-N-ac-round-R-<Issue本文SHA256>.md`）を保存時のdigest・roundと照合して読み、レビュー開始時のcheckout `origin` に由来する凍結した **GitHubホストとrepositoryの組**（`.md.repository.json`）を検証し、CLIの `--repository` を照合する。不一致・未束縛の場合はGitHub API呼出し前に停止する。`gh api --hostname <凍結host>` を読取・書込・read-backの全操作で明示し、`GH_HOST` 等の実行環境には更新先ホストを決めさせない。その後GitHubの最新Issue本文と比較し、AC文言・順序・チェック状態にdriftがある場合は書込みせずオーナーへ報告する。driftが無い場合に限り、主文脈は `python3 -m karte.ac_owner_update --issue <N> --round <R> --repository <owner/repo> --snapshot-source <activate出力のsource>` を実行する。この専用入口は受理済み最新roundの原本SHA-256・clean verdict・**受理roundに保存されたAC原本sourceとorigin(host/repository)**・AC digest/件数・凍結原本・live本文を機械照合し、取消済み原本指定と既存チェック済みACの後退は拒否し、`satisfied` の未チェックcheckboxだけをGitHub IssueへPATCHし、read-backで本文全体を照合する。事前確認は `--dry-run` で書込なしに実行できる。**ACチェックの自動更新に直接の `gh issue edit` / `gh api PATCH` を使用しない。**変更対象AC・根拠・read-back結果を事後報告する。レビューア／是正担当はIssue本文を編集しない。未充足・未検証ACは `deferred` / `waived` によりfinding側がcleanでもチェックしない。GitHub APIのread/write間の競合を完全には閉じられないことは既知の限界とする。
 
 
 - 合流前に主文脈が `python3 -m karte handoff-recheck` を実行し、`invalid` や不一致があれば出力で指摘する。
